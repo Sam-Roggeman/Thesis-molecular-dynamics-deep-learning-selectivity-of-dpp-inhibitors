@@ -19,3 +19,8 @@ class RandomGenerator(metaclass=Singleton):
     def generate_random_unit_vector(self):
         random_vector = self.rng.normal(size=3)
         random_vector /= np.linalg.norm(random_vector)  # Normalize the random vector
+        return random_vector
+
+
+    def random_uniform(self, param, radius, size):
+        return self.rng.uniform(param, radius, size=size)
