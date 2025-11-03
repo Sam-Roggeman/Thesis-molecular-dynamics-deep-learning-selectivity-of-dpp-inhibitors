@@ -51,6 +51,7 @@ def train_test_val_split():
         val_size = 1.0 - train_size - test_size
         # split the data into train, test and validation sets
         dataset = torchvision.datasets.ImageFolder(root=full_dataset_folder)
+        total_size = len(dataset)
 
         train_dataset, test_dataset, val_dataset = torch.utils.data.random_split(dataset, [train_size, test_size, val_size])
 

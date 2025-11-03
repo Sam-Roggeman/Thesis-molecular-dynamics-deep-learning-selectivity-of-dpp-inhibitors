@@ -1,6 +1,5 @@
 import torch
 import matplotlib.pyplot as plt
-from pip._vendor.resolvelib.resolvers import criterion
 
 
 class Metrics:
@@ -14,7 +13,7 @@ class Metrics:
         self.patience_counter = 0
 
     @staticmethod
-    def _calculate_accuracy(model, dataloader, device):
+    def calculate_accuracy(model, dataloader, device):
         correct = 0
         total = 0
 
@@ -43,13 +42,13 @@ class Metrics:
         val_loss /= len(dataloader)
         return val_loss
 
-    def update(self, trainloader, testloader, model, running_loss, device):
+    def update(self, trainloader, testloader, model, running_loss, criterion, device):
         self.train_loss.append(running_loss / len(trainloader))
 
         # accuracy on training set
-        train_accuracy = self._calculate_accuracy(model,trainloader, device)
+        train_accuracy = self.calculate_accuracy(model, trainloader, device)
         # accuracy on test set
-        test_accuracy = self._calculate_accuracy(model,testloader, device)
+        test_accuracy = self.calculate_accuracy(model, testloader, device)
         test_loss = self.calculate_loss(model, testloader, criterion, device)
 
 

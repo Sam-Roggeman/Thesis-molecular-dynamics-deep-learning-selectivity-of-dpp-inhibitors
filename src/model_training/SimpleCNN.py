@@ -56,11 +56,8 @@ def train_model():
     trainloader, testloader, _ = load_dataset_from_config()
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.SGD(simple_cnn.parameters(), lr=0.001, momentum=0.9)
-    model, metrics = training_loop(model=simple_cnn,
-                                   trainloader=trainloader,
-                                   testloader=testloader,
-                                   optimizer=optimizer,
-                                   criterion=criterion)
+    model, metrics = training_loop(model=simple_cnn, trainloader=trainloader, testloader=testloader,
+                                   optimizer=optimizer, criterion=criterion)
     model_prefix = "SimpleCNN"
     _, filename = save_model(simple_cnn, model_prefix)
     metrics.plot_metrics(filename)

@@ -1,13 +1,17 @@
+import os
 from pprint import pprint
 
 import torchvision
 
-from src.model_training.utils import save_model, training_loop
+from src.model_training.utils import save_model, training_loop, validation_accuracy, load_model
 import torch.optim as optim
-from src.utils.DataLoader import load_dataset_from_config
+from src.utils.DataLoader import load_dataset_from_safetensors_multichunk, load_validation_from_safetensors_multichunk
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+
+from src.utils.configParser import ConfigParser
+
 
 class _DenseLayer(nn.Module):
     def __init__(self, num_input_features, growth_rate, bn_size=4):
@@ -136,19 +140,38 @@ def create_custom_densenet(num_classes=1000):
 
 
 def train_model():
-    simple_cnn = CustomDenseNet()
-    trainloader, testloader, _ = load_dataset_from_config()
+    cdcnn = CustomDenseNet()
+    config_parser = ConfigParser("config.ini")
+
+    dataset_folder = config_parser.get("Model Training", "Input Folder")
+    trainloader, testloader, _ = load_dataset_from_safetensors_multichunk(dataset_folder)
     criterion = nn.CrossEntropyLoss()
-    optimizer = optim.SGD(simple_cnn.parameters(), lr=0.001, momentum=0.9)
-    model_state_dict, metrics = training_loop(model=simple_cnn,
-                                   trainloader=trainloader,
-                                   testloader=testloader,
-                                   optimizer=optimizer,
-                                   criterion=criterion)
+    optimizer = optim.SGD(cdcnn.parameters(), lr=0.001, momentum=0.9)
+    model_state_dict, metrics = training_loop(model=cdcnn,
+                                    trainloader=trainloader,
+                                    testloader=testloader,
+                                    optimizer=optimizer,
+                                    criterion=criterion,
+                                    max_epochs=200)
     nr_epochs = metrics.nr_epochs()
     model_prefix = f"DenseCNN_{nr_epochs}epochs"
     _, filename = save_model(model_state_dict, model_prefix)
     metrics.plot_metrics(filename)
 
+def validate_model():
+    config_parser = ConfigParser("config.ini")
+    dataset_folder = config_parser.get("Model Training", "Input Folder")
+    validation_loader = load_validation_from_safetensors_multichunk(dataset_folder)
+    model_path = config_parser.get("Model Training", "Model Save Folder")
+    model_filename = "DenseCNN_51epochs_20251102-155816.pth"
+    full_model_path = os.path.join(model_path, model_filename)
+    model = load_model(model_class=CustomDenseNet, model_filepath=full_model_path)
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model.to(device)
+    val_acc = validation_accuracy(model, validation_loader, device=device)
+    print(f"Validation Accuracy: {val_acc}")
+
 if __name__ == "__main__":
-    train_model()
+    # train_model()
+    validate_model()
+
