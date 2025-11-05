@@ -145,15 +145,15 @@ def train_model():
     config_parser = ConfigParser("config.ini")
 
     dataset_folder = config_parser.get("Model Training", "Input Folder")
-    trainloader, testloader, _ = load_dataset_from_safetensors_multichunk(dataset_folder)
+    trainloader, validationloader, _ = load_dataset_from_safetensors_multichunk(dataset_folder)
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.SGD(cdcnn.parameters(), lr=0.001, momentum=0.9)
     model_state_dict, metrics = training_loop(model=cdcnn,
-                                    trainloader=trainloader,
-                                    testloader=testloader,
-                                    optimizer=optimizer,
-                                    criterion=criterion,
-                                    max_epochs=200)
+                                              trainloader=trainloader,
+                                              validationloader=validationloader,
+                                              optimizer=optimizer,
+                                              criterion=criterion,
+                                              max_epochs=200)
     nr_epochs = metrics.nr_epochs()
     model_prefix = f"DenseCNN_{nr_epochs}epochs"
     _, filename = save_model(model_state_dict, model_prefix)

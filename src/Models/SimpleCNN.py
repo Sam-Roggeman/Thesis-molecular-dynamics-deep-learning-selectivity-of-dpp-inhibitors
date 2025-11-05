@@ -53,10 +53,10 @@ class SimpleCNN(nn.Module):
 def train_model():
     simple_cnn = SimpleCNN()
     config_parser = ConfigParser("config.ini")
-    trainloader, testloader, _ = load_dataset_from_config()
+    trainloader, validationloader, _ = load_dataset_from_config()
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.SGD(simple_cnn.parameters(), lr=0.001, momentum=0.9)
-    model, metrics = training_loop(model=simple_cnn, trainloader=trainloader, testloader=testloader,
+    model, metrics = training_loop(model=simple_cnn, trainloader=trainloader, validationloader=validationloader,
                                    optimizer=optimizer, criterion=criterion)
     model_prefix = "SimpleCNN"
     _, filename = save_model(simple_cnn, model_prefix)

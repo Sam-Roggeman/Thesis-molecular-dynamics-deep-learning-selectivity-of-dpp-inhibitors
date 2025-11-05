@@ -25,19 +25,14 @@ def load_model(model_class, model_filepath):
     model.load_state_dict(torch.load(model_filepath))
     return model
 
-def validation_accuracy(model, validation_dataloader, device):
-    return calculate_accuracy(model, validation_dataloader, device)
 
-
-
-
-def training_loop(model, trainloader, testloader, optimizer, criterion, max_epochs=200):
+def training_loop(model, trainloader, validationloader, optimizer, criterion, max_epochs=200):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     if device == torch.device("cpu"):
         print("WARNING: Training on CPU, this may be slow. Consider using a GPU for faster training.")
     model.to(device)
     best_model = None
-
+    epochs_best_model = None
     metrics = Metrics(patience=10)
     for epoch in range(max_epochs):  # loop over the dataset multiple times
         model.train()
@@ -63,17 +58,18 @@ def training_loop(model, trainloader, testloader, optimizer, criterion, max_epoc
                 print(f'[{epoch + 1}, {i + 1:5d}] loss: {mini_batch_loss / 2000:.3f}')
                 mini_batch_loss = 0.0
         model.eval()
-        metrics.update(trainloader=trainloader, testloader=testloader, model=model, running_loss=running_loss, criterion=criterion, device=device)
+        metrics.update(trainloader=trainloader, validationloader=validationloader, model=model, running_loss=running_loss, criterion=criterion, device=device)
 
 
         print \
-            (f'Epoch {epoch + 1} - Training Accuracy: {metrics.training_accuracy[-1]:.2f}%, Test Accuracy: {metrics.test_accuracy[-1]:.2f}%')
+            (f'Epoch {epoch + 1} - Training Accuracy: {metrics.training_accuracy[-1]:.4f}%, Validation Accuracy: {metrics.validation_accuracy[-1]:.4f}%')
 
         if metrics.is_overfitting():
             print("Early stopping due to overfitting.")
-            return best_model, metrics
+            return best_model, epochs_best_model,metrics
         else:
             best_model = model.state_dict()
+            epochs_best_model = epoch
 
     print('Finished Training')
     return best_model, metrics

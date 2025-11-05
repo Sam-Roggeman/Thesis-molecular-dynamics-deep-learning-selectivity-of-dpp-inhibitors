@@ -149,7 +149,7 @@ def load_dataset_from_safetensors_multichunk(tensor_folder='tensor_cache', batch
 
     print(f"✓ Ready to train!")
 
-    return trainloader, testloader, validateloader
+    return trainloader, validateloader, testloader
 
 def load_validation_from_safetensors_multichunk(tensor_folder='tensor_cache', batch_size=16, device='cpu', num_workers=4):
     """Load validation dataset from multiple chunk files"""

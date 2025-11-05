@@ -29,15 +29,15 @@ def copy_dataset(dataset, split_path):
         dest_path = os.path.join(class_dir, filename)
         shutil.copy2(original_path, dest_path)
 
-def save_image_datasets_to_folders(train_dataset, test_dataset, val_dataset, output_dir):
+def save_image_datasets_to_folders(train_dataset, val_dataset, test_dataset, output_dir):
     """Save image datasets"""
     copy_dataset(train_dataset, os.path.join(output_dir, 'train'))
     copy_dataset(test_dataset, os.path.join(output_dir, 'test'))
     copy_dataset(val_dataset, os.path.join(output_dir, 'val'))
 
-def train_test_val_split():
+def train_val_test_split():
     """
-    Split the data into train, test and validation sets
+    Split the data into train, validation and test sets
     :return:
     """
     config_parser  = ConfigParser("config.ini")
@@ -47,16 +47,14 @@ def train_test_val_split():
         dataset_folder = f"./data/dataset/images/{ds_size}/"
 
         train_size = float(config_parser.get("Train Validation Test Split", "Train Percent"))
-        test_size = float(config_parser.get("Train Validation Test Split", "Test Percent"))
+        test_size = float(config_parser.get("Train Validation Test Split", "Validation Percent"))
         val_size = 1.0 - train_size - test_size
         # split the data into train, test and validation sets
         dataset = torchvision.datasets.ImageFolder(root=full_dataset_folder)
-        total_size = len(dataset)
-
-        train_dataset, test_dataset, val_dataset = torch.utils.data.random_split(dataset, [train_size, test_size, val_size])
+        train_dataset,val_dataset, test_dataset  = torch.utils.data.random_split(dataset, [train_size, val_size,test_size])
 
         # Save the datasets to their respective folders
-        save_image_datasets_to_folders(train_dataset, test_dataset, val_dataset, output_dir=dataset_folder)
+        save_image_datasets_to_folders(train_dataset, val_dataset, test_dataset, output_dir=dataset_folder)
 
 if __name__ == '__main__':
-    train_test_val_split()
+    train_val_test_split()
