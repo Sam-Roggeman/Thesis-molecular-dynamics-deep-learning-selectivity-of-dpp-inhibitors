@@ -1,5 +1,6 @@
 import torch
 import matplotlib.pyplot as plt
+from metric_functions import calculate_accuracy, calculate_loss
 
 
 class Metrics:
@@ -12,44 +13,16 @@ class Metrics:
         self.patience = patience
         self.patience_counter = 0
 
-    @staticmethod
-    def calculate_accuracy(model, dataloader, device):
-        correct = 0
-        total = 0
 
-        with torch.no_grad():
-            for data in dataloader:
-                images, labels = data
-                images, labels = images.to(device), labels.to(device)
-                outputs = model(images)
-                _, predicted = torch.max(outputs.data, 1)
-                total += labels.size(0)
-                correct += (predicted == labels).sum().item()
-        accuracy = 100 * correct / total
-        return accuracy
-
-    @staticmethod
-    def calculate_loss(model, dataloader, criterion, device):
-        model.eval()
-        val_loss = 0.0
-        with torch.no_grad():
-            for data in dataloader:
-                inputs, labels = data
-                inputs, labels = inputs.to(device), labels.to(device)
-                outputs = model(inputs)
-                loss = criterion(outputs, labels)
-                val_loss += loss.item()
-        val_loss /= len(dataloader)
-        return val_loss
 
     def update(self, trainloader, testloader, model, running_loss, criterion, device):
         self.train_loss.append(running_loss / len(trainloader))
 
         # accuracy on training set
-        train_accuracy = self.calculate_accuracy(model, trainloader, device)
+        train_accuracy = calculate_accuracy(model, trainloader, device)
         # accuracy on test set
-        test_accuracy = self.calculate_accuracy(model, testloader, device)
-        test_loss = self.calculate_loss(model, testloader, criterion, device)
+        test_accuracy = calculate_accuracy(model, testloader, device)
+        test_loss = calculate_loss(model, testloader, criterion, device)
 
 
         self.training_accuracy.append(train_accuracy)
@@ -102,11 +75,6 @@ class Metrics:
         plt.show()
         # return plot such that it can be saved externally
         return plt
-
-
-
-
-
 
     def is_overfitting(self):
         # if not enough data to compare return False
