@@ -54,3 +54,12 @@ class LoggerWriter:
 
     def flush(self):
         pass
+
+def replace_stdout(logger):
+    sys.stdout = LoggerWriter(logger, logging.INFO)
+def replace_stderr(logger):
+    sys.stderr = LoggerWriter(logger, logging.ERROR)
+def replace_output(logger):
+    replace_stdout(logger)
+    replace_stderr(logger)
+
