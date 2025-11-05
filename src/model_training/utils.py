@@ -3,7 +3,7 @@ import time
 
 import torch
 
-from src.utils.Metrics import Metrics
+from src.model_training.Metrics import Metrics
 from src.utils.configParser import ConfigParser
 import matplotlib.pyplot as plt
 
@@ -26,8 +26,7 @@ def load_model(model_class, model_filepath):
     return model
 
 def validation_accuracy(model, validation_dataloader, device):
-    model.eval()
-    return Metrics.calculate_accuracy(model, validation_dataloader, device)
+    return calculate_accuracy(model, validation_dataloader, device)
 
 
 

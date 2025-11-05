@@ -3,9 +3,10 @@ from pprint import pprint
 
 import torchvision
 
-from src.model_training.utils import save_model, training_loop, validation_accuracy, load_model
+from src.model_training.metric_functions import calculate_accuracy
+from src.model_training.utils import save_model, training_loop, load_model
 import torch.optim as optim
-from src.utils.DataLoader import load_dataset_from_safetensors_multichunk, load_validation_from_safetensors_multichunk
+from src.model_training.DataLoader import load_dataset_from_safetensors_multichunk, load_validation_from_safetensors_multichunk
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -167,8 +168,7 @@ def validate_model():
     full_model_path = os.path.join(model_path, model_filename)
     model = load_model(model_class=CustomDenseNet, model_filepath=full_model_path)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model.to(device)
-    val_acc = validation_accuracy(model, validation_loader, device=device)
+    val_acc = calculate_accuracy(model, validation_loader, device=device)
     print(f"Validation Accuracy: {val_acc}")
 
 if __name__ == "__main__":
