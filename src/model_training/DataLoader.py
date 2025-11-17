@@ -9,11 +9,55 @@ from src.utils.configParser import ConfigParser
 from safetensors import safe_open
 from safetensors.torch import save_file
 
+def save_as_safetensor(dataset, output_folder,dataset_name, chunk_size):
+    # Process and save chunks immediately
+    num_chunks = (len(dataset) + chunk_size - 1) // chunk_size
+    chunk_files = []
+
+    for chunk_idx in range(num_chunks):
+        start_idx = chunk_idx * chunk_size
+        end_idx = min(start_idx + chunk_size, len(dataset))
+
+        print(f"Loading chunk {chunk_idx + 1}/{num_chunks} (images {start_idx} to {end_idx})...")
+
+        chunk_images = []
+        chunk_labels = []
+
+        for i in tqdm(range(start_idx, end_idx), desc=f"Chunk {chunk_idx + 1}"):
+            img, label = dataset[i]
+            chunk_images.append(img)
+            chunk_labels.append(label)
+
+        # Stack and save immediately
+        chunk_images_tensor = torch.stack(chunk_images)
+        chunk_labels_tensor = torch.tensor(chunk_labels)
+
+        chunk_file = os.path.join(output_folder, f'{dataset_name}_chunk_{chunk_idx}.safetensors')
+        save_file({
+            'images': chunk_images_tensor,
+            'labels': chunk_labels_tensor
+        }, chunk_file)
+
+        chunk_files.append(f'{dataset_name}_chunk_{chunk_idx}.safetensors')
+        print(f"Saved chunk {chunk_idx + 1}: {chunk_images_tensor.shape}")
+
+        # Free memory immediately
+        del chunk_images, chunk_labels, chunk_images_tensor, chunk_labels_tensor
+
+    # Save metadata
+    metadata = {
+        'total_samples': len(dataset),
+        'chunk_files': chunk_files,
+        'chunk_size': chunk_size
+    }
+    torch.save(metadata, os.path.join(output_folder, f'{dataset_name}_metadata.pt'))
+
+    print(f"✓ Saved {dataset_name} in {len(chunk_files)} chunks")
+    del dataset
 
 def save_images_as_safetensors_separate_chunks(dataset_folder, output_folder='tensor_cache', chunk_size=10000):
     """Save as separate chunk files to avoid OOM"""
     os.makedirs(output_folder, exist_ok=True)
-
     splits = {
         'train': os.path.join(dataset_folder, 'train'),
         'test': os.path.join(dataset_folder, 'test'),
@@ -30,52 +74,8 @@ def save_images_as_safetensors_separate_chunks(dataset_folder, output_folder='te
         print(f"\nProcessing {split_name} set...")
         dataset = torchvision.datasets.ImageFolder(root=split_folder, transform=transform)
         print(f"Found {len(dataset)} images in {split_name}")
+        save_as_safetensor(dataset, output_folder, split_name, chunk_size)
 
-        # Process and save chunks immediately
-        num_chunks = (len(dataset) + chunk_size - 1) // chunk_size
-        chunk_files = []
-
-        for chunk_idx in range(num_chunks):
-            start_idx = chunk_idx * chunk_size
-            end_idx = min(start_idx + chunk_size, len(dataset))
-
-            print(f"Loading chunk {chunk_idx + 1}/{num_chunks} (images {start_idx} to {end_idx})...")
-
-            chunk_images = []
-            chunk_labels = []
-
-            for i in tqdm(range(start_idx, end_idx), desc=f"Chunk {chunk_idx + 1}"):
-                img, label = dataset[i]
-                chunk_images.append(img)
-                chunk_labels.append(label)
-
-            # Stack and save immediately
-            chunk_images_tensor = torch.stack(chunk_images)
-            chunk_labels_tensor = torch.tensor(chunk_labels)
-
-            chunk_file = os.path.join(output_folder, f'{split_name}_chunk_{chunk_idx}.safetensors')
-            save_file({
-                'images': chunk_images_tensor,
-                'labels': chunk_labels_tensor
-            }, chunk_file)
-
-            chunk_files.append(f'{split_name}_chunk_{chunk_idx}.safetensors')
-            print(f"Saved chunk {chunk_idx + 1}: {chunk_images_tensor.shape}")
-
-            # Free memory immediately
-            del chunk_images, chunk_labels, chunk_images_tensor, chunk_labels_tensor
-
-        # Save metadata
-        metadata = {
-            'classes': dataset.classes,
-            'total_samples': len(dataset),
-            'chunk_files': chunk_files,
-            'chunk_size': chunk_size
-        }
-        torch.save(metadata, os.path.join(output_folder, f'{split_name}_metadata.pt'))
-
-        print(f"✓ Saved {split_name} in {len(chunk_files)} chunks")
-        del dataset
 
 
 class MultiChunkSafeTensorDataset(Dataset):

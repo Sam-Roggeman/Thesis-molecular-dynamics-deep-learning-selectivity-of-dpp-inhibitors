@@ -18,3 +18,11 @@ class ConfigParser:
     def get_logging(self):
         return self.get_section('Logging')
 
+class ConfigParserWrapper(ConfigParser):
+    def get_raw_data_folder(self):
+        return self.get('Raw Data', 'Folder')
+
+    def get_logging(self):
+
+        return self.get('Logging', 'Folder'), self.get('Logging', 'Enable Logging'), self.get('Logging', 'Enable Console')
+

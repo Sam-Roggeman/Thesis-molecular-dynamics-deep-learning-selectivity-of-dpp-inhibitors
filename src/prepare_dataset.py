@@ -1,34 +1,6 @@
 import os
 from tqdm import tqdm
-
 from src.utils.configParser import ConfigParser
-
-
-def filename_to_classname(filename):
-    """Map filename to class name based on substrings."""
-    filename = filename.lower()
-    if "apo" in filename:
-        return "apo"
-    elif "nonbinder" in filename:
-        return "nonbinder"
-    elif "dpp9selective" in filename:
-        return "dpp9selective"
-    elif "dpp8selective" in filename:
-        return "dpp8selective"
-    elif "aselective" in filename:
-        return "aselective"
-    else:
-        raise ValueError(f"Filename {filename} does not match any known class.")
-
-def filename_to_dpp_classname(filename):
-    """Map filename to DPP class name based on substrings."""
-    filename = filename.lower()
-    if "_dpp8_" in filename:
-        return "dpp8"
-    elif "_dpp9_" in filename:
-        return "dpp9"
-    else:
-        raise ValueError(f"Filename {filename} does not match any known DPP class.")
 
 def prepare_datasets():
     """Prepare datasets for training, testing, and validation."""

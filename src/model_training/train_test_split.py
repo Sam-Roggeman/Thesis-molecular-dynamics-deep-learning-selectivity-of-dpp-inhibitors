@@ -5,6 +5,31 @@ from tqdm import tqdm
 import torch
 import torchvision
 
+from torch.utils.data import random_split
+
+
+def create_splits_randomsplit(dataset, train_ratio=0.7, val_ratio=0.15, test_ratio=0.15, random_seed=42):
+    """
+    Use PyTorch's random_split to split all frames randomly
+    :param dataset:pytorch Dataset containing all trajectory frames and labels
+    :param train_ratio: Ratio of training data
+    :param val_ratio: Ratio of validation data
+    :param test_ratio: Ratio of test data
+    :param random_seed: Random seed for reproducibility
+    :return: train_dataset, val_dataset, test_dataset - Dataset  containing the split data and labels
+    """
+    print('Creating splits...')
+    torch.manual_seed(random_seed)
+
+    # split the dataset
+    datasets = random_split(dataset, [train_ratio, val_ratio, test_ratio])
+    train_dataset, val_dataset, test_dataset = datasets
+
+
+
+    return train_dataset, val_dataset, test_dataset
+
+
 def copy_dataset(dataset, split_path):
     # create the split_path or clear it if it exists
     if os.path.exists(split_path):
