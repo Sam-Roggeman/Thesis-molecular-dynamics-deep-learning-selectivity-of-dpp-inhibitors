@@ -1,0 +1,18 @@
+2025-11-05 21:22:17 - INFO - Started Pre-Processing raw data
+2025-11-05 21:22:17 - ERROR - Trajectories:   0%|          | 0/18 [00:00<?, ?it/s]
+2025-11-05 21:22:17 - INFO - Trajectory 0: Processed 0/10002 frames
+2025-11-05 21:26:18 - ERROR - /home/samro/.pycharm_helpers/pydev/_pydevd_bundle/pydevd_referrers.py:180: FutureWarning: `torch.distributed.reduce_op` is deprecated, please use `torch.distributed.ReduceOp` instead
+  if getattr(x, '__dict__', None) is r:
+2025-11-05 21:37:07 - ERROR - Trajectories:   0%|          | 0/18 [14:49<?, ?it/s]
+2025-11-05 21:37:07 - ERROR - Traceback (most recent call last):
+2025-11-05 21:37:07 - ERROR - File "/home/samro/Thesis-molecular_dynamics_trajectory_embeddings/src/data_preprocessing/data_preprocessing.py", line 95, in <module>
+    logger = setup_logger(log_file="", log_dir=log_dir, logging_enabled=logging_enabled, console_enabled=console_enabled)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2025-11-05 21:37:07 - ERROR - File "/home/samro/Thesis-molecular_dynamics_trajectory_embeddings/src/data_preprocessing/data_preprocessing.py", line 67, in process_parallel
+    with tqdm(total=len(tar_files), desc="Trajectories") as pbar:
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2025-11-05 21:37:07 - ERROR - File "/home/samro/Thesis-molecular_dynamics_trajectory_embeddings/src/data_preprocessing/data_preprocessing.py", line 56, in process_single_trajectory
+2025-11-05 21:37:07 - ERROR - File "/home/samro/Thesis-molecular_dynamics_trajectory_embeddings/src/data_preprocessing/data_preprocessing.py", line 48, in load_trajectory_fast
+    pdb_content = extracted_file.read().decode('utf-8')
+    ^^
+2025-11-05 21:37:07 - ERROR - KeyboardInterrupt

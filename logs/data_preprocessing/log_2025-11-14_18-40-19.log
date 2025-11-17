@@ -1,0 +1,182 @@
+2025-11-14 18:40:19 - INFO - ✓ Logger set up. Logs will be saved to ./logs/data_preprocessing
+2025-11-14 18:40:19 - INFO - Starting data preprocessing...
+2025-11-14 18:40:19 - INFO - Processing 18 individual trajectories...
+2025-11-14 18:40:19 - ERROR - Trajectories:   0%|          | 0/18 [00:00<?, ?it/s]
+2025-11-14 18:40:19 - INFO - Trajectory 6: Processed 0 frames
+2025-11-14 18:40:19 - INFO - Trajectory 1: Processed 0 frames
+2025-11-14 18:40:19 - INFO - Trajectory 3: Processed 0 frames
+2025-11-14 18:40:19 - INFO - Trajectory 4: Processed 0 frames
+2025-11-14 18:40:19 - INFO - Trajectory 5: Processed 0 frames
+2025-11-14 18:40:19 - INFO - Trajectory 0: Processed 0 frames
+2025-11-14 18:40:19 - INFO - Trajectory 7: Processed 0 frames
+2025-11-14 18:40:19 - INFO - Trajectory 2: Processed 0 frames
+2025-11-14 18:40:21 - ERROR - Trajectories:   6%|5         | 1/18 [00:01<00:20,  1.23s/it]
+2025-11-14 18:40:21 - ERROR - Trajectories:   6%|5         | 1/18 [00:01<00:20,  1.23s/it, Latest=sep_prot_frames_DPP8_0003822_Aselective.tar.gz, Shape=torch.Size([11, 27286, 3])]
+2025-11-14 18:40:21 - INFO - Trajectory 8: Processed 0 frames
+2025-11-14 18:40:21 - ERROR - Trajectories:  11%|#1        | 2/18 [00:01<00:19,  1.23s/it, Latest=sep_prot_frames_DPP8_0005362_Aselective.tar.gz, Shape=torch.Size([11, 27286, 3])]
+2025-11-14 18:40:21 - INFO - Trajectory 9: Processed 0 frames
+2025-11-14 18:40:21 - ERROR - Trajectories:  17%|#6        | 3/18 [00:01<00:18,  1.23s/it, Latest=sep_prot_frames_DPP8_000808_DPP8selective.tar.gz, Shape=torch.Size([11, 27286, 3])]
+2025-11-14 18:40:21 - ERROR - Trajectories:  22%|##2       | 4/18 [00:01<00:17,  1.23s/it, Latest=sep_prot_frames_DPP8_12i_Nonbinder.tar.gz, Shape=torch.Size([11, 27286, 3])]
+2025-11-14 18:40:21 - ERROR - Trajectories:  28%|##7       | 5/18 [00:01<00:15,  1.23s/it, Latest=sep_prot_frames_DPP8_0005862_DPP8selective.tar.gz, Shape=torch.Size([11, 27286, 3])]
+2025-11-14 18:40:21 - INFO - Trajectory 10: Processed 0 frames
+2025-11-14 18:40:21 - ERROR - Trajectories:  33%|###3      | 6/18 [00:01<00:14,  1.23s/it, Latest=sep_prot_frames_DPP8_0005356_DPP9selective.tar.gz, Shape=torch.Size([11, 27286, 3])]
+2025-11-14 18:40:21 - INFO - Trajectory 13: Processed 0 frames
+2025-11-14 18:40:21 - INFO - Trajectory 11: Processed 0 frames
+2025-11-14 18:40:21 - INFO - Trajectory 12: Processed 0 frames
+2025-11-14 18:40:21 - ERROR - Trajectories:  39%|###8      | 7/18 [00:01<00:13,  1.23s/it, Latest=sep_prot_frames_DPP8_42_DPP9selective.tar.gz, Shape=torch.Size([11, 27286, 3])]
+2025-11-14 18:40:21 - ERROR - Trajectories:  44%|####4     | 8/18 [00:01<00:12,  1.23s/it, Latest=sep_prot_frames_DPP8_0000157_Nonbinder.tar.gz, Shape=torch.Size([11, 27286, 3])]
+2025-11-14 18:40:21 - INFO - Trajectory 14: Processed 0 frames
+2025-11-14 18:40:21 - INFO - Trajectory 15: Processed 0 frames
+2025-11-14 18:40:22 - ERROR - Trajectories:  50%|#####     | 9/18 [00:02<00:01,  4.55it/s, Latest=sep_prot_frames_DPP8_0000157_Nonbinder.tar.gz, Shape=torch.Size([11, 27286, 3])]
+2025-11-14 18:40:22 - ERROR - Trajectories:  50%|#####     | 9/18 [00:02<00:01,  4.55it/s, Latest=sep_prot_frames_DPP9_0005362_Aselective.tar.gz, Shape=torch.Size([11, 26876, 3])]
+2025-11-14 18:40:22 - ERROR - Trajectories:  56%|#####5    | 10/18 [00:02<00:01,  4.55it/s, Latest=sep_prot_frames_DPP9_0005356_DPP9selective.tar.gz, Shape=torch.Size([11, 26876, 3])]
+2025-11-14 18:40:22 - INFO - Trajectory 17: Processed 0 frames
+2025-11-14 18:40:22 - INFO - Trajectory 16: Processed 0 frames
+2025-11-14 18:40:22 - ERROR - Trajectories:  61%|######1   | 11/18 [00:02<00:01,  4.55it/s, Latest=sep_prot_frames_DPP8_apo.tar.gz, Shape=torch.Size([11, 27286, 3])]
+2025-11-14 18:40:22 - ERROR - Trajectories:  67%|######6   | 12/18 [00:02<00:01,  4.55it/s, Latest=sep_prot_frames_DPP9_0003822_Aselective.tar.gz, Shape=torch.Size([11, 26876, 3])]
+2025-11-14 18:40:22 - ERROR - Trajectories:  72%|#######2  | 13/18 [00:02<00:00,  6.86it/s, Latest=sep_prot_frames_DPP9_0003822_Aselective.tar.gz, Shape=torch.Size([11, 26876, 3])]
+2025-11-14 18:40:22 - ERROR - Trajectories:  72%|#######2  | 13/18 [00:02<00:00,  6.86it/s, Latest=sep_prot_frames_DPP9_0005862_DPP8selective.tar.gz, Shape=torch.Size([11, 26876, 3])]
+2025-11-14 18:40:22 - ERROR - Trajectories:  78%|#######7  | 14/18 [00:02<00:00,  6.86it/s, Latest=sep_prot_frames_DPP9_0000157_Nonbinder.tar.gz, Shape=torch.Size([11, 26876, 3])]
+2025-11-14 18:40:22 - ERROR - Trajectories:  83%|########3 | 15/18 [00:02<00:00,  6.86it/s, Latest=sep_prot_frames_DPP9_000808_DPP8selective.tar.gz, Shape=torch.Size([11, 26876, 3])]
+2025-11-14 18:40:22 - ERROR - Trajectories:  89%|########8 | 16/18 [00:02<00:00,  6.86it/s, Latest=sep_prot_frames_DPP9_12i_Nonbinder.tar.gz, Shape=torch.Size([11, 26876, 3])]
+2025-11-14 18:40:22 - ERROR - Trajectories:  94%|#########4| 17/18 [00:03<00:00,  6.40it/s, Latest=sep_prot_frames_DPP9_12i_Nonbinder.tar.gz, Shape=torch.Size([11, 26876, 3])]
+2025-11-14 18:40:22 - ERROR - Trajectories:  94%|#########4| 17/18 [00:03<00:00,  6.40it/s, Latest=sep_prot_frames_DPP9_42_DPP9selective.tar.gz, Shape=torch.Size([11, 26876, 3])]
+2025-11-14 18:40:22 - ERROR - Trajectories: 100%|##########| 18/18 [00:03<00:00,  6.40it/s, Latest=sep_prot_frames_DPP9_apo.tar.gz, Shape=torch.Size([11, 26876, 3])]
+2025-11-14 18:40:22 - ERROR - Trajectories: 100%|##########| 18/18 [00:03<00:00,  5.62it/s, Latest=sep_prot_frames_DPP9_apo.tar.gz, Shape=torch.Size([11, 26876, 3])]
+2025-11-14 18:40:22 - INFO - Padding trajectories to size 28224
+2025-11-14 18:40:22 - INFO - Trajectory 0: padded from 27286 atoms to 28224
+2025-11-14 18:40:22 - INFO - Trajectory 1: padded from 27286 atoms to 28224
+2025-11-14 18:40:22 - INFO - Trajectory 2: padded from 27286 atoms to 28224
+2025-11-14 18:40:22 - INFO - Trajectory 3: padded from 27286 atoms to 28224
+2025-11-14 18:40:23 - INFO - Trajectory 4: padded from 27286 atoms to 28224
+2025-11-14 18:40:23 - INFO - Trajectory 5: padded from 27286 atoms to 28224
+2025-11-14 18:40:23 - INFO - Trajectory 6: padded from 27286 atoms to 28224
+2025-11-14 18:40:23 - INFO - Trajectory 7: padded from 27286 atoms to 28224
+2025-11-14 18:40:23 - INFO - Trajectory 8: padded from 26876 atoms to 28224
+2025-11-14 18:40:23 - INFO - Trajectory 9: padded from 26876 atoms to 28224
+2025-11-14 18:40:23 - INFO - Trajectory 10: padded from 27286 atoms to 28224
+2025-11-14 18:40:23 - INFO - Trajectory 11: padded from 26876 atoms to 28224
+2025-11-14 18:40:23 - INFO - Trajectory 12: padded from 26876 atoms to 28224
+2025-11-14 18:40:23 - INFO - Trajectory 13: padded from 26876 atoms to 28224
+2025-11-14 18:40:23 - INFO - Trajectory 14: padded from 26876 atoms to 28224
+2025-11-14 18:40:23 - INFO - Trajectory 15: padded from 26876 atoms to 28224
+2025-11-14 18:40:23 - INFO - Trajectory 16: padded from 26876 atoms to 28224
+2025-11-14 18:40:23 - INFO - Trajectory 17: padded from 26876 atoms to 28224
+2025-11-14 18:40:23 - INFO - Finished padding tensors
+2025-11-14 18:40:23 - INFO - Classifying 18 tensors
+2025-11-14 18:40:23 - INFO - Trajectory 0: torch.Size([11, 28224, 3])
+2025-11-14 18:40:23 - INFO - Classified as aselective
+2025-11-14 18:40:23 - INFO - Trajectory 1: torch.Size([11, 28224, 3])
+2025-11-14 18:40:23 - INFO - Classified as aselective
+2025-11-14 18:40:23 - INFO - Trajectory 2: torch.Size([11, 28224, 3])
+2025-11-14 18:40:23 - INFO - Classified as dpp8selective
+2025-11-14 18:40:23 - INFO - Trajectory 3: torch.Size([11, 28224, 3])
+2025-11-14 18:40:23 - INFO - Classified as nonbinder
+2025-11-14 18:40:23 - INFO - Trajectory 4: torch.Size([11, 28224, 3])
+2025-11-14 18:40:23 - INFO - Classified as dpp8selective
+2025-11-14 18:40:23 - INFO - Trajectory 5: torch.Size([11, 28224, 3])
+2025-11-14 18:40:23 - INFO - Classified as dpp9selective
+2025-11-14 18:40:23 - INFO - Trajectory 6: torch.Size([11, 28224, 3])
+2025-11-14 18:40:23 - INFO - Classified as dpp9selective
+2025-11-14 18:40:23 - INFO - Trajectory 7: torch.Size([11, 28224, 3])
+2025-11-14 18:40:23 - INFO - Classified as nonbinder
+2025-11-14 18:40:23 - INFO - Trajectory 8: torch.Size([11, 28224, 3])
+2025-11-14 18:40:23 - INFO - Classified as aselective
+2025-11-14 18:40:23 - INFO - Trajectory 9: torch.Size([11, 28224, 3])
+2025-11-14 18:40:23 - INFO - Classified as dpp9selective
+2025-11-14 18:40:23 - INFO - Trajectory 10: torch.Size([11, 28224, 3])
+2025-11-14 18:40:23 - INFO - Classified as apo
+2025-11-14 18:40:23 - INFO - Trajectory 11: torch.Size([11, 28224, 3])
+2025-11-14 18:40:23 - INFO - Classified as aselective
+2025-11-14 18:40:23 - INFO - Trajectory 12: torch.Size([11, 28224, 3])
+2025-11-14 18:40:23 - INFO - Classified as dpp8selective
+2025-11-14 18:40:23 - INFO - Trajectory 13: torch.Size([11, 28224, 3])
+2025-11-14 18:40:23 - INFO - Classified as nonbinder
+2025-11-14 18:40:23 - INFO - Trajectory 14: torch.Size([11, 28224, 3])
+2025-11-14 18:40:23 - INFO - Classified as dpp8selective
+2025-11-14 18:40:23 - INFO - Trajectory 15: torch.Size([11, 28224, 3])
+2025-11-14 18:40:23 - INFO - Classified as nonbinder
+2025-11-14 18:40:23 - INFO - Trajectory 16: torch.Size([11, 28224, 3])
+2025-11-14 18:40:23 - INFO - Classified as dpp9selective
+2025-11-14 18:40:23 - INFO - Trajectory 17: torch.Size([11, 28224, 3])
+2025-11-14 18:40:23 - INFO - Classified as apo
+2025-11-14 18:40:23 - INFO - Merged class apo: torch.Size([22, 28224, 3])
+2025-11-14 18:40:23 - INFO - Merged class nonbinder: torch.Size([44, 28224, 3])
+2025-11-14 18:40:23 - INFO - Merged class dpp9selective: torch.Size([44, 28224, 3])
+2025-11-14 18:40:23 - INFO - Merged class dpp8selective: torch.Size([44, 28224, 3])
+2025-11-14 18:40:23 - INFO - Merged class aselective: torch.Size([44, 28224, 3])
+2025-11-14 18:40:23 - INFO - Creating PyTorch dataset from tensors
+2025-11-14 18:40:23 - INFO - Class apo: torch.Size([22, 28224, 3])
+2025-11-14 18:40:23 - INFO - Class nonbinder: torch.Size([44, 28224, 3])
+2025-11-14 18:40:23 - INFO - Class dpp9selective: torch.Size([44, 28224, 3])
+2025-11-14 18:40:23 - INFO - Class dpp8selective: torch.Size([44, 28224, 3])
+2025-11-14 18:40:23 - INFO - Class aselective: torch.Size([44, 28224, 3])
+2025-11-14 18:40:23 - INFO - Final dataset shape: torch.Size([198, 28224, 3]), labels shape: torch.Size([198])
+2025-11-14 18:40:23 - INFO - Creating splits...
+2025-11-14 18:40:23 - INFO - Saving datasets to folders...
+2025-11-14 18:40:23 - INFO - Processing train_small set...
+2025-11-14 18:40:23 - INFO - Loading chunk 1/1 (images 0 to 1)...
+2025-11-14 18:40:23 - ERROR - Chunk 1:   0%|          | 0/1 [00:00<?, ?it/s]
+2025-11-14 18:40:23 - ERROR - Chunk 1: 100%|##########| 1/1 [00:00<00:00, 13357.66it/s]
+2025-11-14 18:40:23 - INFO - Saved chunk 1: torch.Size([1, 28224, 3])
+2025-11-14 18:40:23 - INFO - ✓ Saved train_small in 1 chunks
+2025-11-14 18:40:23 - INFO - ✓ Saved train_small dataset to ./data/dataset/tensors/small/train
+2025-11-14 18:40:23 - INFO - ✓ Saved train dataset of size small (1 samples, ratio 0.0100%).
+2025-11-14 18:40:23 - INFO - Processing train_medium set...
+2025-11-14 18:40:23 - INFO - Loading chunk 1/1 (images 0 to 13)...
+2025-11-14 18:40:23 - ERROR - Chunk 1:   0%|          | 0/13 [00:00<?, ?it/s]
+2025-11-14 18:40:23 - ERROR - Chunk 1: 100%|##########| 13/13 [00:00<00:00, 145015.83it/s]
+2025-11-14 18:40:23 - INFO - Saved chunk 1: torch.Size([13, 28224, 3])
+2025-11-14 18:40:23 - INFO - ✓ Saved train_medium in 1 chunks
+2025-11-14 18:40:23 - INFO - ✓ Saved train_medium dataset to ./data/dataset/tensors/medium/train
+2025-11-14 18:40:23 - INFO - ✓ Saved train dataset of size medium (13 samples, ratio 0.1000%).
+2025-11-14 18:40:23 - INFO - Processing train_large set...
+2025-11-14 18:40:23 - INFO - Loading chunk 1/1 (images 0 to 139)...
+2025-11-14 18:40:23 - ERROR - Chunk 1:   0%|          | 0/139 [00:00<?, ?it/s]
+2025-11-14 18:40:23 - ERROR - Chunk 1: 100%|##########| 139/139 [00:00<00:00, 230711.62it/s]
+2025-11-14 18:40:23 - INFO - Saved chunk 1: torch.Size([139, 28224, 3])
+2025-11-14 18:40:23 - INFO - ✓ Saved train_large in 1 chunks
+2025-11-14 18:40:23 - INFO - ✓ Saved train_large dataset to ./data/dataset/tensors/large/train
+2025-11-14 18:40:23 - INFO - ✓ Saved train dataset of size large (139 samples, ratio 1.0000%).
+2025-11-14 18:40:23 - INFO - Processing val_small set...
+2025-11-14 18:40:23 - INFO - ✓ Saved val_small in 0 chunks
+2025-11-14 18:40:23 - INFO - ✓ Saved val_small dataset to ./data/dataset/tensors/small/val
+2025-11-14 18:40:23 - INFO - ✓ Saved val dataset of size small (0 samples, ratio 0.0100%).
+2025-11-14 18:40:23 - INFO - Processing val_medium set...
+2025-11-14 18:40:23 - INFO - Loading chunk 1/1 (images 0 to 3)...
+2025-11-14 18:40:23 - ERROR - Chunk 1:   0%|          | 0/3 [00:00<?, ?it/s]
+2025-11-14 18:40:23 - ERROR - Chunk 1: 100%|##########| 3/3 [00:00<00:00, 56173.71it/s]
+2025-11-14 18:40:23 - INFO - Saved chunk 1: torch.Size([3, 28224, 3])
+2025-11-14 18:40:23 - INFO - ✓ Saved val_medium in 1 chunks
+2025-11-14 18:40:23 - INFO - ✓ Saved val_medium dataset to ./data/dataset/tensors/medium/val
+2025-11-14 18:40:23 - INFO - ✓ Saved val dataset of size medium (3 samples, ratio 0.1000%).
+2025-11-14 18:40:23 - INFO - Processing val_large set...
+2025-11-14 18:40:23 - INFO - Loading chunk 1/1 (images 0 to 30)...
+2025-11-14 18:40:23 - ERROR - Chunk 1:   0%|          | 0/30 [00:00<?, ?it/s]
+2025-11-14 18:40:23 - ERROR - Chunk 1: 100%|##########| 30/30 [00:00<00:00, 221140.81it/s]
+2025-11-14 18:40:23 - INFO - Saved chunk 1: torch.Size([30, 28224, 3])
+2025-11-14 18:40:23 - INFO - ✓ Saved val_large in 1 chunks
+2025-11-14 18:40:23 - INFO - ✓ Saved val_large dataset to ./data/dataset/tensors/large/val
+2025-11-14 18:40:23 - INFO - ✓ Saved val dataset of size large (30 samples, ratio 1.0000%).
+2025-11-14 18:40:23 - INFO - Processing test_small set...
+2025-11-14 18:40:23 - INFO - ✓ Saved test_small in 0 chunks
+2025-11-14 18:40:23 - INFO - ✓ Saved test_small dataset to ./data/dataset/tensors/small/test
+2025-11-14 18:40:23 - INFO - ✓ Saved test dataset of size small (0 samples, ratio 0.0100%).
+2025-11-14 18:40:23 - INFO - Processing test_medium set...
+2025-11-14 18:40:23 - INFO - Loading chunk 1/1 (images 0 to 2)...
+2025-11-14 18:40:23 - ERROR - Chunk 1:   0%|          | 0/2 [00:00<?, ?it/s]
+2025-11-14 18:40:23 - ERROR - Chunk 1: 100%|##########| 2/2 [00:00<00:00, 37957.50it/s]
+2025-11-14 18:40:23 - INFO - Saved chunk 1: torch.Size([2, 28224, 3])
+2025-11-14 18:40:23 - INFO - ✓ Saved test_medium in 1 chunks
+2025-11-14 18:40:23 - INFO - ✓ Saved test_medium dataset to ./data/dataset/tensors/medium/test
+2025-11-14 18:40:23 - INFO - ✓ Saved test dataset of size medium (2 samples, ratio 0.1000%).
+2025-11-14 18:40:23 - INFO - Processing test_large set...
+2025-11-14 18:40:23 - INFO - Loading chunk 1/1 (images 0 to 29)...
+2025-11-14 18:40:23 - ERROR - Chunk 1:   0%|          | 0/29 [00:00<?, ?it/s]
+2025-11-14 18:40:23 - ERROR - Chunk 1: 100%|##########| 29/29 [00:00<00:00, 246224.32it/s]
+2025-11-14 18:40:23 - INFO - Saved chunk 1: torch.Size([29, 28224, 3])
+2025-11-14 18:40:23 - INFO - ✓ Saved test_large in 1 chunks
+2025-11-14 18:40:23 - INFO - ✓ Saved test_large dataset to ./data/dataset/tensors/large/test
+2025-11-14 18:40:23 - INFO - ✓ Saved test dataset of size large (29 samples, ratio 1.0000%).
+2025-11-14 18:40:23 - INFO - ✓ All datasets saved successfully.
+2025-11-14 18:40:23 - INFO - ✓ Data preprocessing completed successfully.

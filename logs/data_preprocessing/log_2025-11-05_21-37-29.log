@@ -1,0 +1,18 @@
+2025-11-05 21:37:29 - INFO - Started Pre-Processing raw data
+2025-11-05 21:37:29 - ERROR - Trajectories:   0%|          | 0/18 [00:00<?, ?it/s]
+2025-11-05 21:37:35 - INFO - Trajectory 0: Processed 0 frames
+2025-11-05 21:37:58 - ERROR - Trajectories:   0%|          | 0/18 [00:28<?, ?it/s]
+2025-11-05 21:37:58 - ERROR - Traceback (most recent call last):
+2025-11-05 21:37:58 - ERROR - File "/home/samro/Thesis-molecular_dynamics_trajectory_embeddings/src/data_preprocessing/data_preprocessing.py", line 99, in <module>
+    full_tensor = process_parallel(raw_data_path, max_workers=8)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2025-11-05 21:37:58 - ERROR - File "/home/samro/Thesis-molecular_dynamics_trajectory_embeddings/src/data_preprocessing/data_preprocessing.py", line 71, in process_parallel
+    result = process_single_trajectory(tf,i)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2025-11-05 21:37:58 - ERROR - File "/home/samro/Thesis-molecular_dynamics_trajectory_embeddings/src/data_preprocessing/data_preprocessing.py", line 60, in process_single_trajectory
+    return load_trajectory_fast(tar_path, progress_id)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2025-11-05 21:37:58 - ERROR - File "/home/samro/Thesis-molecular_dynamics_trajectory_embeddings/src/data_preprocessing/data_preprocessing.py", line 39, in load_trajectory_fast
+    if not (member.name.startswith('frame_') and member.name.endswith('.pdb')):
+            ^^^^^^
+2025-11-05 21:37:58 - ERROR - KeyboardInterrupt

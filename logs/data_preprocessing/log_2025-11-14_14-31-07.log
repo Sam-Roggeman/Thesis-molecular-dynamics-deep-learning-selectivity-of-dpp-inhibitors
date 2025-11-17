@@ -1,0 +1,14 @@
+2025-11-14 14:31:13 - INFO - Processing 18 individual trajectories...
+2025-11-14 14:31:13 - ERROR - Trajectories:   0%|          | 0/18 [00:00<?, ?it/s]
+2025-11-14 14:32:40 - ERROR - Trajectories:   0%|          | 0/18 [01:27<?, ?it/s]
+2025-11-14 14:32:40 - ERROR - Traceback (most recent call last):
+2025-11-14 14:32:40 - ERROR - File "/home/samro/Thesis-molecular_dynamics_trajectory_embeddings/src/data_preprocessing/data_preprocessing.py", line 180, in <module>
+    trajectory_tensors = process_parallel(raw_data_path, max_workers=8) # [Shape: (10.001, nr_atoms, 3)]
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2025-11-14 14:32:40 - ERROR - File "/home/samro/Thesis-molecular_dynamics_trajectory_embeddings/src/data_preprocessing/data_preprocessing.py", line 74, in process_parallel
+    with concurrent.futures.ProcessPoolExecutor(max_workers=max_workers) as executor:
+2025-11-14 14:32:40 - ERROR - File "/usr/lib/python3.12/concurrent/futures/_base.py", line 647, in __exit__
+    self.shutdown(wait=True)
+2025-11-14 14:32:40 - ERROR - File "/usr/lib/python3.12/concurrent/futures/process.py", line 873, in shutdown
+    self._executor_manager_thread.join()
+2025-11-14 14:32:40 - ERROR - KeyboardInterrupt

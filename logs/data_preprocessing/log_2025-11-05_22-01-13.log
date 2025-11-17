@@ -1,0 +1,236 @@
+2025-11-05 22:01:13 - INFO - Started Pre-Processing raw data
+2025-11-05 22:01:13 - ERROR - Trajectories:   0%|          | 0/18 [00:00<?, ?it/s]
+2025-11-05 22:01:14 - INFO - Trajectory 0: Processed 0 frames
+2025-11-05 22:01:15 - INFO - Trajectory 1: Processed 0 frames
+2025-11-05 22:01:16 - INFO - Trajectory 0: Processed 10 frames
+2025-11-05 22:01:16 - INFO - Trajectory 2: Processed 0 frames
+2025-11-05 22:01:17 - INFO - Trajectory 1: Processed 10 frames
+2025-11-05 22:01:17 - INFO - Trajectory 3: Processed 0 frames
+2025-11-05 22:01:17 - INFO - Trajectory 0: Processed 20 frames
+2025-11-05 22:01:18 - INFO - Trajectory 2: Processed 10 frames
+2025-11-05 22:01:18 - INFO - Trajectory 4: Processed 0 frames
+2025-11-05 22:01:18 - INFO - Trajectory 1: Processed 20 frames
+2025-11-05 22:01:19 - INFO - Trajectory 5: Processed 0 frames
+2025-11-05 22:01:19 - INFO - Trajectory 0: Processed 30 frames
+2025-11-05 22:01:19 - INFO - Trajectory 3: Processed 10 frames
+2025-11-05 22:01:20 - INFO - Trajectory 6: Processed 0 frames
+2025-11-05 22:01:20 - INFO - Trajectory 2: Processed 20 frames
+2025-11-05 22:01:21 - INFO - Trajectory 4: Processed 10 frames
+2025-11-05 22:01:21 - INFO - Trajectory 1: Processed 30 frames
+2025-11-05 22:01:21 - INFO - Trajectory 7: Processed 0 frames
+2025-11-05 22:01:22 - INFO - Trajectory 5: Processed 10 frames
+2025-11-05 22:01:22 - INFO - Trajectory 0: Processed 40 frames
+2025-11-05 22:01:22 - INFO - Trajectory 3: Processed 20 frames
+2025-11-05 22:01:23 - INFO - Trajectory 2: Processed 30 frames
+2025-11-05 22:01:23 - INFO - Trajectory 1: Processed 40 frames
+2025-11-05 22:01:23 - INFO - Trajectory 6: Processed 10 frames
+2025-11-05 22:01:23 - INFO - Trajectory 4: Processed 20 frames
+2025-11-05 22:01:24 - INFO - Trajectory 7: Processed 10 frames
+2025-11-05 22:01:24 - INFO - Trajectory 0: Processed 50 frames
+2025-11-05 22:01:24 - INFO - Trajectory 5: Processed 20 frames
+2025-11-05 22:01:25 - INFO - Trajectory 3: Processed 30 frames
+2025-11-05 22:01:25 - INFO - Trajectory 2: Processed 40 frames
+2025-11-05 22:01:25 - INFO - Trajectory 6: Processed 20 frames
+2025-11-05 22:01:25 - INFO - Trajectory 1: Processed 50 frames
+2025-11-05 22:01:26 - INFO - Trajectory 4: Processed 30 frames
+2025-11-05 22:01:26 - INFO - Trajectory 7: Processed 20 frames
+2025-11-05 22:01:27 - INFO - Trajectory 3: Processed 40 frames
+2025-11-05 22:01:27 - INFO - Trajectory 0: Processed 60 frames
+2025-11-05 22:01:27 - INFO - Trajectory 2: Processed 50 frames
+2025-11-05 22:01:27 - INFO - Trajectory 5: Processed 30 frames
+2025-11-05 22:01:28 - INFO - Trajectory 6: Processed 30 frames
+2025-11-05 22:01:28 - INFO - Trajectory 1: Processed 60 frames
+2025-11-05 22:01:28 - INFO - Trajectory 4: Processed 40 frames
+2025-11-05 22:01:29 - INFO - Trajectory 3: Processed 50 frames
+2025-11-05 22:01:29 - INFO - Trajectory 2: Processed 60 frames
+2025-11-05 22:01:29 - INFO - Trajectory 7: Processed 30 frames
+2025-11-05 22:01:29 - INFO - Trajectory 5: Processed 40 frames
+2025-11-05 22:01:29 - INFO - Trajectory 0: Processed 70 frames
+2025-11-05 22:01:30 - INFO - Trajectory 6: Processed 40 frames
+2025-11-05 22:01:30 - INFO - Trajectory 1: Processed 70 frames
+2025-11-05 22:01:30 - INFO - Trajectory 4: Processed 50 frames
+2025-11-05 22:01:31 - INFO - Trajectory 3: Processed 60 frames
+2025-11-05 22:01:32 - INFO - Trajectory 2: Processed 70 frames
+2025-11-05 22:01:32 - INFO - Trajectory 5: Processed 50 frames
+2025-11-05 22:01:32 - INFO - Trajectory 7: Processed 40 frames
+2025-11-05 22:01:32 - INFO - Trajectory 0: Processed 80 frames
+2025-11-05 22:01:32 - INFO - Trajectory 1: Processed 80 frames
+2025-11-05 22:01:33 - INFO - Trajectory 4: Processed 60 frames
+2025-11-05 22:01:33 - INFO - Trajectory 6: Processed 50 frames
+2025-11-05 22:01:34 - INFO - Trajectory 3: Processed 70 frames
+2025-11-05 22:01:34 - INFO - Trajectory 5: Processed 60 frames
+2025-11-05 22:01:34 - INFO - Trajectory 2: Processed 80 frames
+2025-11-05 22:01:35 - INFO - Trajectory 7: Processed 50 frames
+2025-11-05 22:01:35 - INFO - Trajectory 0: Processed 90 frames
+2025-11-05 22:01:36 - INFO - Trajectory 6: Processed 60 frames
+2025-11-05 22:01:36 - INFO - Trajectory 1: Processed 90 frames
+2025-11-05 22:01:36 - INFO - Trajectory 4: Processed 70 frames
+2025-11-05 22:01:36 - INFO - Trajectory 3: Processed 80 frames
+2025-11-05 22:01:37 - INFO - Trajectory 7: Processed 60 frames
+2025-11-05 22:01:37 - INFO - Trajectory 2: Processed 90 frames
+2025-11-05 22:01:37 - INFO - Trajectory 5: Processed 70 frames
+2025-11-05 22:01:38 - INFO - Trajectory 0: Processed 100 frames
+2025-11-05 22:01:38 - INFO - Trajectory 6: Processed 70 frames
+2025-11-05 22:01:38 - INFO - Trajectory 1: Processed 100 frames
+2025-11-05 22:01:39 - INFO - Trajectory 4: Processed 80 frames
+2025-11-05 22:01:39 - INFO - Trajectory 3: Processed 90 frames
+2025-11-05 22:01:39 - INFO - Trajectory 5: Processed 80 frames
+2025-11-05 22:01:40 - INFO - Trajectory 2: Processed 100 frames
+2025-11-05 22:01:40 - INFO - Trajectory 8: Processed 0 frames
+2025-11-05 22:01:40 - ERROR - Trajectories:   6%|5         | 1/18 [00:26<07:33, 26.66s/it]
+2025-11-05 22:01:40 - ERROR - Trajectories:   6%|5         | 1/18 [00:26<07:33, 26.66s/it, Latest: sep_prot_frames_DPP8_0000157_Nonbinder.tar.gz]
+2025-11-05 22:01:40 - INFO - Trajectory 7: Processed 70 frames
+2025-11-05 22:01:40 - INFO - Trajectory 6: Processed 80 frames
+2025-11-05 22:01:41 - ERROR - Trajectories:  11%|#1        | 2/18 [00:27<03:01, 11.36s/it, Latest: sep_prot_frames_DPP8_0000157_Nonbinder.tar.gz]
+2025-11-05 22:01:41 - INFO - Trajectory 9: Processed 0 frames
+2025-11-05 22:01:41 - ERROR - Trajectories:  11%|#1        | 2/18 [00:27<03:01, 11.36s/it, Latest: sep_prot_frames_DPP8_0003822_Aselective.tar.gz]
+2025-11-05 22:01:41 - INFO - Trajectory 4: Processed 90 frames
+2025-11-05 22:01:42 - INFO - Trajectory 5: Processed 90 frames
+2025-11-05 22:01:42 - INFO - Trajectory 3: Processed 100 frames
+2025-11-05 22:01:42 - ERROR - Trajectories:  17%|#6        | 3/18 [00:28<01:41,  6.77s/it, Latest: sep_prot_frames_DPP8_0003822_Aselective.tar.gz]
+2025-11-05 22:01:42 - ERROR - Trajectories:  17%|#6        | 3/18 [00:28<01:41,  6.77s/it, Latest: sep_prot_frames_DPP8_0005356_DPP9selective.tar.gz]
+2025-11-05 22:01:42 - INFO - Trajectory 10: Processed 0 frames
+2025-11-05 22:01:42 - INFO - Trajectory 8: Processed 10 frames
+2025-11-05 22:01:42 - INFO - Trajectory 7: Processed 80 frames
+2025-11-05 22:01:43 - INFO - Trajectory 6: Processed 90 frames
+2025-11-05 22:01:43 - INFO - Trajectory 9: Processed 10 frames
+2025-11-05 22:01:44 - ERROR - Trajectories:  22%|##2       | 4/18 [00:30<01:07,  4.85s/it, Latest: sep_prot_frames_DPP8_0005356_DPP9selective.tar.gz]
+2025-11-05 22:01:44 - ERROR - Trajectories:  22%|##2       | 4/18 [00:30<01:07,  4.85s/it, Latest: sep_prot_frames_DPP8_0005362_Aselective.tar.gz]
+2025-11-05 22:01:44 - INFO - Trajectory 11: Processed 0 frames
+2025-11-05 22:01:44 - INFO - Trajectory 4: Processed 100 frames
+2025-11-05 22:01:44 - INFO - Trajectory 10: Processed 10 frames
+2025-11-05 22:01:44 - INFO - Trajectory 5: Processed 100 frames
+2025-11-05 22:01:45 - INFO - Trajectory 8: Processed 20 frames
+2025-11-05 22:01:45 - INFO - Trajectory 7: Processed 90 frames
+2025-11-05 22:01:46 - INFO - Trajectory 6: Processed 100 frames
+2025-11-05 22:01:46 - INFO - Trajectory 9: Processed 20 frames
+2025-11-05 22:01:46 - ERROR - Trajectories:  28%|##7       | 5/18 [00:32<00:51,  3.94s/it, Latest: sep_prot_frames_DPP8_0005362_Aselective.tar.gz]
+2025-11-05 22:01:46 - ERROR - Trajectories:  28%|##7       | 5/18 [00:32<00:51,  3.94s/it, Latest: sep_prot_frames_DPP8_0005862_DPP8selective.tar.gz]
+2025-11-05 22:01:46 - INFO - Trajectory 12: Processed 0 frames
+2025-11-05 22:01:46 - INFO - Trajectory 13: Processed 0 frames
+2025-11-05 22:01:46 - ERROR - Trajectories:  33%|###3      | 6/18 [00:32<00:47,  3.94s/it, Latest: sep_prot_frames_DPP8_000808_DPP8selective.tar.gz]
+2025-11-05 22:01:46 - INFO - Trajectory 11: Processed 10 frames
+2025-11-05 22:01:47 - INFO - Trajectory 10: Processed 20 frames
+2025-11-05 22:01:47 - INFO - Trajectory 8: Processed 30 frames
+2025-11-05 22:01:48 - INFO - Trajectory 7: Processed 100 frames
+2025-11-05 22:01:48 - INFO - Trajectory 12: Processed 10 frames
+2025-11-05 22:01:48 - INFO - Trajectory 14: Processed 0 frames
+2025-11-05 22:01:48 - ERROR - Trajectories:  39%|###8      | 7/18 [00:34<00:27,  2.48s/it, Latest: sep_prot_frames_DPP8_000808_DPP8selective.tar.gz]
+2025-11-05 22:01:48 - ERROR - Trajectories:  39%|###8      | 7/18 [00:34<00:27,  2.48s/it, Latest: sep_prot_frames_DPP8_12i_Nonbinder.tar.gz]
+2025-11-05 22:01:49 - INFO - Trajectory 10: Processed 30 frames
+2025-11-05 22:01:49 - INFO - Trajectory 13: Processed 10 frames
+2025-11-05 22:01:49 - INFO - Trajectory 9: Processed 30 frames
+2025-11-05 22:01:49 - INFO - Trajectory 11: Processed 20 frames
+2025-11-05 22:01:50 - INFO - Trajectory 8: Processed 40 frames
+2025-11-05 22:01:50 - ERROR - Trajectories:  44%|####4     | 8/18 [00:36<00:23,  2.32s/it, Latest: sep_prot_frames_DPP8_12i_Nonbinder.tar.gz]
+2025-11-05 22:01:50 - INFO - Trajectory 15: Processed 0 frames
+2025-11-05 22:01:50 - ERROR - Trajectories:  44%|####4     | 8/18 [00:36<00:23,  2.32s/it, Latest: sep_prot_frames_DPP8_42_DPP9selective.tar.gz]
+2025-11-05 22:01:50 - INFO - Trajectory 12: Processed 20 frames
+2025-11-05 22:01:51 - INFO - Trajectory 14: Processed 10 frames
+2025-11-05 22:01:51 - INFO - Trajectory 11: Processed 30 frames
+2025-11-05 22:01:52 - INFO - Trajectory 10: Processed 40 frames
+2025-11-05 22:01:52 - INFO - Trajectory 13: Processed 20 frames
+2025-11-05 22:01:52 - INFO - Trajectory 9: Processed 40 frames
+2025-11-05 22:01:52 - INFO - Trajectory 15: Processed 10 frames
+2025-11-05 22:01:52 - INFO - Trajectory 8: Processed 50 frames
+2025-11-05 22:01:53 - INFO - Trajectory 12: Processed 30 frames
+2025-11-05 22:01:53 - INFO - Trajectory 14: Processed 20 frames
+2025-11-05 22:01:53 - INFO - Trajectory 11: Processed 40 frames
+2025-11-05 22:01:54 - INFO - Trajectory 13: Processed 30 frames
+2025-11-05 22:01:54 - INFO - Trajectory 10: Processed 50 frames
+2025-11-05 22:01:54 - INFO - Trajectory 15: Processed 20 frames
+2025-11-05 22:01:54 - INFO - Trajectory 9: Processed 50 frames
+2025-11-05 22:01:54 - INFO - Trajectory 8: Processed 60 frames
+2025-11-05 22:01:55 - INFO - Trajectory 12: Processed 40 frames
+2025-11-05 22:01:55 - INFO - Trajectory 14: Processed 30 frames
+2025-11-05 22:01:56 - INFO - Trajectory 13: Processed 40 frames
+2025-11-05 22:01:56 - INFO - Trajectory 11: Processed 50 frames
+2025-11-05 22:01:56 - INFO - Trajectory 10: Processed 60 frames
+2025-11-05 22:01:56 - INFO - Trajectory 9: Processed 60 frames
+2025-11-05 22:01:57 - INFO - Trajectory 14: Processed 40 frames
+2025-11-05 22:01:57 - INFO - Trajectory 8: Processed 70 frames
+2025-11-05 22:01:57 - INFO - Trajectory 15: Processed 30 frames
+2025-11-05 22:01:57 - INFO - Trajectory 12: Processed 50 frames
+2025-11-05 22:01:58 - INFO - Trajectory 11: Processed 60 frames
+2025-11-05 22:01:58 - INFO - Trajectory 10: Processed 70 frames
+2025-11-05 22:01:58 - INFO - Trajectory 9: Processed 70 frames
+2025-11-05 22:01:59 - INFO - Trajectory 13: Processed 50 frames
+2025-11-05 22:01:59 - INFO - Trajectory 15: Processed 40 frames
+2025-11-05 22:01:59 - INFO - Trajectory 8: Processed 80 frames
+2025-11-05 22:01:59 - INFO - Trajectory 12: Processed 60 frames
+2025-11-05 22:01:59 - INFO - Trajectory 14: Processed 50 frames
+2025-11-05 22:02:01 - INFO - Trajectory 10: Processed 80 frames
+2025-11-05 22:02:01 - INFO - Trajectory 11: Processed 70 frames
+2025-11-05 22:02:01 - INFO - Trajectory 13: Processed 60 frames
+2025-11-05 22:02:01 - INFO - Trajectory 8: Processed 90 frames
+2025-11-05 22:02:01 - INFO - Trajectory 9: Processed 80 frames
+2025-11-05 22:02:01 - INFO - Trajectory 15: Processed 50 frames
+2025-11-05 22:02:02 - INFO - Trajectory 14: Processed 60 frames
+2025-11-05 22:02:02 - INFO - Trajectory 12: Processed 70 frames
+2025-11-05 22:02:02 - INFO - Trajectory 11: Processed 80 frames
+2025-11-05 22:02:03 - INFO - Trajectory 13: Processed 70 frames
+2025-11-05 22:02:03 - INFO - Trajectory 8: Processed 100 frames
+2025-11-05 22:02:03 - INFO - Trajectory 10: Processed 90 frames
+2025-11-05 22:02:03 - INFO - Trajectory 15: Processed 60 frames
+2025-11-05 22:02:03 - INFO - Trajectory 9: Processed 90 frames
+2025-11-05 22:02:04 - INFO - Trajectory 14: Processed 70 frames
+2025-11-05 22:02:04 - INFO - Trajectory 12: Processed 80 frames
+2025-11-05 22:02:04 - ERROR - Trajectories:  50%|#####     | 9/18 [00:50<00:49,  5.51s/it, Latest: sep_prot_frames_DPP8_42_DPP9selective.tar.gz]
+2025-11-05 22:02:04 - ERROR - Trajectories:  50%|#####     | 9/18 [00:50<00:49,  5.51s/it, Latest: sep_prot_frames_DPP8_apo.tar.gz]
+2025-11-05 22:02:04 - INFO - Trajectory 16: Processed 0 frames
+2025-11-05 22:02:04 - INFO - Trajectory 13: Processed 80 frames
+2025-11-05 22:02:04 - INFO - Trajectory 11: Processed 90 frames
+2025-11-05 22:02:05 - INFO - Trajectory 10: Processed 100 frames
+2025-11-05 22:02:05 - ERROR - Trajectories:  56%|#####5    | 10/18 [00:51<00:33,  4.17s/it, Latest: sep_prot_frames_DPP8_apo.tar.gz]
+2025-11-05 22:02:05 - ERROR - Trajectories:  56%|#####5    | 10/18 [00:51<00:33,  4.17s/it, Latest: sep_prot_frames_DPP9_0003822_Aselective.tar.gz]
+2025-11-05 22:02:05 - INFO - Trajectory 17: Processed 0 frames
+2025-11-05 22:02:05 - INFO - Trajectory 15: Processed 70 frames
+2025-11-05 22:02:05 - INFO - Trajectory 9: Processed 100 frames
+2025-11-05 22:02:05 - INFO - Trajectory 14: Processed 80 frames
+2025-11-05 22:02:05 - INFO - Trajectory 12: Processed 90 frames
+2025-11-05 22:02:05 - INFO - Trajectory 16: Processed 10 frames
+2025-11-05 22:02:06 - INFO - Trajectory 11: Processed 100 frames
+2025-11-05 22:02:06 - INFO - Trajectory 13: Processed 90 frames
+2025-11-05 22:02:06 - ERROR - Trajectories:  61%|######1   | 11/18 [00:52<00:23,  3.32s/it, Latest: sep_prot_frames_DPP9_0003822_Aselective.tar.gz]
+2025-11-05 22:02:06 - ERROR - Trajectories:  61%|######1   | 11/18 [00:52<00:23,  3.32s/it, Latest: sep_prot_frames_DPP9_0000157_Nonbinder.tar.gz]
+2025-11-05 22:02:06 - INFO - Trajectory 17: Processed 10 frames
+2025-11-05 22:02:06 - INFO - Trajectory 14: Processed 90 frames
+2025-11-05 22:02:06 - INFO - Trajectory 15: Processed 80 frames
+2025-11-05 22:02:06 - ERROR - Trajectories:  67%|######6   | 12/18 [00:53<00:14,  2.46s/it, Latest: sep_prot_frames_DPP9_0000157_Nonbinder.tar.gz]
+2025-11-05 22:02:06 - ERROR - Trajectories:  67%|######6   | 12/18 [00:53<00:14,  2.46s/it, Latest: sep_prot_frames_DPP9_0005356_DPP9selective.tar.gz]
+2025-11-05 22:02:07 - INFO - Trajectory 16: Processed 20 frames
+2025-11-05 22:02:07 - INFO - Trajectory 12: Processed 100 frames
+2025-11-05 22:02:07 - INFO - Trajectory 13: Processed 100 frames
+2025-11-05 22:02:07 - INFO - Trajectory 17: Processed 20 frames
+2025-11-05 22:02:07 - INFO - Trajectory 14: Processed 100 frames
+2025-11-05 22:02:07 - INFO - Trajectory 15: Processed 90 frames
+2025-11-05 22:02:08 - ERROR - Trajectories:  72%|#######2  | 13/18 [00:54<00:10,  2.09s/it, Latest: sep_prot_frames_DPP9_0005356_DPP9selective.tar.gz]
+2025-11-05 22:02:08 - ERROR - Trajectories:  72%|#######2  | 13/18 [00:54<00:10,  2.09s/it, Latest: sep_prot_frames_DPP9_0005362_Aselective.tar.gz]
+2025-11-05 22:02:08 - ERROR - Trajectories:  78%|#######7  | 14/18 [00:54<00:06,  1.54s/it, Latest: sep_prot_frames_DPP9_0005362_Aselective.tar.gz]
+2025-11-05 22:02:08 - ERROR - Trajectories:  78%|#######7  | 14/18 [00:54<00:06,  1.54s/it, Latest: sep_prot_frames_DPP9_0005862_DPP8selective.tar.gz]
+2025-11-05 22:02:08 - INFO - Trajectory 16: Processed 30 frames
+2025-11-05 22:02:08 - ERROR - Trajectories:  83%|########3 | 15/18 [00:54<00:04,  1.54s/it, Latest: sep_prot_frames_DPP9_000808_DPP8selective.tar.gz]
+2025-11-05 22:02:08 - INFO - Trajectory 17: Processed 30 frames
+2025-11-05 22:02:08 - INFO - Trajectory 15: Processed 100 frames
+2025-11-05 22:02:09 - ERROR - Trajectories:  89%|########8 | 16/18 [00:55<00:01,  1.00it/s, Latest: sep_prot_frames_DPP9_000808_DPP8selective.tar.gz]
+2025-11-05 22:02:09 - ERROR - Trajectories:  89%|########8 | 16/18 [00:55<00:01,  1.00it/s, Latest: sep_prot_frames_DPP9_12i_Nonbinder.tar.gz]
+2025-11-05 22:02:09 - INFO - Trajectory 16: Processed 40 frames
+2025-11-05 22:02:09 - INFO - Trajectory 17: Processed 40 frames
+2025-11-05 22:02:09 - INFO - Trajectory 16: Processed 50 frames
+2025-11-05 22:02:10 - INFO - Trajectory 17: Processed 50 frames
+2025-11-05 22:02:10 - INFO - Trajectory 16: Processed 60 frames
+2025-11-05 22:02:10 - INFO - Trajectory 17: Processed 60 frames
+2025-11-05 22:02:11 - INFO - Trajectory 16: Processed 70 frames
+2025-11-05 22:02:11 - INFO - Trajectory 17: Processed 70 frames
+2025-11-05 22:02:11 - INFO - Trajectory 16: Processed 80 frames
+2025-11-05 22:02:12 - INFO - Trajectory 17: Processed 80 frames
+2025-11-05 22:02:12 - INFO - Trajectory 16: Processed 90 frames
+2025-11-05 22:02:12 - INFO - Trajectory 17: Processed 90 frames
+2025-11-05 22:02:13 - INFO - Trajectory 16: Processed 100 frames
+2025-11-05 22:02:13 - ERROR - Trajectories:  94%|#########4| 17/18 [00:59<00:01,  1.85s/it, Latest: sep_prot_frames_DPP9_12i_Nonbinder.tar.gz]
+2025-11-05 22:02:13 - ERROR - Trajectories:  94%|#########4| 17/18 [00:59<00:01,  1.85s/it, Latest: sep_prot_frames_DPP9_42_DPP9selective.tar.gz]
+2025-11-05 22:02:13 - INFO - Trajectory 17: Processed 100 frames
+2025-11-05 22:02:13 - ERROR - Trajectories: 100%|##########| 18/18 [01:00<00:00,  1.46s/it, Latest: sep_prot_frames_DPP9_42_DPP9selective.tar.gz]
+2025-11-05 22:02:13 - ERROR - Trajectories: 100%|##########| 18/18 [01:00<00:00,  1.46s/it, Latest: sep_prot_frames_DPP9_apo.tar.gz]
+2025-11-05 22:02:14 - ERROR - Trajectories: 100%|##########| 18/18 [01:00<00:00,  3.39s/it, Latest: sep_prot_frames_DPP9_apo.tar.gz]
+2025-11-05 22:02:14 - INFO - Finished Pre-Processing

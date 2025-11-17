@@ -1,0 +1,107 @@
+2025-11-14 14:35:51 - INFO - Processing 18 individual trajectories...
+2025-11-14 14:35:51 - ERROR - Trajectories:   0%|          | 0/18 [00:00<?, ?it/s]
+2025-11-14 14:35:51 - ERROR - Trajectories:   0%|          | 0/18 [00:00<?, ?it/s]
+2025-11-14 14:35:51 - ERROR - concurrent.futures.process
+2025-11-14 14:35:51 - ERROR - .
+2025-11-14 14:35:51 - ERROR - _RemoteTraceback
+2025-11-14 14:35:51 - ERROR - :
+2025-11-14 14:35:51 - ERROR - """
+Traceback (most recent call last):
+  File "/usr/lib/python3.12/concurrent/futures/process.py", line 263, in _process_worker
+    r = call_item.fn(*call_item.args, **call_item.kwargs)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: process_single_trajectory() missing 1 required positional argument: 'progress_id'
+"""
+2025-11-14 14:35:51 - ERROR - The above exception was the direct cause of the following exception:
+2025-11-14 14:35:51 - ERROR - Traceback (most recent call last):
+2025-11-14 14:35:51 - ERROR - File "/home/samro/Thesis-molecular_dynamics_trajectory_embeddings/src/data_preprocessing/data_preprocessing.py", line 183, in <module>
+2025-11-14 14:35:51 - ERROR - trajectory_tensors = process_parallel(raw_data_path, max_workers=8) # [Shape: (10.001, nr_atoms, 3)]
+2025-11-14 14:35:51 - ERROR - ^
+2025-11-14 14:35:51 - ERROR - ^
+2025-11-14 14:35:51 - ERROR - ^
+2025-11-14 14:35:51 - ERROR - ^
+2025-11-14 14:35:51 - ERROR - ^
+2025-11-14 14:35:51 - ERROR - ^
+2025-11-14 14:35:51 - ERROR - ^
+2025-11-14 14:35:51 - ERROR - ^
+2025-11-14 14:35:51 - ERROR - ^
+2025-11-14 14:35:51 - ERROR - ^
+2025-11-14 14:35:51 - ERROR - ^
+2025-11-14 14:35:51 - ERROR - ^
+2025-11-14 14:35:51 - ERROR - ^
+2025-11-14 14:35:51 - ERROR - ^
+2025-11-14 14:35:51 - ERROR - ^
+2025-11-14 14:35:51 - ERROR - ^
+2025-11-14 14:35:51 - ERROR - ^
+2025-11-14 14:35:51 - ERROR - ^
+2025-11-14 14:35:51 - ERROR - ^
+2025-11-14 14:35:51 - ERROR - ^
+2025-11-14 14:35:51 - ERROR - ^
+2025-11-14 14:35:51 - ERROR - ^
+2025-11-14 14:35:51 - ERROR - ^
+2025-11-14 14:35:51 - ERROR - ^
+2025-11-14 14:35:51 - ERROR - ^
+2025-11-14 14:35:51 - ERROR - ^
+2025-11-14 14:35:51 - ERROR - ^
+2025-11-14 14:35:51 - ERROR - ^
+2025-11-14 14:35:51 - ERROR - ^
+2025-11-14 14:35:51 - ERROR - ^
+2025-11-14 14:35:51 - ERROR - ^
+2025-11-14 14:35:51 - ERROR - ^
+2025-11-14 14:35:51 - ERROR - ^
+2025-11-14 14:35:51 - ERROR - ^
+2025-11-14 14:35:51 - ERROR - ^
+2025-11-14 14:35:51 - ERROR - ^
+2025-11-14 14:35:51 - ERROR - ^
+2025-11-14 14:35:51 - ERROR - ^
+2025-11-14 14:35:51 - ERROR - ^
+2025-11-14 14:35:51 - ERROR - ^
+2025-11-14 14:35:51 - ERROR - ^
+2025-11-14 14:35:51 - ERROR - ^
+2025-11-14 14:35:51 - ERROR - ^
+2025-11-14 14:35:51 - ERROR - ^
+2025-11-14 14:35:51 - ERROR - ^
+2025-11-14 14:35:51 - ERROR - ^
+2025-11-14 14:35:51 - ERROR - File "/home/samro/Thesis-molecular_dynamics_trajectory_embeddings/src/data_preprocessing/data_preprocessing.py", line 80, in process_parallel
+2025-11-14 14:35:51 - ERROR - tensor = future.result()
+2025-11-14 14:35:51 - ERROR - ^
+2025-11-14 14:35:51 - ERROR - ^
+2025-11-14 14:35:51 - ERROR - ^
+2025-11-14 14:35:51 - ERROR - ^
+2025-11-14 14:35:51 - ERROR - ^
+2025-11-14 14:35:51 - ERROR - ^
+2025-11-14 14:35:51 - ERROR - ^
+2025-11-14 14:35:51 - ERROR - ^
+2025-11-14 14:35:51 - ERROR - ^
+2025-11-14 14:35:51 - ERROR - ^
+2025-11-14 14:35:51 - ERROR - ^
+2025-11-14 14:35:51 - ERROR - ^
+2025-11-14 14:35:51 - ERROR - ^
+2025-11-14 14:35:51 - ERROR - ^
+2025-11-14 14:35:51 - ERROR - ^
+2025-11-14 14:35:51 - ERROR - File "/usr/lib/python3.12/concurrent/futures/_base.py", line 449, in result
+2025-11-14 14:35:51 - ERROR - return self.__get_result()
+2025-11-14 14:35:51 - ERROR - ^
+2025-11-14 14:35:51 - ERROR - ^
+2025-11-14 14:35:51 - ERROR - ^
+2025-11-14 14:35:51 - ERROR - ^
+2025-11-14 14:35:51 - ERROR - ^
+2025-11-14 14:35:51 - ERROR - ^
+2025-11-14 14:35:51 - ERROR - ^
+2025-11-14 14:35:51 - ERROR - ^
+2025-11-14 14:35:51 - ERROR - ^
+2025-11-14 14:35:51 - ERROR - ^
+2025-11-14 14:35:51 - ERROR - ^
+2025-11-14 14:35:51 - ERROR - ^
+2025-11-14 14:35:51 - ERROR - ^
+2025-11-14 14:35:51 - ERROR - ^
+2025-11-14 14:35:51 - ERROR - ^
+2025-11-14 14:35:51 - ERROR - ^
+2025-11-14 14:35:51 - ERROR - ^
+2025-11-14 14:35:51 - ERROR - ^
+2025-11-14 14:35:51 - ERROR - ^
+2025-11-14 14:35:51 - ERROR - File "/usr/lib/python3.12/concurrent/futures/_base.py", line 401, in __get_result
+2025-11-14 14:35:51 - ERROR - raise self._exception
+2025-11-14 14:35:51 - ERROR - TypeError
+2025-11-14 14:35:51 - ERROR - :
+2025-11-14 14:35:51 - ERROR - process_single_trajectory() missing 1 required positional argument: 'progress_id'
