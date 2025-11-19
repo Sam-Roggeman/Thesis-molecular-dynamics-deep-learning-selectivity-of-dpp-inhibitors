@@ -1,7 +1,49 @@
 import os
 import mdtraj as md
 import numpy as np
+import torch
 
+
+# inline function to get classes
+def get_binding_classes():
+    return ["apo", "nonbinder", "dpp9selective", "dpp8selective", "aselective"]
+
+
+
+def parse_pdb_from_string(pdb_content):
+    """Parse PDB from string content instead of file"""
+    coords = []
+    for line in pdb_content.split('\n'):
+        if line.startswith('ATOM') or line.startswith('HETATM'):
+            try:
+                x = float(line[30:38])
+                y = float(line[38:46])
+                z = float(line[46:54])
+                coords.append([x, y, z])
+            except (ValueError, IndexError):
+                continue
+    return torch.tensor(coords)
+def parse_filename(filename):
+    """
+    Parse filename to get DPP class, binding type and ligand name.
+    :param filename: str in format sep_prot_frames_{DPP_class}_{Ligand_name}_{Binding_type}.{extension}
+    """
+    filename = remove_extension(filename)
+    filename = filename.lower()
+    parts = filename.split('_')
+    if len(parts) == 5:
+        parts.insert(4, 'none')  # Insert 'none' for ligand name if missing
+    if len(parts) != 6:
+        raise ValueError(f"Filename {filename} is not in the expected format.")
+    dpp_class = parts[3]
+    ligand_name = parts[4]
+    binding_type = parts[5]
+    # validate    dpp_class and binding_type
+    if dpp_class not in ['dpp8', 'dpp9']:
+        raise ValueError(f"Filename {filename} has unknown DPP class {dpp_class}.")
+    if binding_type not in get_binding_classes() and binding_type != 'none':
+        raise ValueError(f"Filename {filename} has unknown binding type {binding_type}.")
+    return dpp_class, ligand_name, binding_type
 
 def prime_factorization(n):
     """

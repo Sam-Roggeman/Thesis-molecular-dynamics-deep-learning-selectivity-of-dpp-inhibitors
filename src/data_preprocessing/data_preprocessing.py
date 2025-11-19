@@ -14,45 +14,36 @@ import torch.nn.functional as F
 from src.model_training.DataLoader import DataLoader, save_as_safetensor
 from src.utils.configParser import ConfigParserWrapper
 from src.utils.logger import setup_logger, replace_output
-from src.model_training.train_test_split import train_val_test_split, create_splits_randomsplit
+from src.model_training.train_test_split import train_val_test_split, create_splits_randomsplit, \
+    create_ligand_splits_1_train_1_valtest
+
 from torch.utils.data import TensorDataset
 
-def parse_pdb_from_string(pdb_content):
-    """Parse PDB from string content instead of file"""
-    coords = []
-    for line in pdb_content.split('\n'):
-        if line.startswith('ATOM') or line.startswith('HETATM'):
-            try:
-                x = float(line[30:38])
-                y = float(line[38:46])
-                z = float(line[46:54])
-                coords.append([x, y, z])
-            except (ValueError, IndexError):
-                continue
-    return torch.tensor(coords)
+from src.utils.utils import get_binding_classes, parse_pdb_from_string, parse_filename
 
 
 def load_trajectory_fast(tar_path, progress_id=None):
     """Modified to show progress for individual trajectories"""
 
     all_coords = []
-
-    with tarfile.open(tar_path, 'r:gz') as tar:
+    with tarfile.open(tar_path, 'r') as tar:
         # Process members in the order they appear in tar (fastest)
-        for i, member in enumerate(tar):
+        # loop over every 10th frame
+        members = tar.getmembers()
+
+        # only process 10% of the frames
+        for i in range(0, 10001, 10):
+            member = members[i]
             if not (member.name.startswith('frame_') and member.name.endswith('.pdb')):
                 continue
-
-            if i % 1000 == 0:
-                print(f"Trajectory {progress_id}: Processed {len(all_coords)} frames")
-
             # Parse directly from tar
             extracted_file = tar.extractfile(member)
             if extracted_file:
                 pdb_content = extracted_file.read().decode('utf-8')
                 coords = parse_pdb_from_string(pdb_content)
                 all_coords.append(coords)
-
+            if i % 1000 == 0 and progress_id is not None:
+                print(f"Trajectory {progress_id}: Processed frame {i}/{len(members)}")
     tensor = torch.stack(all_coords)
     filename = Path(tar_path).name
 
@@ -64,31 +55,44 @@ def process_single_trajectory(tar_path, progress_id):
     return load_trajectory_fast(tar_path, progress_id)
 
 
-def process_parallel(raw_data_path, max_workers=4):
+def process_parallel(raw_data_path, max_workers=2):
     """Process individual tensors with progress bar"""
 
-    tar_files = sorted(Path(raw_data_path).glob('*.tar.gz'))
+    tar_files = sorted(Path(raw_data_path).glob("*"))
     trajectory_tensors = []
     filenames = []
     print(f"Processing {len(tar_files)} individual trajectories...")
 
     with tqdm(total=len(tar_files), desc="Trajectories") as pbar:
-        with concurrent.futures.ProcessPoolExecutor(max_workers=max_workers) as executor:
-            # Submit all jobs
-            future_to_file = {executor.submit(process_single_trajectory, tf, idx): tf for idx, tf in enumerate(tar_files)}
-
-            # Collect results as they complete
-            for future in concurrent.futures.as_completed(future_to_file):
-                tensor, filename = future.result()
+        if max_workers == 1:
+            # Process sequentially
+            for idx, tf in enumerate(tar_files):
+                tensor, filename = process_single_trajectory(tf, idx)
                 trajectory_tensors.append(tensor)
                 filenames.append(filename)
 
-
                 pbar.update(1)
                 pbar.set_postfix({
-                    "Latest": future_to_file[future].name,
+                    "Latest": tf.name,
                     "Shape": str(tensor.shape)
                 })
+        else:
+            with concurrent.futures.ProcessPoolExecutor(max_workers=max_workers) as executor:
+                # Submit all jobs
+                future_to_file = {executor.submit(process_single_trajectory, tf, idx): tf for idx, tf in enumerate(tar_files)}
+
+                # Collect results as they complete
+                for future in concurrent.futures.as_completed(future_to_file):
+                    tensor, filename = future.result()
+                    trajectory_tensors.append(tensor)
+                    filenames.append(filename)
+
+
+                    pbar.update(1)
+                    pbar.set_postfix({
+                        "Latest": future_to_file[future].name,
+                        "Shape": str(tensor.shape)
+                    })
 
     return trajectory_tensors, filenames
 
@@ -125,20 +129,7 @@ def apply_padding(tensors, target_size=168*168):
 
     return data_tensor, size
 
-def filename_to_classname(filename, classes):
-    """Map filename to class name based on substrings."""
-    # Filename format: sep_prot_frames_{Enzyme}_{Binder name}_{Bindertype/Class}
-    class_string = filename.split('_')[-1]
-    # if class_string exists
-    if class_string:
-        class_string = class_string.lower()
-        # look for the class in classes
-        if class_string in classes:
-            return class_string
-        else:
-            raise ValueError(f"Filename {filename} has unknown class {class_string}.")
-    else:
-        raise ValueError(f"Filename {filename} does not match any known class.")
+
 def merge_tensors(tensor_dict):
     """Merge a list of tensors into a single tensor by concatenation along the first dimension.
     :param tensor_dict: dict of {class_name: [tensors]}
@@ -160,30 +151,21 @@ def classify_tensors(trajectory_tensors, filenames):
     :param trajectory_tensors:
     """
     print(f"Classifying {len(trajectory_tensors)} tensors")
-    # Different possible classes
-    classes = ["apo", "nonbinder", "dpp9selective", "dpp8selective", "aselective"]
+    classes = get_binding_classes()
     # empty dict to hold classified tensors
     classified_tensors = {cls: [] for cls in classes}
     # add the tensors to their classes
     for i, tensor in enumerate(trajectory_tensors):
         print(f"Trajectory {i}: {tensor.shape}")
         filename = filenames[i].replace('.tar.gz', '')
-        class_name = filename_to_classname(filename, classes)
+
+        dpp_class, ligand_name, binding_type = parse_filename(filename)
+        class_name = binding_type
+        tensor.ligand_name = ligand_name  # attach ligand name to tensor for later use
         classified_tensors[class_name].append(tensor)
         print(f"\tClassified as {class_name}")
 
     return classified_tensors
-
-def filename_to_dpp_classname(filename):
-    """Map filename to DPP class name based on substrings."""
-    filename = filename.lower()
-    if "_dpp8_" in filename:
-        return "dpp8"
-    elif "_dpp9_" in filename:
-        return "dpp9"
-    else:
-        raise ValueError(f"Filename {filename} does not match any known DPP class.")
-
 
 def create_torch_dataset_from_tensors(classified_tensors):
     """Create PyTorch datasets from classified tensors.
@@ -223,9 +205,28 @@ def save_datasets(train_dataset, val_dataset, test_dataset, size_ratio):
             subset_size = int(len(dataset) * ratio)
             # create a subset of the dataset
             subset, _ = torch.utils.data.random_split(dataset, [subset_size, len(dataset) - subset_size])
-            save_dataset(subset, f"{split_name}_{size_name}", dataset_folder=f'./data/dataset/tensors/{size_name}/{split_name}', chunk_size=10000)
+            save_dataset(subset, f"{split_name}_{size_name}", dataset_folder=f'./data/dataset/tensors/{size_name}/{split_name}', chunk_size=5000)
             print( f"✓ Saved {split_name} dataset of size {size_name} ({subset_size} samples, ratio {ratio*100:.2f}%).")
     print( "✓ All datasets saved successfully.")
+
+def save_classified_tensors(classified_tensors, dataset_folder='./data/dataset/tensors/raw_classified', chunk_size=10000):
+    """
+    Save classified tensors separately. Uses chunking to avoid OOM.
+    The folder structure will be: /dataset_folder/enzyme/binding_type/chunk_0.safetensors
+    :param classified_tensors: dict of {enzyme:{binding_type: [tensors]}}
+    :param dataset_folder: folder to save datasets
+    :param chunk_size: chunk size for saving
+    """
+    os.makedirs(dataset_folder, exist_ok=True)
+    print(f"\nSaving classified tensors to {dataset_folder}...")
+    for dpp_name, classified_entry in classified_tensors.items():
+        path = os.path.join(dataset_folder, dpp_name)
+        os.makedirs(path, exist_ok=True)
+        for class_name, tensor_list in classified_entry.items():
+            path = os.path.join(dataset_folder, dpp_name, class_name)
+            os.makedirs(path, exist_ok=True)
+            # save the tensor      
+
 
 if __name__ == "__main__":
     configparser = ConfigParserWrapper()
@@ -240,27 +241,40 @@ if __name__ == "__main__":
     print(f"✓ Logger set up. Logs will be saved to {log_dir}")
     print("Starting data preprocessing...")
     # parallel processing
-    trajectory_tensors,filenames = process_parallel(raw_data_path, max_workers=8) # [Shape: (10.001, nr_atoms, 3)]
-
+    trajectory_tensors,filenames = process_parallel(raw_data_path, max_workers=6) # [Shape: (10.001, nr_atoms, 3)]
     # Pad the tensors
     trajectory_tensors, trajectory_sizes = apply_padding(trajectory_tensors, 168*168) # Shape: (18, 10.001, 168*168, 3)
 
     # Classify the tensors
     classified_tensors = classify_tensors(trajectory_tensors, filenames) # {class_name: [tensors]}
-    del trajectory_tensors
+    del trajectory_tensors, filenames, trajectory_sizes
+
+    # # split the tensor into train, validation and test
+    # train_dataset, val_dataset, test_dataset = create_traject_splits_6_1_1(classified_tensors)
+    # # Save datasets to folders
+    # save_datasets(train_dataset, val_dataset, test_dataset, size_ratio={"traject_splits_6_1_1_10%": 1.0})
+
+    # split the tensor into train, validation and test
+    classified_train_tensors, classified_val_tensors, classified_test_tensors = create_ligand_splits_1_train_1_valtest(classified_tensors)
+    train_dataset = create_torch_dataset_from_tensors(merge_tensors(classified_train_tensors))
+    val_dataset = create_torch_dataset_from_tensors(merge_tensors(classified_val_tensors))
+    test_dataset = create_torch_dataset_from_tensors(merge_tensors(classified_test_tensors))
+    # Save datasets to folders
+    save_datasets(train_dataset, val_dataset, test_dataset, size_ratio={"ligand_splits_1_train_1_valtest_10%": 1.0})
+
 
     # Merge tensors in each class
-    classified_tensors = merge_tensors(classified_tensors) # {class_name: merged_tensor}
+    merged_classified_tensors = merge_tensors(classified_tensors)  # {class_name: merged_tensor}
+    del classified_tensors, classified_train_tensors, classified_val_tensors, classified_test_tensors
 
     # PyTorch dataset from tensors
-    dataset = create_torch_dataset_from_tensors(classified_tensors)
+    dataset = create_torch_dataset_from_tensors(merged_classified_tensors)
 
     # split the tensor into train, validation and test
     train_dataset, val_dataset, test_dataset = create_splits_randomsplit(dataset)
-
-
     # Save datasets to folders
-    save_datasets(train_dataset, val_dataset, test_dataset, size_ratio={"small": 0.01, "medium": 0.10, "large": 1.0})
+    save_datasets(train_dataset, val_dataset, test_dataset, size_ratio={"random_split_10%": 1.0})
+
     print("✓ Data preprocessing completed successfully.")
 
 

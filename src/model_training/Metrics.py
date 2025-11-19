@@ -40,7 +40,7 @@ class Metrics:
     def nr_epochs(self):
         return len(self.training_accuracy)
 
-    def plot_metrics(self, title, ):
+    def plot_metrics(self, title):
         """
         :param metrics: dict: {"accuracy":[values], "loss":[values]}
         :return:

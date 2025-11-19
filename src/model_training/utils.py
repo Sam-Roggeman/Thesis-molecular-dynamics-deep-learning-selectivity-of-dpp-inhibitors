@@ -8,17 +8,14 @@ from src.utils.configParser import ConfigParser
 import matplotlib.pyplot as plt
 
 
-def save_model(model_state_dict, model_name_prefix):
-    config_parser = ConfigParser("config.ini")
-    save_folder = config_parser.get("Model Training", "Model Save Folder")
-    os.makedirs(save_folder, exist_ok=True)
+def save_model(path, model_state_dict, model_name_prefix):
+    os.makedirs(path, exist_ok=True)
     # current date and time
     date = time.strftime("%Y%m%d-%H%M%S")
     model_name = f"{model_name_prefix}_{date}"
     model_filename = f"{model_name}.pth"
-    PATH = os.path.join(save_folder, model_filename)
-    torch.save(model_state_dict, PATH)
-    return PATH, model_filename
+    torch.save(model_state_dict, os.path.join(path, model_filename))
+    return model_filename
 
 def load_model(model_class, model_filepath):
     model = model_class()
@@ -72,7 +69,7 @@ def training_loop(model, trainloader, validationloader, optimizer, criterion, ma
             epochs_best_model = epoch
 
     print('Finished Training')
-    return best_model, metrics
+    return best_model, metrics, epochs_best_model
 
 
 

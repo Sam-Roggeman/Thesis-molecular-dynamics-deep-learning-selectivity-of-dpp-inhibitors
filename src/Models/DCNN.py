@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 from pprint import pprint
 
 import torchvision
@@ -144,20 +145,26 @@ def train_model():
     cdcnn = CustomDenseNet()
     config_parser = ConfigParser("config.ini")
 
-    dataset_folder = config_parser.get("Model Training", "Input Folder")
+    dataset_folder = "./data/dataset/tensors/random_split_10%/"
     trainloader, validationloader, _ = load_dataset_from_safetensors_multichunk(dataset_folder)
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.SGD(cdcnn.parameters(), lr=0.001, momentum=0.9)
-    model_state_dict, metrics = training_loop(model=cdcnn,
+    model_state_dict, metrics, nr_epochs = training_loop(model=cdcnn,
                                               trainloader=trainloader,
                                               validationloader=validationloader,
                                               optimizer=optimizer,
                                               criterion=criterion,
                                               max_epochs=200)
-    nr_epochs = metrics.nr_epochs()
     model_prefix = f"DenseCNN_{nr_epochs}epochs"
-    _, filename = save_model(model_state_dict, model_prefix)
-    metrics.plot_metrics(filename)
+    path = str(os.path.join(config_parser.get("Model Training", "Model Save Folder")))
+
+    filename = save_model(path, model_state_dict, model_prefix)
+    plt = metrics.plot_metrics(filename)
+    print(f"Model saved to: {os.path.join(path,filename)}")
+    # save the plot
+    plot_path = filename.replace('.pth', '.png')
+    plt.savefig(os.path.join(path,plot_path))
+    print(f"Plot saved to: {os.path.join(path,plot_path)}")
 
 def validate_model():
     config_parser = ConfigParser("config.ini")
@@ -170,6 +177,7 @@ def validate_model():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     val_acc = calculate_accuracy(model, validation_loader, device=device)
     print(f"Validation Accuracy: {val_acc}")
+
 
 if __name__ == "__main__":
     # train_model()
