@@ -32,7 +32,7 @@ def parse_filename(filename):
     filename = filename.lower()
     parts = filename.split('_')
     if len(parts) == 5:
-        parts.insert(4, 'none')  # Insert 'none' for ligand name if missing
+        parts.insert(4, None)  # Insert 'none' for ligand name if missing
     if len(parts) != 6:
         raise ValueError(f"Filename {filename} is not in the expected format.")
     dpp_class = parts[3]
@@ -41,7 +41,7 @@ def parse_filename(filename):
     # validate    dpp_class and binding_type
     if dpp_class not in ['dpp8', 'dpp9']:
         raise ValueError(f"Filename {filename} has unknown DPP class {dpp_class}.")
-    if binding_type not in get_binding_classes() and binding_type != 'none':
+    if binding_type and binding_type not in get_binding_classes():
         raise ValueError(f"Filename {filename} has unknown binding type {binding_type}.")
     return dpp_class, ligand_name, binding_type
 
@@ -80,6 +80,9 @@ def remove_extension(filename):
     :param filename: str
     :return:
     """
+    # if no extension, return the original filename
+    if '.' not in filename:
+        return filename
     return '.'.join(filename.split('.')[:-1])
 
 
