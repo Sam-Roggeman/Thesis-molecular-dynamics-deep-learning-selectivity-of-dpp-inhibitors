@@ -22,6 +22,17 @@ def load_model(model_class, model_filepath):
     model.load_state_dict(torch.load(model_filepath))
     return model
 
+def encode_labels(labels):
+    label_mapping = {
+        "nonbinder": 0,
+        "dpp9selective": 1,
+        "dpp8selective": 2,
+        "aselective": 3,
+        "apo": 4
+    }
+    labels = [label_mapping[label] for label in labels]
+    return labels
+
 
 def training_loop(model, trainloader, validationloader, optimizer, criterion, max_epochs=200):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -35,9 +46,9 @@ def training_loop(model, trainloader, validationloader, optimizer, criterion, ma
         model.train()
         running_loss = 0.0
         mini_batch_loss = 0.0
-        for i, data in enumerate(trainloader, 0):
+        for i, batch in enumerate(trainloader, 0):
             # get the inputs; data is a list of [inputs, labels]
-            inputs, labels = data
+            inputs, labels = batch["data"], batch["labels"]
             inputs, labels = inputs.to(device), labels.to(device)
 
             # zero the parameter gradients
@@ -69,7 +80,7 @@ def training_loop(model, trainloader, validationloader, optimizer, criterion, ma
             epochs_best_model = epoch
 
     print('Finished Training')
-    return best_model, metrics, epochs_best_model
+    return best_model, epochs_best_model,metrics
 
 
 

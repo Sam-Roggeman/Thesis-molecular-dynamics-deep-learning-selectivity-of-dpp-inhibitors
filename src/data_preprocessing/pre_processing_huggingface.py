@@ -1,6 +1,6 @@
 import functools
 
-from datasets import Dataset, load_dataset, NamedSplit
+from datasets import Dataset, load_dataset, NamedSplit, concatenate_datasets, load_from_disk
 from datasets.data_files import DownloadConfig
 import tarfile
 import os
@@ -91,7 +91,7 @@ if __name__ == "__main__":
     log_subdir = "data_preprocessing"
     log_dir = os.path.join(logs_parent_dir, log_subdir)
     logger = setup_logger(log_file="", log_dir=log_dir, logging_enabled=logging_enabled,
-                          console_enabled=console_enabled)
+                          console_enabled=False)
     replace_output(logger)
     print(f"✓ Logger set up. Logs will be saved to {log_dir}")
     print("Starting data preprocessing...")
@@ -105,9 +105,8 @@ if __name__ == "__main__":
             filename = tar_file.stem
             with tarfile.open(tar_file, 'r') as tar:
                 frames = tar.getmembers()
-                # only take every 1000th frame to reduce dataset size for testing
-                frames = [ frame for frame in frames if frame.name.endswith('000.pdb')]
                 dpp_class, ligand_name, binding_type = parse_filename(filename)
+                split_name = f"{dpp_class}_{binding_type}_{ligand_name}"
                 func = functools.partial(
                     parse_pdb_streaming,
                     dpp_class=dpp_class,
@@ -115,19 +114,78 @@ if __name__ == "__main__":
                     binding_type=binding_type
                 )
 
-                # split into 6 parts for multiprocessing
                 dataset = Dataset.from_generator(
                     func,
                     gen_kwargs={
                         'frames': frames,
                     },
                     num_proc=1,
-                    split = NamedSplit(f"{dpp_class}_{binding_type}_{ligand_name}")
+                    split = NamedSplit(split_name)
                 )
-                res_dir = os.path.join(streaming_pdb_dataset_path, filename)
+                res_dir = os.path.join(streaming_pdb_dataset_path, split_name)
                 os.makedirs(res_dir, exist_ok=True)
                 # store the dataset to disk as safetensors
                 dataset.save_to_disk(res_dir, max_shard_size="4GB")
+    train_set = {
+        "12i": 1.0, # Nonbinder
+        "42": 1.0, # dpp9 selective
+        "000808": 1.0, # DPP8selective
+        "0003822": 1.0,# Aselective
+        "apo": 0.5,
+    }
+    test_val_set = {
+        "0000157": 1.0, # Nonbinder
+        "0005356": 1.0, # dpp9 selective
+        "0005862": 1.0, # DPP8selective
+        "0005362": 1.0,# Aselective
+    }
+    dss_train = []
+    dss_val_test = []
+    for dpp in ["dpp8", "dpp9"]:
+        for binding in ["aselective", "dpp8selective", "dpp9selective", "nonbinder", "apo"]:
+            sub_name = f"{dpp}_{binding}"
+            # find the ligands available for this dpp and binding type
+            available_ligands = [ f.name.split('_')[-1] for f in Path(streaming_pdb_dataset_path).glob(f"{sub_name}_*") if f.is_dir()]
+            for ligand in available_ligands:
+                split_name = f"{dpp}_{binding}_{ligand}"
+                path = os.path.join(streaming_pdb_dataset_path, split_name)
+                if binding == "apo":
+                    frac = train_set["apo"]
+                    ds = load_from_disk(path)
+                    ds_dict = ds.train_test_split(test_size=1-frac, seed=42, shuffle=True)
+                    dss_val_test.append(ds_dict['test'])
+                    dss_train.append(ds_dict['train'])
+                elif ligand in train_set.keys():
+                    ds = load_from_disk(path )
+                    dss_train.append(ds)
+                elif ligand in test_val_set.keys():
+                    ds = load_from_disk(path)
+                    dss_val_test.append(ds)
+                else:
+                    raise ValueError(f"Unknown ligand {ligand}.")
+    full_training_set = concatenate_datasets(dss_train)
+    full_val_test_set = concatenate_datasets(dss_val_test)
+    full_val_test_set = full_val_test_set.train_test_split(test_size=0.5, seed=42, shuffle=True)
+    full_val_set = full_val_test_set['train']
+    full_test_set = full_val_test_set['test']
+    # print shapes
+    print(f"\tFinal training set size: {len(full_training_set)}")
+    print(f"\tFinal validation set size: {len(full_val_set)}")
+    print(f"\tFinal test set size: {len(full_test_set)}")
+
+    print("Saving final datasets to disk...")
+    final_train_path = os.path.join(streaming_pdb_dataset_path, "train")
+    final_val_path = os.path.join(streaming_pdb_dataset_path, "val")
+    final_test_path = os.path.join(streaming_pdb_dataset_path, "test")
+    os.makedirs(final_train_path, exist_ok=True)
+    os.makedirs(final_val_path, exist_ok=True)
+    os.makedirs(final_test_path, exist_ok=True)
+    full_training_set.save_to_disk(final_train_path, max_shard_size="4GB")
+    full_val_set.save_to_disk(final_val_path, max_shard_size="4GB")
+    full_test_set.save_to_disk(final_test_path, max_shard_size="4GB")
+    print("Datasets saved.")
+
+
     # else:
     #     print("Loading dataset from disk...")
     #     dataset = Dataset.load_from_disk(streaming_pdb_dataset_path)

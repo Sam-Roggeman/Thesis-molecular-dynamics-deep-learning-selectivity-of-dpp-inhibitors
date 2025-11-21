@@ -1,6 +1,6 @@
 import torch
 import matplotlib.pyplot as plt
-from metric_functions import calculate_accuracy, calculate_loss
+from src.model_training.metric_functions import calculate_accuracy, calculate_loss
 
 
 class Metrics:
@@ -40,7 +40,7 @@ class Metrics:
     def nr_epochs(self):
         return len(self.training_accuracy)
 
-    def plot_metrics(self, title):
+    def plot_metrics(self, title, filename):
         """
         :param metrics: dict: {"accuracy":[values], "loss":[values]}
         :return:
@@ -50,7 +50,8 @@ class Metrics:
 
         epochs = range(1, len(self.training_accuracy) + 1)
         plt.figure(figsize=(12, 5))
-        plt.title(title)
+        plt.title(title, pad=20)
+
         # disable y and x axis for the main plot
         plt.axis('off')
 
@@ -71,8 +72,8 @@ class Metrics:
         plt.xlabel('Epochs')
         plt.ylabel('Loss')
         plt.legend()
-
-        plt.show()
+        plt.savefig(filename)
+        plt.show(block=False)
         # return plot such that it can be saved externally
         return plt
 

@@ -9,7 +9,7 @@ def calculate_accuracy(model, dataloader, device):
 
     with torch.no_grad():
         for data in dataloader:
-            images, labels = data
+            images, labels = data["data"], data["labels"]
             images, labels = images.to(device), labels.to(device)
             outputs = model(images)
             _, predicted = torch.max(outputs.data, 1)
@@ -23,7 +23,7 @@ def calculate_loss(model, dataloader, criterion, device):
     val_loss = 0.0
     with torch.no_grad():
         for data in dataloader:
-            inputs, labels = data
+            inputs, labels = data["data"], data["labels"]
             inputs, labels = inputs.to(device), labels.to(device)
             outputs = model(inputs)
             loss = criterion(outputs, labels)
