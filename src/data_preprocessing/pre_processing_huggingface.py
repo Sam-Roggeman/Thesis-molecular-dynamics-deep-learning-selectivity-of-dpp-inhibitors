@@ -9,6 +9,8 @@ from pathlib import Path
 import numpy as np
 from Bio import PDB
 import multiprocessing as mp
+
+from src.model_training.utils import train_val_test_split
 from src.utils.utils import parse_filename
 from src.utils.configParser import ConfigParserWrapper
 from src.utils.logger import setup_logger, replace_output
@@ -81,8 +83,7 @@ def preprocess_batch(batch):
     return processed
 
 if __name__ == "__main__":
-    regenerate = True  # Set to True to regenerate the dataset
-
+    regenerate = False  # Set to True to regenerate the dataset
 
     configparser = ConfigParserWrapper()
     raw_data_path = configparser.get_raw_data_folder()
@@ -165,24 +166,35 @@ if __name__ == "__main__":
                     raise ValueError(f"Unknown ligand {ligand}.")
     full_training_set = concatenate_datasets(dss_train)
     full_val_test_set = concatenate_datasets(dss_val_test)
+    full_set = concatenate_datasets([full_training_set, full_val_test_set])
     full_val_test_set = full_val_test_set.train_test_split(test_size=0.5, seed=42, shuffle=True)
     full_val_set = full_val_test_set['train']
     full_test_set = full_val_test_set['test']
+
     # print shapes
     print(f"\tFinal training set size: {len(full_training_set)}")
     print(f"\tFinal validation set size: {len(full_val_set)}")
     print(f"\tFinal test set size: {len(full_test_set)}")
-
+    print(f"\tFull dataset size: {len(full_set)}")
+    dataset_dir = os.path.dirname('./data/dataset/')
     print("Saving final datasets to disk...")
-    final_train_path = os.path.join(streaming_pdb_dataset_path, "train")
-    final_val_path = os.path.join(streaming_pdb_dataset_path, "val")
-    final_test_path = os.path.join(streaming_pdb_dataset_path, "test")
+    ligand_path = os.path.join(dataset_dir, "ligand_set")
+    final_train_path = os.path.join(ligand_path, "train")
+    final_val_path = os.path.join(ligand_path, "val")
+    final_test_path = os.path.join(ligand_path, "test")
+    final_full_set_path = os.path.join(dataset_dir, "full_dataset")
     os.makedirs(final_train_path, exist_ok=True)
     os.makedirs(final_val_path, exist_ok=True)
     os.makedirs(final_test_path, exist_ok=True)
-    full_training_set.save_to_disk(final_train_path, max_shard_size="4GB")
-    full_val_set.save_to_disk(final_val_path, max_shard_size="4GB")
-    full_test_set.save_to_disk(final_test_path, max_shard_size="4GB")
+    full_training_set.save_to_disk(final_train_path, max_shard_size="4GB", num_proc=8)
+    full_val_set.save_to_disk(final_val_path, max_shard_size="4GB", num_proc=8)
+    full_test_set.save_to_disk(final_test_path, max_shard_size="4GB", num_proc=8)
+    for split_name, dset in train_val_test_split(full_set, train_fraction=0.7, val_fraction=0.15, seed=42).items():
+        set_path = os.path.join(final_full_set_path, split_name)
+        os.makedirs(set_path, exist_ok=True)
+        dset.save_to_disk(set_path, max_shard_size="4GB", num_proc=8)
+
+
     print("Datasets saved.")
 
 

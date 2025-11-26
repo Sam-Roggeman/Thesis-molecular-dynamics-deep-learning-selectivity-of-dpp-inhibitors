@@ -4,18 +4,21 @@ import torch
 class TorchScrambler:
     """PyTorch-based scrambler for on-the-fly data augmentation"""
 
-    def __init__(self, diameter: float, device='cpu'):
+    def __init__(self, diameter: float, device='cpu', seed =42):
         self.diameter = diameter
         self.device = device
+        torch.manual_seed(seed)
 
-    def __call__(self, frame: torch.Tensor) -> torch.Tensor:
+
+    def __call__(self, frame: torch.Tensor, batched) -> torch.Tensor:
         """
         Apply scrambling as a transform
         Args:
-            frame: torch.Tensor of shape (n_atoms, 3) or (batch, n_atoms, 3)
+            frame: list of shape (n_atoms, 3) or (batch, n_atoms, 3)
         Returns:
             Scrambled frame with same shape
         """
+        # depth of the nested list
         if frame.dim() == 2:
             # Single frame
             frame = self.oriental_scramble(frame)

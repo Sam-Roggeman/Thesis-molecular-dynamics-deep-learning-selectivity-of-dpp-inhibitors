@@ -35,4 +35,4 @@ def train_model():
     nr_epochs = metrics.nr_epochs()
     model_prefix = f"DenseCNN_{nr_epochs}epochs"
     _, filename = save_model(model_state_dict, model_prefix)
-    metrics.plot_metrics(filename)
+    metrics.save_plot(filename)

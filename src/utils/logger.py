@@ -73,7 +73,7 @@ class LoggerWriter:
             return
 
         # Handle progress bar characters - don't log them to file
-        if any(c in message for c in ['|', '#', '%', '▌', '▓', '░']):
+        if any(c in message for c in ['|', '#', '▌', '▓', '░']):
             return
 
         self.buffer += message

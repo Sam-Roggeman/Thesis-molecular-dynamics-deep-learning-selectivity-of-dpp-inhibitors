@@ -14,7 +14,6 @@ class Metrics:
         self.patience_counter = 0
 
 
-
     def update(self, trainloader, validationloader, model, running_loss, criterion, device):
         self.train_loss.append(running_loss / len(trainloader))
 
@@ -39,8 +38,16 @@ class Metrics:
 
     def nr_epochs(self):
         return len(self.training_accuracy)
+    def save_metrics(self, filename):
+        metrics_dict = self.to_dict()
+        torch.save(metrics_dict, filename)
+    def load_metrics(self, filename):
+        metrics_dict = torch.load(filename)
+        self.validation_accuracy = metrics_dict.get("validation_accuracy", [])
+        self.training_accuracy = metrics_dict.get("training_accuracy", [])
+        self.train_loss = metrics_dict.get("loss", [])
 
-    def plot_metrics(self, title, filename):
+    def save_plot(self, title, filename):
         """
         :param metrics: dict: {"accuracy":[values], "loss":[values]}
         :return:

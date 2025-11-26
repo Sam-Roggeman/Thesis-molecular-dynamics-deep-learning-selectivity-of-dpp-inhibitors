@@ -60,7 +60,7 @@ def train_model():
                                    optimizer=optimizer, criterion=criterion)
     model_prefix = "SimpleCNN"
     _, filename = save_model(simple_cnn, model_prefix)
-    metrics.plot_metrics(filename)
+    metrics.save_plot(filename)
 
 if __name__ == "__main__":
     train_model()
