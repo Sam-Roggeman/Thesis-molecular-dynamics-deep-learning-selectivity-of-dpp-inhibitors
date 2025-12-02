@@ -46,15 +46,16 @@ class XYZToRGBTensor:
             # Avoid division by zero
             coords_range[coords_range == 0] = 1
 
-            # Normalize entire sample (including padding) using real atoms' min/max
+            # Normalize entire sample including padding using real atoms' min/max
             coords_normalized[i] = (coords_array[i] - coords_min) / coords_range
 
-            # Clamp to [0, 1] so padding (zeros) stay black
-            coords_normalized[i] = np.clip(coords_normalized[i], 0, 1)
+            # Reapply black padding to  padded atoms
+            if num_real < coords_array.shape[1]:
+                coords_normalized[i, num_real:] = 0.0
+
 
         # Reshape each sample from (28224, 3) to (168, 168, 3)
         coords_reshaped = coords_normalized.reshape(batch_size, self.target_size, self.target_size, 3)
-
         # Convert to tensor and permute to (batch, 3, 168, 168)
         img_tensor = torch.from_numpy(coords_reshaped).permute(0, 3, 1, 2)  # (batch, 3, 168, 168)
 

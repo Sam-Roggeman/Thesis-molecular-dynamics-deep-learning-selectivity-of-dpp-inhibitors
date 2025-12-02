@@ -14,19 +14,11 @@ class Metrics:
         self.patience_counter = 0
 
 
-    def update(self, trainloader, validationloader, model, running_loss, criterion, device):
-        self.train_loss.append(running_loss / len(trainloader))
-
-        # accuracy on training set
-        train_accuracy = calculate_accuracy(model, trainloader, device)
-        # accuracy on validation set
-        validation_accuracy = calculate_accuracy(model, validationloader, device)
-        validation_loss = calculate_loss(model, validationloader, criterion, device)
-
-
-        self.training_accuracy.append(train_accuracy)
-        self.validation_accuracy.append(validation_accuracy)
-        self.validation_loss.append(validation_loss)
+    def update(self, train_acc, train_loss, val_acc, val_loss):
+        self.train_loss.append(train_loss)
+        self.training_accuracy.append(train_acc)
+        self.validation_accuracy.append(val_acc)
+        self.validation_loss.append(val_loss)
 
 
     def to_dict(self):
@@ -66,9 +58,9 @@ class Metrics:
         plt.subplot(1, 2, 1)
         plt.plot(epochs, self.validation_accuracy, validation_color, label='validation Accuracy')
         plt.plot(epochs, self.training_accuracy, train_color, label='Train Accuracy')
-        plt.title('validation Accuracy')
+        plt.title('Accuracy')
         plt.xlabel('Epochs')
-        plt.ylabel('Accuracy')
+        plt.ylabel('% Accuracy')
         plt.legend()
 
         # loss plot
@@ -83,17 +75,24 @@ class Metrics:
         plt.show(block=False)
         # return plot such that it can be saved externally
         return plt
-
+    def model_improved(self):
+        # if not enough data to compare return True
+        if len(self.validation_loss) < 2 or len(self.validation_loss) < 2:
+            returnval = True
+        else:
+            returnval = self.validation_loss[-1] > self.validation_loss[-2]
+        if returnval:
+            self.min_val_loss = self.validation_loss[-1]
+            self.patience_counter = 0
+        return returnval
     def is_overfitting(self):
         # if not enough data to compare return False
-        if len(self.training_accuracy) < 2 or len(self.validation_accuracy) < 2:
+        if self.model_improved():
             return False
-        val_loss_last = self.validation_loss[-1]
-        if val_loss_last < self.min_val_loss:
-            self.min_val_loss = val_loss_last
-            self.patience_counter = 0
         else:
             self.patience_counter += 1
             if self.patience_counter >= self.patience:
                 return True
-        return False
+            else:
+                return False
+

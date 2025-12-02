@@ -1,4 +1,6 @@
 import os
+from datetime import datetime
+
 import datasets
 import numpy as np
 import torchvision
@@ -20,7 +22,7 @@ from src.utils.logger import replace_output, setup_logger
 
 
 class _DenseLayer(nn.Module):
-    def __init__(self, num_input_features, growth_rate, bn_size=4):
+    def __init__(self, num_input_features, growth_rate, bn_size=4, dropout_rate=0.2):
         super(_DenseLayer, self).__init__()
         self.norm1 = nn.BatchNorm2d(num_input_features)
         self.relu1 = nn.ReLU(inplace=True)
@@ -31,7 +33,6 @@ class _DenseLayer(nn.Module):
         self.relu2 = nn.ReLU(inplace=True)
         self.conv2 = nn.Conv2d(bn_size * growth_rate, growth_rate,
                                kernel_size=3, stride=1, padding=1, bias=False)
-
     def forward(self, x):
         # Bottleneck layer
         out = self.relu1(self.conv1(self.norm1(x)))
@@ -76,7 +77,7 @@ class _Transition(nn.Module):
 
 class CustomDenseNet(nn.Module):
     def __init__(self, growth_rate=48, block_config=(6, 12, 36, 24),
-                 num_init_features=96, reduction_ratio=0.5, num_classes=1000, bn_size=4):
+                 num_init_features=96, reduction_ratio=0.5, num_classes=5, bn_size=4, dropout_rate=0.5):
         super(CustomDenseNet, self).__init__()
 
         # Initial convolution
@@ -109,6 +110,7 @@ class CustomDenseNet(nn.Module):
         self.features.add_module('norm5', nn.BatchNorm2d(num_features))
 
         # Classifier
+        self.dropout = nn.Dropout(dropout_rate)
         self.classifier = nn.Linear(num_features, num_classes)
 
         # Initialize weights
@@ -126,12 +128,13 @@ class CustomDenseNet(nn.Module):
         out = F.relu(features, inplace=True)
         out = F.adaptive_avg_pool2d(out, (1, 1))
         out = torch.flatten(out, 1)
+        out = self.dropout(out)
         out = self.classifier(out)
         return out
 
 
 # Create the model with your specified parameters
-def create_custom_densenet(num_classes=1000):
+def create_custom_densenet(num_classes=5):
     model = CustomDenseNet(
         growth_rate=48,
         block_config=(6, 12, 36, 24),  # 4 dense blocks with 6, 12, 36, 24 layers
@@ -143,40 +146,43 @@ def create_custom_densenet(num_classes=1000):
 
 
 def train_model():
-    cdcnn = CustomDenseNet()
+    cdcnn = create_custom_densenet(num_classes=5)
     config_parser = ConfigParser("config.ini")
+    time_string = datetime.now().strftime("%Y%m%d-%H%M%S")
+    model_dir = f'./models/DenseCNN/FullDataset/{time_string}/'
+    model_name = "DenseCNN_full_dataset"
+    os.makedirs(model_dir, exist_ok=True)
+    # time limit
+    time_limit = 1 * 60 * 60  # in seconds
+    weight_decay = 0.01
+    learning_rate = 0.001
+    print(f"Training DenseCNN model. Model will be saved to: {model_dir}")
+    print(f"Weight Decay: {weight_decay}, Learning Rate: {learning_rate}")
 
-    log_dir = "./logs/full_dataset_training"
-    logger = setup_logger(log_file="", log_dir=log_dir, logging_enabled=True,
+    logger = setup_logger(log_file="outputlog.txt", log_dir=model_dir, logging_enabled=True,
                           console_enabled=False)
     replace_output(logger)
 
     dataset_folder = "./data/dataset/full_dataset/"
 
+
     device = get_device()
 
-    dataset = datasets.load_from_disk(dataset_folder)
+    dataset_train = datasets.load_from_disk(os.path.join(dataset_folder, "train"))
+    dataset_val = datasets.load_from_disk(os.path.join(dataset_folder, "val"))
+    testset = datasets.load_from_disk(os.path.join(dataset_folder, "test"))
+    dataset_size = 0.15
+    dss = {"train": dataset_train, "val": dataset_val, "test": testset}
+    for dataset_key in dss:
 
-    # Load only dataset_size% of each dataset
-    dataset_size = 0.25
-    dataset = get_subset(dataset, dataset_size)
+        # Load only dataset_size% of each dataset
+        dataset = get_subset(dss[dataset_key], dataset_size)
 
 
-    # rename coords = data and binding_type = labels
-    data_col = "coordinates"
-    label_col = "binding_type"
-
-    dataset = dataset.rename_column(data_col, "data").rename_column(label_col, "labels")
-
-    split_ratio = [0.7, 0.15, 0.15]
-    dataset = dataset.train_test_split(test_size=split_ratio[2] + split_ratio[1], seed=42, shuffle=True)
-    trainset = dataset['train']
-    val_test_set = dataset['test']
-    val_test_set = val_test_set.train_test_split(test_size=split_ratio[2]/(split_ratio[1]+split_ratio[2]), seed=42, shuffle=True)
-    valset = val_test_set['train']
-    testset = val_test_set['test']
-    # save the test set for later evaluation
-    testset.save_to_disk(os.path.join(dataset_folder, "test_set"))
+        # rename coords = data and binding_type = labels
+        data_col = "coordinates"
+        label_col = "binding_type"
+        dss[dataset_key] = dataset.rename_column(data_col, "data").rename_column(label_col, "labels")
 
     def apply_transform(examples_data, examples_labels, real_nr_atoms):
         """Apply transform to each entry in the batch"""
@@ -189,8 +195,8 @@ def train_model():
 
         examples_data = rgb_transformer(padder(scrambler(examples_data)), real_nr_atoms)
         examples_labels = encode_labels(examples_labels)
-
         return {"data": examples_data, "labels": examples_labels}
+
     def apply_transform_val(examples_data, examples_labels, real_nr_atoms):
         """Apply transform to each entry in the batch"""
         # Change from XYZ (tensor shape: [28224,3]) to RGB [3,168,168]
@@ -202,64 +208,73 @@ def train_model():
         examples_labels = encode_labels(examples_labels)
 
         return {"data": examples_data, "labels": examples_labels}
-    trainset = trainset.map(
+
+    dss["train"] = dss["train"].map(
         apply_transform,
-        batch_size=128,
+        batch_size=32,
         batched=True,
         input_columns=['data', 'labels', "num_atoms"],
         remove_columns=['pdb_id', 'dpp_class', 'ligand_name', 'num_atoms'],
         num_proc=8
     )
 
-    valset = valset.map(
+    dss["val"] = dss["val"].map(
         apply_transform_val,
-        batch_size=128,
+        batch_size=32,
         batched=True,
         input_columns=['data', 'labels',"num_atoms"],
         remove_columns=['pdb_id', 'dpp_class', 'ligand_name', 'num_atoms'],
         num_proc=8
-
+    )
+    dss["test"] = dss["test"].map(
+        apply_transform_val,
+        batch_size=32,
+        batched=True,
+        input_columns=['data', 'labels',"num_atoms"],
+        remove_columns=['pdb_id', 'dpp_class', 'ligand_name', 'num_atoms'],
+        num_proc=8
     )
 
-    trainset.set_format(type='torch', columns=['data', 'labels'], device=device)
-    valset.set_format(type='torch', columns=['data', 'labels'], device=device)
+    dss["train"].set_format(type='torch', columns=['data', 'labels'], device=device)
+    dss["val"].set_format(type='torch', columns=['data', 'labels'], device=device)
+    dss["test"].set_format(type='torch', columns=['data', 'labels'], device=device)
 
-    trainloader = torch.utils.data.DataLoader(trainset, batch_size=32, shuffle=True)
-    validationloader = torch.utils.data.DataLoader(valset, batch_size=32, shuffle=False)
-    test_loader = torch.utils.data.DataLoader(testset, batch_size=32, shuffle=False)
+    trainloader = torch.utils.data.DataLoader(dss["train"], batch_size=16, shuffle=True)
+    validationloader = torch.utils.data.DataLoader(dss["val"], batch_size=16, shuffle=False)
+    test_loader = torch.utils.data.DataLoader(dss["test"], batch_size=16, shuffle=False)
 
     criterion = nn.CrossEntropyLoss()
-    optimizer = optim.SGD(cdcnn.parameters(), lr=0.001, momentum=0.9)
+
+    optimizer = optim.AdamW(cdcnn.parameters(), lr=learning_rate, weight_decay=weight_decay)
+    patience = 15
 
     model_state_dict, nr_epochs, metrics  = training_loop(model=cdcnn,
+                                                         model_folder=model_dir,
                                                          trainloader=trainloader,
                                                          validationloader=validationloader,
                                                          optimizer=optimizer,
                                                          criterion=criterion,
-                                                         max_epochs=200, )
-    model = create_custom_densenet()
-    model.load_state_dict(model_state_dict)
+                                                         max_epochs=200,
+                                                         patience=patience,
+                                                         time_limit=time_limit)
+    cdcnn.load_state_dict(model_state_dict)
 
-    model_prefix = f"DenseCNN_full_dataset_{nr_epochs}epochs"
-    path = str(os.path.join(config_parser.get("Model Training", "Model Save Folder")))
-    subdir = model_name(model_prefix)
-    path = os.path.join(path, subdir)
-    os.makedirs(path, exist_ok=False)
-    filename = f"{model_prefix}_{model_prefix}.pth"
-    torch.save(model_state_dict, os.path.join(path, filename))
 
-    print(f"Model saved to: {os.path.join(path, filename)}")
-    plot_path = filename.replace('.pth', '.png')
-    metric_path = filename.replace('.pth', '.metrics')
-    metrics.save_plot( "DCNN on the ligand split data" ,os.path.join(path, plot_path))
-    metrics.save_metrics(os.path.join(path, metric_path))
+    filepath = os.path.join(model_dir, f"{model_name}.pth")
+    torch.save(model_state_dict, filepath)
 
-    print(f"Plot saved to: {os.path.join(path, plot_path)}")
-    test_acc = calculate_accuracy(model, test_loader, device=device)
+    print(f"Model saved to: {filepath}")
+    plot_path = filepath.replace('.pth', '.png')
+    metric_path = filepath.replace('.pth', '.metrics')
+    metrics.save_plot( "DCNN on the random split data" ,plot_path)
+    metrics.save_metrics(metric_path)
+
+    print(f"Plot saved to: {plot_path}")
+    test_acc = calculate_accuracy(cdcnn, test_loader, device=device)
     print(f"Test Accuracy: {test_acc}")
 
 def train_model_ligand_split():
-    cdcnn = CustomDenseNet()
+    cdcnn = create_custom_densenet(5)
     config_parser = ConfigParser("config.ini")
 
     log_dir = "./logs/Ligand_Split_Training"
@@ -271,8 +286,8 @@ def train_model_ligand_split():
 
     device = get_device()
 
-    trainset = datasets.load_from_disk(os.path.join(dataset_folder, "ligand_split_train"))
-    valset = datasets.load_from_disk(os.path.join(dataset_folder, "ligand_split_val"))
+    trainset = datasets.load_from_disk(os.path.join(dataset_folder, "train"))
+    valset = datasets.load_from_disk(os.path.join(dataset_folder, "test"))
 
     # Load only dataset_size% of each dataset
     dataset_size = 0.25
@@ -300,7 +315,16 @@ def train_model_ligand_split():
 
         examples_data = rgb_transformer(padder(scrambler(examples_data)), real_nr_atoms)
         examples_labels = encode_labels(examples_labels)
+        return {"data": examples_data, "labels": examples_labels}
+    def apply_transform_val(examples_data, examples_labels, real_nr_atoms):
+        """Apply transform to each entry in the batch"""
+        # Change from XYZ (tensor shape: [28224,3]) to RGB [3,168,168]
+        rgb_transformer = XYZToRGBTensor(target_size=168)
+        # Pad to 168x168 = 28224
+        padder = Padder(target_size=168, fill=0)
 
+        examples_data = rgb_transformer(padder(examples_data), real_nr_atoms)
+        examples_labels = encode_labels(examples_labels)
         return {"data": examples_data, "labels": examples_labels}
 
     trainset = trainset.map(
@@ -313,7 +337,7 @@ def train_model_ligand_split():
     )
 
     valset = valset.map(
-        apply_transform,
+        apply_transform_val,
         batch_size=128,
         batched=True,
         input_columns=['data', 'labels',"num_atoms"],
@@ -329,7 +353,7 @@ def train_model_ligand_split():
     validationloader = torch.utils.data.DataLoader(valset, batch_size=32, shuffle=False)
 
     criterion = nn.CrossEntropyLoss()
-    optimizer = optim.SGD(cdcnn.parameters(), lr=0.001, momentum=0.9)
+    optimizer = optim.AdamW(cdcnn.parameters(), lr=0.001, weight_decay=0.01)
 
     model_state_dict, nr_epochs, metrics  = training_loop(model=cdcnn,
                                                          trainloader=trainloader,
