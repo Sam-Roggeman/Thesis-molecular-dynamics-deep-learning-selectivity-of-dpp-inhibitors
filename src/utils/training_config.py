@@ -42,5 +42,5 @@ class TrainingConfig:
 
     def __post_init__(self):
         if self.cache_folder is None:
-            self.cache_folder = '/home/samro/.cache/huggingface/datasets/sam_roggeman_thesis_dataset/default/0.0.0/bd5fc36a30b06598/'
+            self.cache_folder = 'cache_folder="/project_scratch/dataset_cache/'
 
