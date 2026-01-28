@@ -39,6 +39,8 @@ class Metrics:
         self.training_accuracy = metrics_dict.get("training_accuracy", [])
         self.train_loss = metrics_dict.get("loss", [])
 
+
+
     def save_plot(self, title, filename):
         """
         :param metrics: dict: {"accuracy":[values], "loss":[values]}
@@ -72,9 +74,7 @@ class Metrics:
         plt.ylabel('Loss')
         plt.legend()
         plt.savefig(filename)
-        plt.show(block=False)
-        # return plot such that it can be saved externally
-        return plt
+        plt.close()
     def model_improved(self):
         # if not enough data to compare return True
         if len(self.validation_loss) < 2 or len(self.validation_loss) < 2:

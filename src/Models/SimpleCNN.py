@@ -21,7 +21,7 @@ from src.utils.Metrics import Metrics
 
 
 class SimpleCNN(nn.Module):
-    def __init__(self, input_size=166):
+    def __init__(self, input_size=168):
         super().__init__()
 
 

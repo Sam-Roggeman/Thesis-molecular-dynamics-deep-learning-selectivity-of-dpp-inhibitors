@@ -24,15 +24,20 @@ def load_model(model_class, model_filepath):
     model = model_class()
     model.load_state_dict(torch.load(model_filepath))
     return model
-def get_subset(dataset, fraction, shuffle=True):
+def get_subset(dataset, fraction, shuffle=True, seed=42):
     if 0.9999 < fraction <= 1.0:
         return dataset
     if fraction <= 0 or fraction > 1.0001:
         raise ValueError("Fraction must be between 0 and 1.")
     dataset_size = int(max(len(dataset) * fraction, 1))
     if shuffle:
-        dataset = dataset.shuffle()
+        dataset = dataset.shuffle(seed=seed)
     return dataset.select(range(dataset_size))
+def clear_cache(dataset_dir):
+    ds = datasets.load_from_disk(dataset_dir)
+    ds.cleanup_cache_files()
+    print(f"Cleared cache files in dataset at {dataset_dir}")
+
 def encode_labels(labels):
     label_mapping = {
         "nonbinder": 0,
@@ -62,7 +67,7 @@ def train_val_test_split(dataset, train_fraction=0.7, val_fraction=0.15, seed=42
 
     return {"train": train_set, "val": val_set,"test": test_set}
 
-def training_loop(model, trainloader, validationloader, optimizer, criterion, model_folder,max_epochs=200, patience=10, time_limit=None ):
+def training_loop(model, trainloader, validationloader, optimizer, criterion, model_folder,scheduler=None,max_epochs=200, patience=10, time_limit=None ):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     metric_path =os.path.join(model_folder, f'metrics_training_loop.pt')
     plot_path = os.path.join(model_folder, f'plots_training_loop.png')
@@ -135,6 +140,8 @@ def training_loop(model, trainloader, validationloader, optimizer, criterion, mo
 
         val_loss /= len(validationloader)
         val_acc = correct / total
+        if scheduler:
+            scheduler.step()
         metrics.update(train_acc * 100, train_loss, val_acc * 100, val_loss)
         # override metrics and plot
         metrics.save_metrics(metric_path)
@@ -164,6 +171,8 @@ def training_loop(model, trainloader, validationloader, optimizer, criterion, mo
             epochs_best_model = epoch
         print(f'\tPatience Counter: {metrics.patience_counter}/{patience}')
         print(f'\tTime for epoch:   {time_epoch//60:.2f}m {time_epoch%60:.0f}s\t(avg: {average_time_per_epoch//60}m {average_time_per_epoch%60:.0f}s/epoch)\t Time elapsed since start: {(time.time() - start_time)//60:.0f}m')
+        if scheduler:
+            print(f'\tLearning Rate: {optimizer.param_groups[0]["lr"]:.2e}')
         print('='*100)
 
     print('Finished Training')

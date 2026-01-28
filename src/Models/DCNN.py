@@ -16,10 +16,11 @@ from src.model_training.DataLoader import load_dataset_from_safetensors_multichu
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-
+from src.Transform.tranformators import apply_image_transform, apply_image_transform_noscramble
 from src.utils.configParser import ConfigParser
 from src.utils.logger import replace_output, setup_logger
-
+from src.utils.training_config import TrainingConfig
+from src.utils.training_setup import train_model
 
 class _DenseLayer(nn.Module):
     def __init__(self, num_input_features, growth_rate, bn_size=4, dropout_rate=0.2):
@@ -145,134 +146,6 @@ def create_custom_densenet(num_classes=5):
     return model
 
 
-def train_model():
-    cdcnn = create_custom_densenet(num_classes=5)
-    config_parser = ConfigParser("config.ini")
-    time_string = datetime.now().strftime("%Y%m%d-%H%M%S")
-    model_dir = f'./models/DenseCNN/FullDataset/{time_string}/'
-    model_name = "DenseCNN_full_dataset"
-    os.makedirs(model_dir, exist_ok=True)
-    # time limit
-    time_limit = 1 * 60 * 60  # in seconds
-    weight_decay = 0.01
-    learning_rate = 0.001
-    print(f"Training DenseCNN model. Model will be saved to: {model_dir}")
-    print(f"Weight Decay: {weight_decay}, Learning Rate: {learning_rate}")
-
-    logger = setup_logger(log_file="outputlog.txt", log_dir=model_dir, logging_enabled=True,
-                          console_enabled=False)
-    replace_output(logger)
-
-    dataset_folder = "./data/dataset/full_dataset/"
-
-
-    device = get_device()
-
-    dataset_train = datasets.load_from_disk(os.path.join(dataset_folder, "train"))
-    dataset_val = datasets.load_from_disk(os.path.join(dataset_folder, "val"))
-    testset = datasets.load_from_disk(os.path.join(dataset_folder, "test"))
-    dataset_size = 0.15
-    dss = {"train": dataset_train, "val": dataset_val, "test": testset}
-    for dataset_key in dss:
-
-        # Load only dataset_size% of each dataset
-        dataset = get_subset(dss[dataset_key], dataset_size)
-
-
-        # rename coords = data and binding_type = labels
-        data_col = "coordinates"
-        label_col = "binding_type"
-        dss[dataset_key] = dataset.rename_column(data_col, "data").rename_column(label_col, "labels")
-
-    def apply_transform(examples_data, examples_labels, real_nr_atoms):
-        """Apply transform to each entry in the batch"""
-        # Change from XYZ (tensor shape: [28224,3]) to RGB [3,168,168]
-        rgb_transformer = XYZToRGBTensor(target_size=168)
-        # Scramble with diameter 140A
-        scrambler = ScramblingTransform(140)
-        # Pad to 168x168 = 28224
-        padder = Padder(target_size=168, fill=0)
-
-        examples_data = rgb_transformer(padder(scrambler(examples_data)), real_nr_atoms)
-        examples_labels = encode_labels(examples_labels)
-        return {"data": examples_data, "labels": examples_labels}
-
-    def apply_transform_val(examples_data, examples_labels, real_nr_atoms):
-        """Apply transform to each entry in the batch"""
-        # Change from XYZ (tensor shape: [28224,3]) to RGB [3,168,168]
-        rgb_transformer = XYZToRGBTensor(target_size=168)
-        # Pad to 168x168 = 28224
-        padder = Padder(target_size=168, fill=0)
-
-        examples_data = rgb_transformer(padder(examples_data), real_nr_atoms)
-        examples_labels = encode_labels(examples_labels)
-
-        return {"data": examples_data, "labels": examples_labels}
-
-    dss["train"] = dss["train"].map(
-        apply_transform,
-        batch_size=32,
-        batched=True,
-        input_columns=['data', 'labels', "num_atoms"],
-        remove_columns=['pdb_id', 'dpp_class', 'ligand_name', 'num_atoms'],
-        num_proc=8
-    )
-
-    dss["val"] = dss["val"].map(
-        apply_transform_val,
-        batch_size=32,
-        batched=True,
-        input_columns=['data', 'labels',"num_atoms"],
-        remove_columns=['pdb_id', 'dpp_class', 'ligand_name', 'num_atoms'],
-        num_proc=8
-    )
-    dss["test"] = dss["test"].map(
-        apply_transform_val,
-        batch_size=32,
-        batched=True,
-        input_columns=['data', 'labels',"num_atoms"],
-        remove_columns=['pdb_id', 'dpp_class', 'ligand_name', 'num_atoms'],
-        num_proc=8
-    )
-
-    dss["train"].set_format(type='torch', columns=['data', 'labels'], device=device)
-    dss["val"].set_format(type='torch', columns=['data', 'labels'], device=device)
-    dss["test"].set_format(type='torch', columns=['data', 'labels'], device=device)
-
-    trainloader = torch.utils.data.DataLoader(dss["train"], batch_size=16, shuffle=True)
-    validationloader = torch.utils.data.DataLoader(dss["val"], batch_size=16, shuffle=False)
-    test_loader = torch.utils.data.DataLoader(dss["test"], batch_size=16, shuffle=False)
-
-    criterion = nn.CrossEntropyLoss()
-
-    optimizer = optim.AdamW(cdcnn.parameters(), lr=learning_rate, weight_decay=weight_decay)
-    patience = 15
-
-    model_state_dict, nr_epochs, metrics  = training_loop(model=cdcnn,
-                                                         model_folder=model_dir,
-                                                         trainloader=trainloader,
-                                                         validationloader=validationloader,
-                                                         optimizer=optimizer,
-                                                         criterion=criterion,
-                                                         max_epochs=200,
-                                                         patience=patience,
-                                                         time_limit=time_limit)
-    cdcnn.load_state_dict(model_state_dict)
-
-
-    filepath = os.path.join(model_dir, f"{model_name}.pth")
-    torch.save(model_state_dict, filepath)
-
-    print(f"Model saved to: {filepath}")
-    plot_path = filepath.replace('.pth', '.png')
-    metric_path = filepath.replace('.pth', '.metrics')
-    metrics.save_plot( "DCNN on the random split data" ,plot_path)
-    metrics.save_metrics(metric_path)
-
-    print(f"Plot saved to: {plot_path}")
-    test_acc = calculate_accuracy(cdcnn, test_loader, device=device)
-    print(f"Test Accuracy: {test_acc}")
-
 def train_model_ligand_split():
     cdcnn = create_custom_densenet(5)
     config_parser = ConfigParser("config.ini")
@@ -392,5 +265,4 @@ def validate_model():
     print(f"Validation Accuracy: {val_acc}")
 
 
-if __name__ == "__main__":
-    train_model()
+
