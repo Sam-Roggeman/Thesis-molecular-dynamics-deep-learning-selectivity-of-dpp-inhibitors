@@ -55,7 +55,7 @@ def save_config(config: TrainingConfig, model_dir: str):
 def is_online_dataset(dataset_location) -> bool:
     """Check if the dataset location is an online dataset (Hugging Face Hub)"""
     return not os.path.exists(dataset_location)
-def prepare_dataset(dataset_train, dataset_val, dataset_test, config: TrainingConfig) -> Dict:
+def prepare_dataset(dataset_train, dataset_val, dataset_test, config: TrainingConfig, cache_dir) -> Dict:
     """Subset and transform datasets"""
     device = get_device()
 
@@ -76,7 +76,7 @@ def prepare_dataset(dataset_train, dataset_val, dataset_test, config: TrainingCo
         input_columns=['data', 'labels', "num_atoms"],
         remove_columns=['pdb_id', 'dpp_class', 'ligand_name', 'num_atoms'],
         num_proc=8,
-        cache_file_name=os.path.join(config.cache_folder, f"train_transformed_{config.dataset_size}.arrow"),
+        cache_file_name=os.path.join(cache_dir, f"train_transformed_{config.dataset_size}.arrow"),
     )
 
     for split in ["val", "test"]:
@@ -87,7 +87,7 @@ def prepare_dataset(dataset_train, dataset_val, dataset_test, config: TrainingCo
             input_columns=['data', 'labels', "num_atoms"],
             remove_columns=['pdb_id', 'dpp_class', 'ligand_name', 'num_atoms'],
             num_proc=config.transform_num_proc,
-            cache_file_name=os.path.join(config.cache_folder, f"{split}_transformed_{config.dataset_size}.arrow"),
+            cache_file_name=os.path.join(cache_dir, f"{split}_transformed_{config.dataset_size}.arrow"),
         )
 
     # Set format and create dataloaders
@@ -110,24 +110,14 @@ def load_and_prepare_facehub_datasets(config: TrainingConfig) -> Dict:
     percent_str = str(int(config.dataset_size * 100))
     cache_folder = os.path.join(config.cache_folder)
     cached = os.path.exists(cache_folder)
+    downloaded_cache_folder = os.path.join(config.cache_folder, "downloaded_cache")
+    mapped_cache_folder = os.path.join(config.cache_folder, "mapped_cache")
     # Load from Hugging Face Hub
-    dataset_train = datasets.load_dataset(config.dataset_location, split=f"train[:{percent_str}%]", token=config.hf_token, num_proc=num_proc_load, cache_dir=cache_folder)
-    dataset_val = datasets.load_dataset(config.dataset_location, split=f"validation[:{percent_str}%]", token=config.hf_token, num_proc=num_proc_load, cache_dir=cache_folder)
-    dataset_test = datasets.load_dataset(config.dataset_location, split=f"test[:{percent_str}%]", token=config.hf_token, num_proc=num_proc_load, cache_dir=cache_folder)
-    if cached:
-        dss = {"train": dataset_train, "val": dataset_val, "test": dataset_test}
-        for dataset_key in dss:
-            dss[dataset_key].set_format(type='torch', columns=['data', 'labels'], device=device)
+    dataset_train = datasets.load_dataset(config.dataset_location, split=f"train[:{percent_str}%]", token=config.hf_token, num_proc=num_proc_load, cache_dir=downloaded_cache_folder)
+    dataset_val = datasets.load_dataset(config.dataset_location, split=f"validation[:{percent_str}%]", token=config.hf_token, num_proc=num_proc_load, cache_dir=downloaded_cache_folder)
+    dataset_test = datasets.load_dataset(config.dataset_location, split=f"test[:{percent_str}%]", token=config.hf_token, num_proc=num_proc_load, cache_dir=downloaded_cache_folder)
 
-        dataloaders = {
-            "train": torch.utils.data.DataLoader(dss["train"], batch_size=config.batch_size, shuffle=True, num_workers=num_proc_load),
-            "val": torch.utils.data.DataLoader(dss["val"], batch_size=config.batch_size, shuffle=False, num_workers=num_proc_load),
-            "test": torch.utils.data.DataLoader(dss["test"], batch_size=config.batch_size, shuffle=False, num_workers=num_proc_load),
-
-        }
-        return dataloaders
-
-    return prepare_dataset(dataset_train, dataset_val, dataset_test, config)
+    return prepare_dataset(dataset_train, dataset_val, dataset_test, config, mapped_cache_folder)
 
 def load_and_prepare_datasets(config: TrainingConfig) -> Dict:
     """Load datasets from disk, subset, and transform"""
