@@ -80,7 +80,7 @@ class Metrics:
         if len(self.validation_loss) < 2:
             return True
         # val loss decreased
-        elif self.validation_loss[-1] < self.min_val_loss
+        elif self.validation_loss[-1] < self.min_val_loss:
             self.min_val_loss = self.validation_loss[-1]
             self.patience_counter = 0
             return True
