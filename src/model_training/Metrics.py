@@ -77,14 +77,15 @@ class Metrics:
         plt.close()
     def model_improved(self):
         # if not enough data to compare return True
-        if len(self.validation_loss) < 2 or len(self.validation_loss) < 2:
-            returnval = True
-        else:
-            returnval = self.validation_loss[-1] > self.validation_loss[-2]
-        if returnval:
+        if len(self.validation_loss) < 2:
+            return True
+        # val loss decreased
+        elif self.validation_loss[-1] < self.min_val_loss
             self.min_val_loss = self.validation_loss[-1]
             self.patience_counter = 0
-        return returnval
+            return True
+        return False
+
     def is_overfitting(self):
         # if not enough data to compare return False
         if self.model_improved():
