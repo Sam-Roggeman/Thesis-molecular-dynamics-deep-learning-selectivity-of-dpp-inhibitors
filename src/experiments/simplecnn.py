@@ -4,6 +4,7 @@ from huggingface_hub import HfApi
 from numba import typeof
 
 from src.Models.OneLayer import OneLayerNet
+from src.Models.SimpleCNN import SimpleCNN
 from src.api_keys import huggingface_token
 from src.utils.training_setup import train_model, load_and_prepare_facehub_datasets
 from src.Transform.tranformators import apply_image_transform, apply_image_transform_noscramble
@@ -11,11 +12,9 @@ from src.utils.training_config import TrainingConfig
 import datasets
 if __name__ == "__main__":
     config_dcnn = TrainingConfig(
-        model_class=OneLayerNet,
+        model_class=SimpleCNN,
         model_args={
-            "input_size": 3 * 168 * 168,
-            "nr_neurons": 512,
-            "output_size": 5,
+            "input_size": 168,
             "dropout_rate": 0.5
         },
         time_limit=4 * 60 * 60,  # 4 hours
@@ -34,4 +33,4 @@ if __name__ == "__main__":
         cache_folder="/project_scratch/dataset_cache/"
     )
 
-    train_model(config_dcnn, "OneLayerNet_Randomsplit_Dataset")
+    train_model(config_dcnn, "SimpleCNN_Randomsplit_Dataset")
