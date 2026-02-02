@@ -13,8 +13,8 @@ from src.Transform.tranformators import apply_image_transform, apply_image_trans
 class TrainingConfig:
     """Configuration for training runs"""
     # Model class and its arguments
-    model_class: type
-    model_args: dict
+    model_class: type = None
+    model_args: dict = None
 
     # Training loop parameters
     time_limit: int = 4 * 60 * 60
@@ -51,6 +51,7 @@ class TrainingConfig:
         data = torch.load(path)
         return cls(**data)
 
+
 @dataclass
 class TestConfig():
     """Configuration for validation runs"""
@@ -61,4 +62,5 @@ class TestConfig():
     transform_batch_size:int = 32
     transform_num_proc:int = 8
     dataset_location: str = "Sam-Roggeman/SamRoggeman_Thesis_Dataset"
+
 

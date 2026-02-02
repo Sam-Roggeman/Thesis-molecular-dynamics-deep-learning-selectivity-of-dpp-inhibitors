@@ -3,12 +3,9 @@ import time
 import datasets
 
 import torch
-from numba import typeof
 
 from src.model_training.Metrics import Metrics
 from src.model_training.metric_functions import calculate_accuracy_and_loss
-from src.utils.configParser import ConfigParser
-import matplotlib.pyplot as plt
 
 def model_name(model_name_prefix):
     # current date and time

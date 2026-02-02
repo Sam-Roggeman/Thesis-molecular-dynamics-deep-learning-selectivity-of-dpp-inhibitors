@@ -152,13 +152,12 @@ def train_model(config: TrainingConfig, model_name: str):
     )
 
     model.load_state_dict(model_state_dict)
-
-    # Evaluate and save
     statistics = all_statistics(model=model, dataloader=dataloaders["test"], device=device, criterion=criterion)
-
     save_results(model_state_dict, run_dir, model_name, metrics, statistics)
     # cleanup
     del model
     torch.cuda.empty_cache()
     print("Training complete.")
+
+
 
