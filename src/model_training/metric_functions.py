@@ -53,7 +53,7 @@ def calculate_precision_recall_f1(model, dataloader, device):
 
 def all_statistics(model, dataloader, criterion, device):
     accuracy, loss = calculate_accuracy_and_loss(model, dataloader, device, criterion)
-    precision, recall, f1, conf_matrix = calculate_precision_recall_f1(model, dataloader, device)
+    precision, recall, f1, conf_matrix = calculate_precision_recall_f1(model=model, dataloader=dataloader, device=device)
 
     return {
         "accuracy": accuracy,
