@@ -3,9 +3,10 @@ import time
 import datasets
 
 import torch
+from numba import typeof
 
 from src.model_training.Metrics import Metrics
-from src.model_training.metric_functions import calculate_accuracy_loss
+from src.model_training.metric_functions import calculate_accuracy_and_loss
 from src.utils.configParser import ConfigParser
 import matplotlib.pyplot as plt
 
@@ -125,9 +126,10 @@ def training_loop(model, trainloader, validationloader, optimizer, criterion, mo
         train_acc, train_loss = training_phase(model, trainloader, optimizer, criterion, device)
         # VALIDATION PHASE
         model.eval()
-        val_acc, val_loss = calculate_accuracy_loss(model, validationloader, device, criterion)
+        val_acc, val_loss = calculate_accuracy_and_loss(model, validationloader, criterion, device)
         if scheduler:
             scheduler.step()
+
         metrics.update(train_acc * 100, train_loss, val_acc * 100, val_loss)
         # override metrics and plot
         metrics.save_metrics(metric_path)

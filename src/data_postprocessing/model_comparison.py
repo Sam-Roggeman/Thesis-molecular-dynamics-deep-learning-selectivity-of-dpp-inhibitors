@@ -60,12 +60,10 @@ if __name__ == "__main__":
     test_config = TestConfig(
         batch_size=32,
         dataset_location="Sam-Roggeman/SamRoggeman_Thesis_Dataset",
-        hf_token=huggingface_token,
         dataset_size=0.15,
         validation_transform=apply_image_transform_noscramble,
         transform_batch_size=32,
         transform_num_proc=8,
-        cache_folder="/project_scratch/dataset_cache/"
     )
     test_loader = load_and_prepare_test(test_config)
     model_stats_list = []

@@ -1,9 +1,10 @@
 """
 Upload Dataset to Huggingface Hub
 """
+import os
+
 from datasets import load_from_disk
 from huggingface_hub import HfApi, create_repo, upload_large_folder
-from src.api_keys import huggingface_token
 
 def upload_dataset_to_huggingface(dataset_path: str, repo_name: str, hf_token: str, organization: str = None):
     """
@@ -17,7 +18,7 @@ def upload_dataset_to_huggingface(dataset_path: str, repo_name: str, hf_token: s
     """
     print(f"Uploading dataset from {dataset_path} to Huggingface Hub repository '{repo_name}'...")
 
-    api = HfApi(token=huggingface_token)
+    api = HfApi(token=os.environ.get("HF_TOKEN"))
 
     # Create the repository on Huggingface Hub if it doesnt exist
     api.upload_large_folder(

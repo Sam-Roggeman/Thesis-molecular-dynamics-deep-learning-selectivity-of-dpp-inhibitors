@@ -1,7 +1,9 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, asdict
 import os
 from typing import Callable
 import json
+
+import torch
 from torch import optim
 from torch.nn import CrossEntropyLoss
 
@@ -37,28 +39,17 @@ class TrainingConfig:
     transform_num_proc:int = 8
 
     def save(self, path):
-        """
-        Save the configuration to the specified path in json format.
-        :param path:  Path to save the configuration.
-        """
-        os.makedirs(path, exist_ok=True)
-        config_path = os.path.join(path, "training_config.json")
-        with open(config_path, 'w') as f:
-            json.dump(self.__dict__, f, indent=4)
-    def __init__(self, filepath=None, **kwargs):
-        if filepath:
-            self.load(filepath)
-        for key, value in kwargs.items():
-            setattr(self, key, value)
-    def load(self, path):
-        """
-        Load the configuration from a json file.
-        :param path: Path to the configuration file.
-        """
-        config_path = os.path.join(path, "training_config.json")
-        with open(config_path, 'r') as f:
-            config_dict = json.load(f)
-            self.__dict__.update(config_dict)
+        torch.save(asdict(self), os.path.join(path, "training_config.pt"))
+        with open(os.path.join(path, "training_config.json"), "w") as f:
+            # Make sure to convert any non-serializable fields to string if necessary
+            d = asdict(self)
+            d = {k: (str(v) if not isinstance(v, (int, float, str, dict, list, type(None))) else v) for k, v in d.items()}
+            json.dump(d, f, indent=4)
+
+    @classmethod
+    def load(cls, path):
+        data = torch.load(path)
+        return cls(**data)
 
 @dataclass
 class TestConfig():
@@ -69,4 +60,5 @@ class TestConfig():
     validation_transform: Callable = apply_image_transform_noscramble
     transform_batch_size:int = 32
     transform_num_proc:int = 8
+    dataset_location: str = "Sam-Roggeman/SamRoggeman_Thesis_Dataset"
 

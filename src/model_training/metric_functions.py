@@ -1,25 +1,33 @@
 import torch
 from sklearn.metrics import precision_score, recall_score, f1_score, accuracy_score, confusion_matrix
 
-def calculate_accuracy_loss(model, dataloader, device, criterion):
-    model.eval()
-    model.to(device)
+
+def calculate_accuracy_and_loss(model, dataloader, criterion, device):
     correct = 0
     total = 0
-    val_loss = 0.0
+    current_loss = 0.0
+
+    model.to(device)
+    model.eval()
+
     with torch.no_grad():
         for data in dataloader:
             images, labels = data["data"], data["labels"]
             images, labels = images.to(device), labels.to(device)
+
             outputs = model(images)
+            loss = criterion(outputs, labels)
+
             _, predicted = torch.max(outputs.data, 1)
+
             total += labels.size(0)
             correct += (predicted == labels).sum().item()
-            loss = criterion(outputs, labels)
-            val_loss += loss.item()
-    accuracy = 100 * correct / total
-    val_loss /= len(dataloader)
-    return accuracy, loss
+            current_loss += loss.item()
+
+    accuracy = correct / total
+    current_loss /= len(dataloader)
+
+    return accuracy, current_loss
 
 def calculate_precision_recall_f1(model, dataloader, device):
     all_labels = []
@@ -44,7 +52,7 @@ def calculate_precision_recall_f1(model, dataloader, device):
     return precision, recall, f1, conf_matrix
 
 def all_statistics(model, dataloader, criterion, device):
-    accuracy, loss = calculate_accuracy_loss(model, dataloader, device, criterion)
+    accuracy, loss = calculate_accuracy_and_loss(model, dataloader, device, criterion)
     precision, recall, f1, conf_matrix = calculate_precision_recall_f1(model, dataloader, device)
 
     return {

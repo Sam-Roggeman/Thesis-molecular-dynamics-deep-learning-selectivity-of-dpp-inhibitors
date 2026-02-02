@@ -113,8 +113,10 @@ class Metrics:
             ms.color = color
     
         # create subplots
-        fig, axs = plt.subplots(2, 2, tight_layout=True)
-    
+        fig, axs = plt.subplots(2, 2)
+        # set margin between subplots
+        fig.subplots_adjust(hspace=0.1, wspace=0.05)
+
         # Training accuracy plot
         active_ax = axs[0, 0]
         for ms in metrics:
@@ -160,7 +162,7 @@ class Metrics:
             ax.label_outer()
         # Add legend to thefigure
         handles, labels = active_ax.get_legend_handles_labels()
-        fig.legend(handles, labels, loc='right center', ncol=len(metrics))
+        fig.legend(handles, labels, loc='upper center', ncol=max(len(metrics),4))
 
 if __name__ == "__main__":
     # Example usage

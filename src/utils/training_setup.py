@@ -14,12 +14,14 @@ from src.utils.training_config import TrainingConfig, TestConfig
 from src.utils.logger import setup_logger, replace_output
 import datasets
 import torch.nn as nn
+import os
 
 
 def setup_directories_and_logging(config: TrainingConfig, model_name: str) -> Tuple[str, object]:
     """Create model directory and setup logging"""
     time_string = datetime.now().strftime("%Y%m%d-%H%M%S")
-    model_dir = f'{config.output_base_dir}/{config.model_class.__name__}/{model_name}/{time_string}/'
+    output_dir = os.getenv("OUTPUT_DIR")
+    model_dir = os.path.join(output_dir, "models", f"{model_name}", time_string)
     os.makedirs(model_dir, exist_ok=True)
 
     logger = setup_logger(
@@ -80,8 +82,9 @@ def prepare_dataset(dataset, transform, split_name, config: TrainingConfig, cach
     return set_format_and_create_dataloaders(dataset, config, device)
 def load_and_prepare_test(config) -> DataLoader[Any]:
     """Load only validation and test datasets from huggingface hub, subset, and transform"""
+    cache_folder = os.environ.get("HF_CACHE_DIR")
     # Load from Hugging Face Hub
-    mapped_cache_folder = os.path.join(config.cache_folder, "mapped_cache")
+    mapped_cache_folder = os.path.join(cache_folder, "mapped_cache")
     dataset_val = load_dataset_from_hf(config, "test")
 
     return prepare_dataset(dataset_val, config.validation_transform, "test", config, mapped_cache_folder)
@@ -90,15 +93,17 @@ def load_dataset_from_hf(config: TrainingConfig, split: str):
     """Load dataset from Hugging Face Hub"""
     num_proc_load = 1 if "pydevd" in sys.modules else 8
     percent_str = str(int(config.dataset_size * 100))
+    cache_folder = os.environ.get("HF_CACHE_DIR")
+    hf_token = os.environ.get("HF_TOKEN")
     # set size in string format
-    downloaded_cache_folder = os.path.join(config.cache_folder, "downloaded_cache")
-    mapped_cache_folder = os.path.join(config.cache_folder, "mapped_cache")
-    return datasets.load_dataset(config.dataset_location, split=f"{split}[:{percent_str}%]", token=config.hf_token, num_proc=num_proc_load, cache_dir=downloaded_cache_folder)
+    downloaded_cache_folder = os.path.join(cache_folder, "downloaded_cache")
+    return datasets.load_dataset(config.dataset_location, split=f"{split}[:{percent_str}%]", token=hf_token, num_proc=num_proc_load, cache_dir=downloaded_cache_folder)
 
 def load_and_prepare_facehub_datasets(config: TrainingConfig) -> Dict:
     """Load datasets from Hugging Face Hub, subset, and transform"""
     # Load from Hugging Face Hub
-    mapped_cache_folder = os.path.join(config.cache_folder, "mapped_cache")
+    cache_folder = os.environ.get("HF_CACHE_DIR")
+    mapped_cache_folder = os.path.join(cache_folder, "mapped_cache")
     dataset_train = load_dataset_from_hf(config, "train")
     dataset_val = load_dataset_from_hf(config, "validation")
     dataset_test = load_dataset_from_hf(config, "test")
