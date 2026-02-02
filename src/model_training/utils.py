@@ -5,6 +5,7 @@ import datasets
 import torch
 
 from src.model_training.Metrics import Metrics
+from src.model_training.metric_functions import calculate_accuracy_loss
 from src.utils.configParser import ConfigParser
 import matplotlib.pyplot as plt
 
@@ -67,6 +68,34 @@ def train_val_test_split(dataset, train_fraction=0.7, val_fraction=0.15, seed=42
 
     return {"train": train_set, "val": val_set,"test": test_set}
 
+def training_phase(model, trainloader, optimizer, criterion, device):
+    model.train()
+    correct = 0
+    total = 0
+    running_loss = 0.0
+    for i, batch in enumerate(trainloader, 0):
+        # get the inputs; data is a list of [inputs, labels]
+        inputs, labels = batch["data"], batch["labels"]
+        inputs, labels = inputs.to(device), labels.to(device)
+
+        # zero the parameter gradients
+        optimizer.zero_grad()
+
+        # forward + backward + optimize
+        outputs = model(inputs)
+        loss = criterion(outputs, labels)
+        loss.backward()
+        optimizer.step()
+
+        _, predicted = torch.max(outputs, 1)
+        total += labels.size(0)
+        correct += (predicted == labels).sum().item()
+
+        running_loss += loss.item()
+    train_loss = running_loss / len(trainloader)
+    train_acc = correct / total
+    return train_acc, train_loss
+
 def training_loop(model, trainloader, validationloader, optimizer, criterion, model_folder,scheduler=None,max_epochs=200, patience=10, time_limit=None ):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     metric_path =os.path.join(model_folder, f'metrics_training_loop.pt')
@@ -91,55 +120,12 @@ def training_loop(model, trainloader, validationloader, optimizer, criterion, mo
     metrics = Metrics(patience=patience)
     start_time = time.time()
     for epoch in range(max_epochs):  # loop over the dataset multiple times
-        model.train()
-        correct = 0
-        total = 0
-        running_loss = 0.0
+        # TRAINING PHASE
         start_time_epoch = time.time()
-        for i, batch in enumerate(trainloader, 0):
-            # get the inputs; data is a list of [inputs, labels]
-            inputs, labels = batch["data"], batch["labels"]
-            inputs, labels = inputs.to(device), labels.to(device)
-
-
-            # zero the parameter gradients
-            optimizer.zero_grad()
-
-            # forward + backward + optimize
-            outputs = model(inputs)
-            loss = criterion(outputs, labels)
-            loss.backward()
-            optimizer.step()
-
-            _, predicted = torch.max(outputs, 1)
-            total += labels.size(0)
-            correct += (predicted == labels).sum().item()
-
-            running_loss += loss.item()
-        train_loss = running_loss / len(trainloader)
-        train_acc = correct / total
-
-        # Validation
+        train_acc, train_loss = training_phase(model, trainloader, optimizer, criterion, device)
+        # VALIDATION PHASE
         model.eval()
-        val_loss = 0.0
-        correct = 0
-        total = 0
-
-
-        with torch.no_grad():
-            for i, batch in enumerate(validationloader, 0):
-                inputs, labels = batch["data"], batch["labels"]
-                inputs, labels = inputs.to(device), labels.to(device)
-                outputs = model(inputs)
-                loss = criterion(outputs, labels)
-
-                val_loss += loss.item()
-                _, predicted = torch.max(outputs, 1)
-                total += labels.size(0)
-                correct += (predicted == labels).sum().item()
-
-        val_loss /= len(validationloader)
-        val_acc = correct / total
+        val_acc, val_loss = calculate_accuracy_loss(model, validationloader, device, criterion)
         if scheduler:
             scheduler.step()
         metrics.update(train_acc * 100, train_loss, val_acc * 100, val_loss)

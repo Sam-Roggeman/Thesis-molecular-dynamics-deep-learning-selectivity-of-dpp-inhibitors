@@ -1,13 +1,11 @@
 from dataclasses import dataclass, field
 import os
 from typing import Callable
-
-from huggingface_hub import HfApi
+import json
 from torch import optim
 from torch.nn import CrossEntropyLoss
 
 from src.Transform.tranformators import apply_image_transform, apply_image_transform_noscramble
-
 
 @dataclass
 class TrainingConfig:
@@ -31,16 +29,44 @@ class TrainingConfig:
 
 
     # Dataset parameters
-    dataset_location: str = "../../data/dataset/full_dataset/"
-    hf_token: str = ""
-    cache_folder: str = None
+    dataset_location: str = "Sam-Roggeman/SamRoggeman_Thesis_Dataset"
     dataset_size: float = 0.15
     training_transorm: Callable = apply_image_transform
     validation_transform: Callable = apply_image_transform_noscramble
     transform_batch_size:int = 32
     transform_num_proc:int = 8
 
-    def __post_init__(self):
-        if self.cache_folder is None:
-            self.cache_folder = 'cache_folder="/project_scratch/dataset_cache/'
+    def save(self, path):
+        """
+        Save the configuration to the specified path in json format.
+        :param path:  Path to save the configuration.
+        """
+        os.makedirs(path, exist_ok=True)
+        config_path = os.path.join(path, "training_config.json")
+        with open(config_path, 'w') as f:
+            json.dump(self.__dict__, f, indent=4)
+    def __init__(self, filepath=None, **kwargs):
+        if filepath:
+            self.load(filepath)
+        for key, value in kwargs.items():
+            setattr(self, key, value)
+    def load(self, path):
+        """
+        Load the configuration from a json file.
+        :param path: Path to the configuration file.
+        """
+        config_path = os.path.join(path, "training_config.json")
+        with open(config_path, 'r') as f:
+            config_dict = json.load(f)
+            self.__dict__.update(config_dict)
+
+@dataclass
+class TestConfig():
+    """Configuration for validation runs"""
+    batch_size: int = 32
+    dataset_size: float = 0.15
+    critrion: Callable = CrossEntropyLoss
+    validation_transform: Callable = apply_image_transform_noscramble
+    transform_batch_size:int = 32
+    transform_num_proc:int = 8
 

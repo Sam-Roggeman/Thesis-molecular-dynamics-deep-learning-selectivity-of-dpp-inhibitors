@@ -1,13 +1,16 @@
-from typing import Tuple, Dict
+from typing import Tuple, Dict, Any
 import os
 from datetime import datetime
 import torch
 from torch import optim
 from huggingface_hub import HfApi
 import sys
-from src.model_training.metric_functions import calculate_accuracy
+
+from torch.utils.data import DataLoader
+
+from src.model_training.metric_functions import all_statistics
 from src.model_training.utils import get_device, get_subset, training_loop
-from src.utils.training_config import TrainingConfig
+from src.utils.training_config import TrainingConfig, TestConfig
 from src.utils.logger import setup_logger, replace_output
 import datasets
 import torch.nn as nn
@@ -16,7 +19,7 @@ import torch.nn as nn
 def setup_directories_and_logging(config: TrainingConfig, model_name: str) -> Tuple[str, object]:
     """Create model directory and setup logging"""
     time_string = datetime.now().strftime("%Y%m%d-%H%M%S")
-    model_dir = f'./models/{config.model_class.__name__}/{model_name}/{time_string}/'
+    model_dir = f'{config.output_base_dir}/{config.model_class.__name__}/{model_name}/{time_string}/'
     os.makedirs(model_dir, exist_ok=True)
 
     logger = setup_logger(
@@ -30,7 +33,7 @@ def setup_directories_and_logging(config: TrainingConfig, model_name: str) -> Tu
     return model_dir, logger
 
 
-def save_results(model_state_dict, model_dir: str, model_name: str, metrics, test_acc: float):
+def save_results(model_state_dict, model_dir: str, model_name: str, metrics, stats: dict[str, float]):
     """Save model, metrics, and test accuracy"""
     filepath = os.path.join(model_dir, f"{model_name}.pth")
     torch.save(model_state_dict, filepath)
@@ -42,91 +45,71 @@ def save_results(model_state_dict, model_dir: str, model_name: str, metrics, tes
     metrics.save_metrics(metric_path)
 
     print(f"Plot saved to: {plot_path}")
-    print(f"Test Accuracy: {test_acc:.4f}")
+    for stat_name, stat_value in stats.items():
+        print(f"{stat_name}: {stat_value}")
 
-def save_config(config: TrainingConfig, model_dir: str):
-    """Save training configuration to a file"""
-    config_path = os.path.join(model_dir, "training_config.txt")
-    with open(config_path, 'w') as f:
-        for field in config.__dataclass_fields__:
-            value = getattr(config, field)
-            f.write(f"{field}: {value}\n")
-    print(f"Training configuration saved to: {config_path}")
-def is_online_dataset(dataset_location) -> bool:
-    """Check if the dataset location is an online dataset (Hugging Face Hub)"""
-    return not os.path.exists(dataset_location)
-def prepare_dataset(dataset_train, dataset_val, dataset_test, config: TrainingConfig, cache_dir) -> Dict:
+def rename_columns(dataset) -> datasets.Dataset:
+    """Rename dataset columns to standard names 'data' and 'labels'"""
+    # Only rename if the original column names exist
+    if "coordinates" in dataset.column_names:
+        dataset = dataset.rename_column("coordinates", "data")
+    if "binding_type" in dataset.column_names:
+        dataset = dataset.rename_column("binding_type", "labels")
+    return dataset
+def set_format_and_create_dataloaders(dataset, config: TrainingConfig, device):
+    dataset.set_format(type='torch', columns=['data', 'labels'], device=device)
+    dataloader = torch.utils.data.DataLoader(dataset, batch_size=config.batch_size, shuffle=True, num_workers=8)
+    return dataloader
+
+def prepare_dataset(dataset, transform, split_name, config: TrainingConfig, cache_dir) -> DataLoader[Any]:
     """Subset and transform datasets"""
     device = get_device()
 
-    dss = {"train": dataset_train, "val": dataset_val, "test": dataset_test}
-    for dataset_key in dss:
-        dataset = dss[dataset_key]
-        # Only rename if the original column names exist
-        if "coordinates" in dataset.column_names:
-            dataset = dataset.rename_column("coordinates", "data")
-        if "binding_type" in dataset.column_names:
-            dataset = dataset.rename_column("binding_type", "labels")
-        dss[dataset_key] = dataset
+    dataset = rename_columns(dataset)
     # Apply transforms
-    dss["train"] = dss["train"].map(
-        config.training_transorm,
+    dataset = dataset.map(
+        transform,
         batch_size=config.transform_batch_size,
         batched=True,
         input_columns=['data', 'labels', "num_atoms"],
         remove_columns=['pdb_id', 'dpp_class', 'ligand_name', 'num_atoms'],
         num_proc=8,
-        cache_file_name=os.path.join(cache_dir, f"train_transformed_{config.dataset_size}.arrow"),
+        cache_file_name=os.path.join(cache_dir, f"{split_name}_transformed_{config.dataset_size}.arrow"),
     )
-
-    for split in ["val", "test"]:
-        dss[split] = dss[split].map(
-            config.validation_transform,
-            batch_size=config.transform_batch_size,
-            batched=True,
-            input_columns=['data', 'labels', "num_atoms"],
-            remove_columns=['pdb_id', 'dpp_class', 'ligand_name', 'num_atoms'],
-            num_proc=config.transform_num_proc,
-            cache_file_name=os.path.join(cache_dir, f"{split}_transformed_{config.dataset_size}.arrow"),
-        )
-
     # Set format and create dataloaders
-    for split in ["train", "val", "test"]:
-        dss[split].set_format(type='torch', columns=['data', 'labels'], device=device)
+    return set_format_and_create_dataloaders(dataset, config, device)
+def load_and_prepare_test(config) -> DataLoader[Any]:
+    """Load only validation and test datasets from huggingface hub, subset, and transform"""
+    # Load from Hugging Face Hub
+    mapped_cache_folder = os.path.join(config.cache_folder, "mapped_cache")
+    dataset_val = load_dataset_from_hf(config, "test")
 
-    dataloaders = {
-        "train": torch.utils.data.DataLoader(dss["train"], batch_size=config.batch_size, shuffle=True, num_workers=8),
-        "val": torch.utils.data.DataLoader(dss["val"], batch_size=config.batch_size, shuffle=False, num_workers=8),
-        "test": torch.utils.data.DataLoader(dss["test"], batch_size=config.batch_size, shuffle=False, num_workers=8),
-    }
+    return prepare_dataset(dataset_val, config.validation_transform, "test", config, mapped_cache_folder)
 
-    return dataloaders
+def load_dataset_from_hf(config: TrainingConfig, split: str):
+    """Load dataset from Hugging Face Hub"""
+    num_proc_load = 1 if "pydevd" in sys.modules else 8
+    percent_str = str(int(config.dataset_size * 100))
+    # set size in string format
+    downloaded_cache_folder = os.path.join(config.cache_folder, "downloaded_cache")
+    mapped_cache_folder = os.path.join(config.cache_folder, "mapped_cache")
+    return datasets.load_dataset(config.dataset_location, split=f"{split}[:{percent_str}%]", token=config.hf_token, num_proc=num_proc_load, cache_dir=downloaded_cache_folder)
 
 def load_and_prepare_facehub_datasets(config: TrainingConfig) -> Dict:
     """Load datasets from Hugging Face Hub, subset, and transform"""
-    device = get_device()
-    num_proc_load = 1 if "pydevd" in sys.modules else 8
-    # set size in string format
-    percent_str = str(int(config.dataset_size * 100))
-    cache_folder = os.path.join(config.cache_folder)
-    cached = os.path.exists(cache_folder)
-    downloaded_cache_folder = os.path.join(config.cache_folder, "downloaded_cache")
-    mapped_cache_folder = os.path.join(config.cache_folder, "mapped_cache")
     # Load from Hugging Face Hub
-    dataset_train = datasets.load_dataset(config.dataset_location, split=f"train[:{percent_str}%]", token=config.hf_token, num_proc=num_proc_load, cache_dir=downloaded_cache_folder)
-    dataset_val = datasets.load_dataset(config.dataset_location, split=f"validation[:{percent_str}%]", token=config.hf_token, num_proc=num_proc_load, cache_dir=downloaded_cache_folder)
-    dataset_test = datasets.load_dataset(config.dataset_location, split=f"test[:{percent_str}%]", token=config.hf_token, num_proc=num_proc_load, cache_dir=downloaded_cache_folder)
+    mapped_cache_folder = os.path.join(config.cache_folder, "mapped_cache")
+    dataset_train = load_dataset_from_hf(config, "train")
+    dataset_val = load_dataset_from_hf(config, "validation")
+    dataset_test = load_dataset_from_hf(config, "test")
 
-    return prepare_dataset(dataset_train, dataset_val, dataset_test, config, mapped_cache_folder)
+    return {
+        "train": prepare_dataset(dataset_train, config.training_transorm, "train", config, mapped_cache_folder),
+        "val": prepare_dataset(dataset_val, config.validation_transform, "val", config, mapped_cache_folder),
+        "test": prepare_dataset(dataset_test, config.validation_transform, "test", config, mapped_cache_folder)
+    }
 
-def load_and_prepare_datasets(config: TrainingConfig) -> Dict:
-    """Load datasets from disk, subset, and transform"""
-    # Load from disk
-    dataset_train = datasets.load_from_disk(os.path.join(config.dataset_location, "train"))
-    dataset_val = datasets.load_from_disk(os.path.join(config.dataset_location, "val"))
-    dataset_test = datasets.load_from_disk(os.path.join(config.dataset_location, "test"))
 
-    return prepare_dataset(dataset_train, dataset_val, dataset_test, config)
 
 
 def train_model(config: TrainingConfig, model_name: str):
@@ -137,7 +120,7 @@ def train_model(config: TrainingConfig, model_name: str):
     print(f"Training {config.model_class.__name__}. Model will be saved to: {run_dir}")
     print(f"Weight Decay: {config.weight_decay}, Learning Rate: {config.learning_rate}")
     print(f"Max Num Epochs: {config.max_nr_epochs}")
-    save_config(config, run_dir)
+    config.save(os.path.join(run_dir))
 
     # Initialize model
     model = config.model_class(**config.model_args)
@@ -166,8 +149,9 @@ def train_model(config: TrainingConfig, model_name: str):
     model.load_state_dict(model_state_dict)
 
     # Evaluate and save
-    test_acc = calculate_accuracy(model, dataloaders["test"], device=device)
-    save_results(model_state_dict, run_dir, model_name, metrics, test_acc)
+    statistics = all_statistics(model, dataloaders["test"], device, criterion)
+
+    save_results(model_state_dict, run_dir, model_name, metrics, statistics)
     # cleanup
     del model
     torch.cuda.empty_cache()

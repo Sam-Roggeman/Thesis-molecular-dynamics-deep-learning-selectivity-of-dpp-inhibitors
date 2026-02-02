@@ -1,7 +1,6 @@
 import torch
 import matplotlib.pyplot as plt
-from src.model_training.metric_functions import calculate_accuracy, calculate_loss
-
+from typing import List
 
 class Metrics:
     def __init__(self, patience=5):
@@ -96,4 +95,85 @@ class Metrics:
                 return True
             else:
                 return False
+    @staticmethod
+    def compare_metrics(metrics: List['Metrics'], names: List[str] = None):
+        ms: Metrics
+        max_epochs = max(len(ms.training_accuracy) for ms in metrics)
+        epochs = range(1, max_epochs + 1)
+        min_loss = min(min(ms.train_loss + ms.validation_loss) for ms in metrics)
+        max_loss = max(max(ms.train_loss + ms.validation_loss) for ms in metrics)
+        loss_diff = max_loss - min_loss
+        # add some margin to min and max loss
+        min_loss -= 0.1 * loss_diff
+        max_loss += 0.1 * loss_diff
 
+        # assign each model stat a different color
+        for ms in metrics:
+            color = plt.colormaps.get_cmap('tab10')(metrics.index(ms) % 10)
+            ms.color = color
+    
+        # create subplots
+        fig, axs = plt.subplots(2, 2, tight_layout=True)
+    
+        # Training accuracy plot
+        active_ax = axs[0, 0]
+        for ms in metrics:
+            y = ms.training_accuracy + [None] * (max_epochs - len(ms.training_accuracy))
+            active_ax.plot(epochs, y, color=ms.color, label=names[metrics.index(ms)])
+        active_ax.set_title('')
+        active_ax.set(xlabel='Epochs', ylabel='Accuracy')
+        active_ax.set_ylim(0, 1)
+        active_ax.set_title('Training')
+
+        active_ax = axs[0, 1]
+        # Validation accuracy plot
+        for ms in metrics:
+            y = ms.validation_accuracy + [None] * (max_epochs - len(ms.validation_accuracy))
+            active_ax.plot(epochs, y, color=ms.color, label=names[metrics.index(ms)])
+        active_ax.set_title('')
+        active_ax.set(xlabel='Epochs', ylabel='Accuracy')
+        active_ax.set_ylim(0, 1)
+        active_ax.set_title('Validation')
+
+        active_ax = axs[1, 0]
+        # Training loss plot
+        for ms in metrics:
+            y = ms.train_loss + [None] * (max_epochs - len(ms.train_loss))
+            active_ax.plot(epochs, y, color=ms.color, label=names[metrics.index(ms)])
+        active_ax.set_ylim(min_loss, max_loss)
+        active_ax.set(xlabel='Epochs', ylabel='Loss')
+
+        active_ax = axs[1, 1]
+        # validation loss plot
+        for ms in metrics:
+            y = ms.validation_loss + [None] * (max_epochs - len(ms.validation_loss))
+            active_ax.plot(epochs, y, color=ms.color, label=names[metrics.index(ms)])
+        active_ax.set_ylim(min_loss, max_loss)
+        active_ax.set(xlabel='Epochs', ylabel='Loss')
+
+        # xax ticks every 5 epochs or at least 3 ticks
+        for x in [0,1]:
+            axs[1, x].set_xticks(range(1, max_epochs + 1, max(1, max_epochs // 10)))
+
+        # Hide x labels and tick labels for top plots and y ticks for right plots.
+        for ax in axs.flat:
+            ax.label_outer()
+        # Add legend to thefigure
+        handles, labels = active_ax.get_legend_handles_labels()
+        fig.legend(handles, labels, loc='right center', ncol=len(metrics))
+
+if __name__ == "__main__":
+    # Example usage
+    metrics = Metrics(patience=5)
+    metrics.update(0.8, 0.5, 0.75, 0.6)
+    metrics.update(0.85, 0.4, 0.78, 0.55)
+    metrics.update(0.9, 0.3, 0.8, 0.5)
+
+    metrics2 = Metrics(patience=5)
+    metrics2.update(0.7, 0.6, 0.65,
+                    0.7)
+    metrics2.update(0.75, 0.5, 0.68, 0.65)
+    metrics2.update(0.8, 0.4, 0.7, 0.6)
+    metrics2.update(0.8, 0.4, 0.7, 0.6)
+    Metrics.compare_metrics([metrics, metrics2], names=["Model 1", "Model 2"])
+    plt.show()

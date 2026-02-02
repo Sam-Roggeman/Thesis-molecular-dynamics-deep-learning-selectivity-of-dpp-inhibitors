@@ -8,7 +8,6 @@ import torchvision
 from src.Transform.ListScrambler import ListScrambler, ScramblingTransform
 from src.Transform.Padder import Padder
 from src.Transform.XYZToRGBTensor import XYZToRGBTensor
-from src.model_training.metric_functions import calculate_accuracy
 from src.model_training.utils import training_loop, load_model, encode_labels, model_name, get_device, get_subset
 import torch.optim as optim
 from src.model_training.DataLoader import load_dataset_from_safetensors_multichunk, \
@@ -251,18 +250,6 @@ def train_model_ligand_split():
     print(f"Plot saved to: {os.path.join(path, plot_path)}")
 
 
-
-def validate_model():
-    config_parser = ConfigParser("config.ini")
-    dataset_folder = config_parser.get("Model Training", "Input Folder")
-    validation_loader = load_validation_from_safetensors_multichunk(dataset_folder)
-    model_path = config_parser.get("Model Training", "Model Save Folder")
-    model_filename = "DenseCNN_51epochs_20251102-155816.pth"
-    full_model_path = os.path.join(model_path, model_filename)
-    model = load_model(model_class=CustomDenseNet, model_filepath=full_model_path)
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    val_acc = calculate_accuracy(model, validation_loader, device=device)
-    print(f"Validation Accuracy: {val_acc}")
 
 
 
