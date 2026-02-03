@@ -10,7 +10,7 @@ from src.Transform.tranformators import apply_image_transform, apply_image_trans
 from src.utils.training_config import TrainingConfig
 import datasets
 if __name__ == "__main__":
-    config_dcnn = TrainingConfig(
+    config_scnn = TrainingConfig(
         model_class=SimpleCNN,
         model_args={
             "input_size": 168,
@@ -30,4 +30,4 @@ if __name__ == "__main__":
         transform_num_proc=8,
     )
 
-    train_model(config_dcnn, "SimpleCNN_Randomsplit_Dataset")
+    train_model(config_scnn, "SimpleCNN_Randomsplit_Dataset")

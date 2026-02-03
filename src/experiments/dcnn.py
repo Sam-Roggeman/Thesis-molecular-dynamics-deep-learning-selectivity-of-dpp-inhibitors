@@ -12,7 +12,6 @@ import os
 from dotenv import load_dotenv
 
 if __name__ == "__main__":
-    load_dotenv() # Load environment variables from .env file
 
     config_dcnn = TrainingConfig(
         model_class=CustomDenseNet,

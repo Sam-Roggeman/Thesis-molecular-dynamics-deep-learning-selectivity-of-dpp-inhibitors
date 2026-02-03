@@ -2,6 +2,7 @@ from typing import Tuple, Dict, Any
 import os
 from datetime import datetime
 import torch
+from dotenv import load_dotenv
 from torch import optim
 from huggingface_hub import HfApi
 import sys
@@ -119,6 +120,7 @@ def load_and_prepare_facehub_datasets(config: TrainingConfig) -> Dict:
 
 def train_model(config: TrainingConfig, model_name: str):
     """Main training function - single entry point for all models"""
+    load_dotenv() # Load environment variables from .env file
 
     # Setup
     run_dir, logger = setup_directories_and_logging(config, model_name)
