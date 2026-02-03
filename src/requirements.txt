@@ -3,3 +3,4 @@ mdtraj
 matplotlib
 datasets
 safetensors
+python-dotenv
