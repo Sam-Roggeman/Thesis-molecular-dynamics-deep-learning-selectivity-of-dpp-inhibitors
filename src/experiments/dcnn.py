@@ -22,7 +22,7 @@ if __name__ == "__main__":
             "reduction_ratio": 0.5,  # reduction ratio of 0.5
             "num_classes": 5
         },
-        time_limit=10 * 60,  # 10 minutes
+        time_limit= 4 * 60 * 60,  # 4 hours
         weight_decay=1e-2,
         learning_rate=1e-4,
         batch_size=16,
