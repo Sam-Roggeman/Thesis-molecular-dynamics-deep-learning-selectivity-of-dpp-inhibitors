@@ -8,7 +8,7 @@ from huggingface_hub import HfApi
 import sys
 
 from torch.utils.data import DataLoader
-
+from src.data_postprocessing.model_testing import model_testing
 from src.model_training.metric_functions import all_statistics
 from src.model_training.utils import get_device, get_subset, training_loop
 from src.utils.training_config import TrainingConfig, TestConfig
@@ -36,7 +36,7 @@ def setup_directories_and_logging(config: TrainingConfig, model_name: str) -> Tu
     return model_dir, logger
 
 
-def save_results(model_state_dict, model_dir: str, model_name: str, metrics, stats: dict[str, float]):
+def save_results(model_state_dict, model_dir: str, model_name: str, metrics):
     """Save model, metrics, and test accuracy"""
     filepath = os.path.join(model_dir, f"{model_name}.pth")
     torch.save(model_state_dict, filepath)
@@ -48,8 +48,6 @@ def save_results(model_state_dict, model_dir: str, model_name: str, metrics, sta
     metrics.save_metrics(metric_path)
 
     print(f"Plot saved to: {plot_path}")
-    for stat_name, stat_value in stats.items():
-        print(f"{stat_name}: {stat_value}")
 
 def rename_columns(dataset) -> datasets.Dataset:
     """Rename dataset columns to standard names 'data' and 'labels'"""
@@ -154,8 +152,9 @@ def train_model(config: TrainingConfig, model_name: str):
     )
 
     model.load_state_dict(model_state_dict)
-    statistics = all_statistics(model=model, dataloader=dataloaders["test"], device=device, criterion=criterion)
-    save_results(model_state_dict, run_dir, model_name, metrics, statistics)
+
+    model_testing(model, dataloaders["test"], criterion, device)
+    save_results(model_state_dict, run_dir, model_name, metrics)
     # cleanup
     del model
     torch.cuda.empty_cache()

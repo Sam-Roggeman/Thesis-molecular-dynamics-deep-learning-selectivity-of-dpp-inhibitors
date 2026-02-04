@@ -8,7 +8,8 @@ import torchvision
 from src.Transform.ListScrambler import ListScrambler, ScramblingTransform
 from src.Transform.Padder import Padder
 from src.Transform.XYZToRGBTensor import XYZToRGBTensor
-from src.model_training.utils import training_loop, load_model, encode_labels, model_name, get_device, get_subset
+from src.model_training.utils import training_loop, load_model, model_name, get_device, get_subset
+from src.model_training.LabelEncoder import LabelEncoder
 import torch.optim as optim
 from src.model_training.DataLoader import load_dataset_from_safetensors_multichunk, \
     load_validation_from_safetensors_multichunk
@@ -184,9 +185,10 @@ def train_model_ligand_split():
         scrambler = ScramblingTransform(140)
         # Pad to 168x168 = 28224
         padder = Padder(target_size=168, fill=0)
+        encoder = LabelEncoder()
 
         examples_data = rgb_transformer(padder(scrambler(examples_data)), real_nr_atoms)
-        examples_labels = encode_labels(examples_labels)
+        examples_labels = encoder.encode_labels(examples_labels)
         return {"data": examples_data, "labels": examples_labels}
     def apply_transform_val(examples_data, examples_labels, real_nr_atoms):
         """Apply transform to each entry in the batch"""
@@ -194,9 +196,10 @@ def train_model_ligand_split():
         rgb_transformer = XYZToRGBTensor(target_size=168)
         # Pad to 168x168 = 28224
         padder = Padder(target_size=168, fill=0)
+        encoder = LabelEncoder()
 
         examples_data = rgb_transformer(padder(examples_data), real_nr_atoms)
-        examples_labels = encode_labels(examples_labels)
+        examples_labels = encoder.encode_labels(examples_labels)
         return {"data": examples_data, "labels": examples_labels}
 
     trainset = trainset.map(

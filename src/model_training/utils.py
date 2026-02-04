@@ -37,16 +37,7 @@ def clear_cache(dataset_dir):
     ds.cleanup_cache_files()
     print(f"Cleared cache files in dataset at {dataset_dir}")
 
-def encode_labels(labels):
-    label_mapping = {
-        "nonbinder": 0,
-        "dpp9selective": 1,
-        "dpp8selective": 2,
-        "aselective": 3,
-        "apo": 4
-    }
-    labels = [label_mapping[label] for label in labels]
-    return labels
+
 
 def train_val_test_split(dataset, train_fraction=0.7, val_fraction=0.15, seed=42):
     if train_fraction + val_fraction >= 1.0:

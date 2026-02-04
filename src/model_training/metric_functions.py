@@ -47,11 +47,11 @@ def calculate_precision_recall_f1(model, dataloader, device):
     precision = precision_score(all_labels, all_predictions, average='weighted', zero_division=0)
     recall = recall_score(all_labels, all_predictions, average='weighted', zero_division=0)
     f1 = f1_score(all_labels, all_predictions, average='weighted', zero_division=0)
-    conf_matrix = confusion_matrix(all_labels, all_predictions)
+    conf_matrix = confusion_matrix(all_labels, all_predictions,normalize='true')
 
     return precision, recall, f1, conf_matrix
 
-def all_statistics(model, dataloader, criterion, device):
+def all_statistics(model, dataloader, criterion, device) -> dict[str, float]:
     accuracy, loss = calculate_accuracy_and_loss(model=model, dataloader=dataloader, device=device, criterion=criterion)
     precision, recall, f1, conf_matrix = calculate_precision_recall_f1(model=model, dataloader=dataloader, device=device)
 
