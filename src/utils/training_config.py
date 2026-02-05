@@ -48,7 +48,7 @@ class TrainingConfig:
 
     @classmethod
     def load(cls, path):
-        data = torch.load(path)
+        data = torch.load(path, weights_only=False)
         return cls(**data)
 
 

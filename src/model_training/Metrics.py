@@ -1,3 +1,5 @@
+import os
+
 import torch
 import matplotlib.pyplot as plt
 from typing import List
@@ -24,7 +26,8 @@ class Metrics:
         return {
             "validation_accuracy": self.validation_accuracy,
             "training_accuracy": self.training_accuracy,
-            "loss": self.train_loss
+            "train_loss": self.train_loss,
+            "validation_loss": self.validation_loss
         }
 
     def nr_epochs(self):
@@ -37,6 +40,8 @@ class Metrics:
         self.validation_accuracy = metrics_dict.get("validation_accuracy", [])
         self.training_accuracy = metrics_dict.get("training_accuracy", [])
         self.train_loss = metrics_dict.get("loss", [])
+        self.validation_loss = metrics_dict.get("validation_loss", [])
+
 
 
 
@@ -96,7 +101,7 @@ class Metrics:
             else:
                 return False
     @staticmethod
-    def compare_metrics(metrics: List['Metrics'], names: List[str] = None):
+    def compare_metrics(metrics: List['Metrics'], names: List[str] = None, path="./output/comparison_plots/last_comparison.png"):
         ms: Metrics
         max_epochs = max(len(ms.training_accuracy) for ms in metrics)
         epochs = range(1, max_epochs + 1)
@@ -124,7 +129,7 @@ class Metrics:
             active_ax.plot(epochs, y, color=ms.color, label=names[metrics.index(ms)])
         active_ax.set_title('')
         active_ax.set(xlabel='Epochs', ylabel='Accuracy')
-        active_ax.set_ylim(0, 1)
+        active_ax.set_ylim(0, 100)
         active_ax.set_title('Training')
 
         active_ax = axs[0, 1]
@@ -134,7 +139,7 @@ class Metrics:
             active_ax.plot(epochs, y, color=ms.color, label=names[metrics.index(ms)])
         active_ax.set_title('')
         active_ax.set(xlabel='Epochs', ylabel='Accuracy')
-        active_ax.set_ylim(0, 1)
+        active_ax.set_ylim(0, 100)
         active_ax.set_title('Validation')
 
         active_ax = axs[1, 0]
@@ -164,6 +169,12 @@ class Metrics:
         handles, labels = active_ax.get_legend_handles_labels()
         fig.legend(handles, labels, loc='upper center', ncol=max(len(metrics),4))
 
+        dirpath = os.path.dirname(path)
+        # create path if it does not exist
+        os.makedirs(dirpath, exist_ok=True)
+        # print
+        print(f"Saving comparison plot to {path}")
+        fig.savefig(path)
 if __name__ == "__main__":
     # Example usage
     metrics = Metrics(patience=5)
