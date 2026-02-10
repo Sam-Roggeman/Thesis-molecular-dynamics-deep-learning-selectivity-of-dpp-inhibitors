@@ -17,7 +17,7 @@ for tar_file in "$INPUT_DIR"/*.tar.gz; do
         extract_dir="$OUTPUT_DIR/$base_name"
         mkdir -p "$extract_dir"
         # Extract the tar.gz file
-        # tar -xzf "$tar_file" -C "$extract_dir"
+        tar -xzf "$tar_file" -C "$extract_dir"
         echo "Extracted" "$tar_file" to "$extract_dir"
     fi
 done
