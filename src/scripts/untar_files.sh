@@ -18,7 +18,7 @@ for tar_file in "$INPUT_DIR"/*.tar.gz; do
         mkdir -p "$extract_dir"
         # Extract the tar.gz file
         tar -xzf "$tar_file" -C "$extract_dir" &
-        echo "Extracted" "$tar_file" to "$extract_dir"
+        echo "Started extracting: $tar_file to $extract_dir"
     fi
 done
 
