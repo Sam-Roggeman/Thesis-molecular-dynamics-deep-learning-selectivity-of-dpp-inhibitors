@@ -22,4 +22,6 @@ for tar_file in "$INPUT_DIR"/*.tar.gz; do
     fi
 done
 
+echo "All files started."
+wait
 echo "All files processed. Extracted files are located in: $OUTPUT_DIR"
