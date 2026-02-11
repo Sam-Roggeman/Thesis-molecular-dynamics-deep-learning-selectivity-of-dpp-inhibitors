@@ -13,12 +13,18 @@ for tar_file in "$INPUT_DIR"/*.tar.gz; do
         echo "Processing: $tar_file"
         # Extract the base name of the file (without extension)
         base_name=$(basename "$tar_file" .tar.gz)
-        # Create a directory for the extracted files
         extract_dir="$OUTPUT_DIR/$base_name"
-        mkdir -p "$extract_dir"
-        # Extract the tar.gz file
-        tar -xzf "$tar_file" -C "$extract_dir" &
-        echo "Started extracting: $tar_file to $extract_dir"
+
+        # Check if extraction is needed
+        if [ -d "$extract_dir" ] && [ "$(find "$extract_dir" -type f | wc -l)" -eq 10001 ]; then
+            # Create a directory for the extracted files
+            mkdir -p "$extract_dir"
+            echo "Skipping extraction: $extract_dir already exists with 10001 files"
+        else
+            # Extract the tar.gz file
+            tar -xzf "$tar_file" -C "$extract_dir" &
+            echo "Started extracting: $tar_file to $extract_dir"
+        fi
     fi
 done
 
