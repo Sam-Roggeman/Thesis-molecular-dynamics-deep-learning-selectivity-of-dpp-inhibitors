@@ -7,7 +7,8 @@
 OUTPUT_DIR="/project_antwerp/dataset/downloads"
 COOKIE_FEDAUTH="${FedAuth}"
 COOKIE_RTFA="${rtFa}"
-
+COMPOUND_NAME=$1
+echo $COMPOUND_NAME
 # Create output directory if it doesn't exist
 mkdir -p "$OUTPUT_DIR"
 
@@ -30,8 +31,9 @@ echo ""
 # Function to download file with retries
 download_file() {
     local dpp=$1
-    local replica=$2
-    local filename="sep_prot_frames_DPP${dpp}_42_replica${replica}.tar.gz"
+    local compound_name=$2
+    local replica=$3
+    local filename="sep_prot_frames_DPP${dpp}_${compound_name}_replica${replica}.tar.gz"
     local url="${BASE_URL}/${filename}"
     local output_file="${OUTPUT_DIR}/${filename}"
     local attempt=1
@@ -91,7 +93,7 @@ FAILED_REPLICAS=""
 # Dpp 8 or 9
 for dpp in 8 9; do
   for replica in {2..8}; do
-      download_file $dpp $replica
+      download_file $dpp $COMPOUND_NAME $replica
       if [ $? -eq 0 ]; then
           SUCCESSFUL=$((SUCCESSFUL + 1))
       else
