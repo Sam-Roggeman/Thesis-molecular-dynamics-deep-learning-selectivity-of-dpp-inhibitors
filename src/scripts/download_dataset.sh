@@ -41,7 +41,7 @@ download_file() {
     echo "[DPP${dpp} Replica $replica] Downloading: $filename"
     
     # Check if file already exists
-    if [ -f "$output_file" ]; then
+    if [ -f "$output_file" ] && [ $(stat -c%s "$output_file") -gt 1048576 ]; then
         echo "  ✓ Already exists ($(du -h "$output_file" | cut -f1))"
         return 0
     fi
@@ -60,15 +60,15 @@ download_file() {
             "$url" 2>/dev/null; then
             
             # Check if download was successful (file size > 0)
-            if [ -s "$output_file.tmp" ]; then
-                mv "$output_file.tmp" "$output_file"
-                local size=$(du -h "$output_file" | cut -f1)
-                echo "✓ Downloaded ($size)"
-                return 0
-            else
-                rm -f "$output_file.tmp"
-                echo "✗ Empty file"
-            fi
+        if [ $(stat -c%s "$output_file.tmp") -gt 1048576 ]; then
+            mv "$output_file.tmp" "$output_file"
+            local size=$(du -h "$output_file" | cut -f1)
+            echo "✓ Downloaded ($size)"
+            return 0
+        else
+            rm -f "$output_file.tmp"
+            echo "✗ File too small (< 1MB)"
+        fi
         else
             rm -f "$output_file.tmp"
             echo "✗ Failed"
