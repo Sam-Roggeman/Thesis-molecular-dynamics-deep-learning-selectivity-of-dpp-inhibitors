@@ -153,7 +153,7 @@ def train_model(config: TrainingConfig, model_name: str):
 
     model.load_state_dict(model_state_dict)
 
-    model_testing(model, dataloaders["test"], criterion, device)
+    model_testing(model, dataloaders["test"], criterion, device, output_dir=run_dir)
     save_results(model_state_dict, run_dir, model_name, metrics)
     # cleanup
     del model
