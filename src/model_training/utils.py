@@ -197,11 +197,21 @@ def training_loop(
     print("Starting training loop...")
     while global_step < max_train_steps:
         data_wait_start = time.time()
+        # Get next batch, or restart the iterator if we've reached the end of the dataloader
         try:
             batch = next(train_iter)
         except StopIteration:
             train_iter = iter(trainloader)
             batch = next(train_iter)
+        except RuntimeError as exc:
+            if "DataLoader worker" in str(exc):
+                raise RuntimeError(
+                    "Training dataloader worker crashed. This is often caused by too many workers "
+                    "or worker-side exceptions in transforms. Try lowering TrainingConfig.num_cpus "
+                    "(for streamed datasets start with 0-2 workers)."
+                ) from exc
+            raise
+
         interval_data_wait += time.time() - data_wait_start
 
         compute_start = time.time()
@@ -231,20 +241,30 @@ def training_loop(
                 f"Samples/s: {samples_per_sec:.1f} | "
                 f"Data Wait Share: {data_wait_fraction * 100:.1f}%"
             )
-
+        batch = None  # Free batch memory
         should_eval = (global_step % eval_every_steps == 0) or (global_step == max_train_steps)
         if should_eval:
+            
+
             train_acc = interval_correct / max(interval_total, 1)
             train_loss = interval_loss / max(interval_batches, 1)
 
             model.eval()
-            val_acc, val_loss = calculate_accuracy_and_loss(
-                model,
-                validationloader,
-                criterion,
-                device,
-                max_batches=validation_max_batches,
-            )
+            try:
+                val_acc, val_loss = calculate_accuracy_and_loss(
+                    model,
+                    validationloader,
+                    criterion,
+                    device,
+                    max_batches=validation_max_batches,
+                )
+            except RuntimeError as exc:
+                if "DataLoader worker" in str(exc):
+                    raise RuntimeError(
+                        "Validation dataloader worker crashed at evaluation. "
+                        "Reduce TrainingConfig.num_cpus and/or set validation workers to 0 for streamed data."
+                    ) from exc
+                raise
             if scheduler:
                 scheduler.step()
 

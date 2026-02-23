@@ -12,6 +12,7 @@ def calculate_accuracy_and_loss(model, dataloader, criterion, device, max_batche
     model.eval()
 
     with torch.no_grad():
+        # iterate over streaming dataloader
         for batch_idx, data in enumerate(dataloader):
             if max_batches is not None and batch_idx >= max_batches:
                 break

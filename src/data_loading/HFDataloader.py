@@ -74,11 +74,16 @@ def initialize_dataloader(config: TrainingConfig) -> DataLoaderDict:
     print("\tShuffling training split...")
     dataset_dict["train"] = dataset_dict["train"].shuffle(seed=config.seed, buffer_size=config.buffer_size)
     print("\t...initializing_dataloader complete")
-    dataset_dict.rename_columns({'coordinates': 'data', 'binding_type': 'labels'})
+    dataset_dict = dataset_dict.rename_columns({'coordinates': 'data', 'binding_type': 'labels'})
     # apply the training transform to the training split and the validation transform to the validation and test splits
     
     print("\tApplying transforms...")
-    map_args = {"batched": True, "batch_size": config.transform_batch_size, "num_proc": config.num_cpus}
+    map_args = {
+        "batched": True, 
+        "batch_size": config.transform_batch_size, 
+        "num_proc": config.num_cpus, "input_columns": ['data', 'labels', "num_atoms"], 
+        "remove_columns": ['pdb_id', 'dpp_class', 'ligand_name', 'num_atoms', 'replica_id']
+        }
     dataset_dict["train"] = dataset_dict["train"].map(config.training_transform, **map_args, cache_file_name=os.path.join(config.cache_folder, "train_transformed.arrow"))
     dataset_dict["validation"] = dataset_dict["validation"].map(config.validation_transform, **map_args, cache_file_name=os.path.join(config.cache_folder, "validation_transformed.arrow"))
     dataset_dict["test"] = dataset_dict["test"].map(config.validation_transform, **map_args, cache_file_name=os.path.join(config.cache_folder, "test_transformed.arrow"))
@@ -94,23 +99,29 @@ def initialize_streaming_dataloader(config: TrainingConfig) -> DataLoaderDict:
     """
     Initialize the streaming dataloader for training.
     """
-    # Download the dataset
+    # Initialize the streaming dataloader
     print("Initializing streaming dataloader...")
     dataset_dict: datasets.IterableDatasetDict = _download_streaming_dataset(config)
+    
     # Shuffle the training split
     dataset_dict["train"] = dataset_dict["train"].shuffle(seed=config.shuffle_seed, buffer_size=config.shuffle_buffer_size)
-    dataset_dict.rename_columns({'coordinates': 'data', 'binding_type': 'labels'})
+    dataset_dict = dataset_dict.rename_columns({'coordinates': 'data', 'binding_type': 'labels'})
+    
     # apply the training transform to the training split and the validation transform to the validation and test splits
-    map_args = {"batched": True, "batch_size": config.transform_batch_size}
+    map_args = {"batched": True, "batch_size": config.transform_batch_size, 
+                "input_columns": ['data', 'labels', "num_atoms"], 
+                "remove_columns": ['pdb_id', 'dpp_class', 'ligand_name', 'num_atoms']}
     dataset_dict["train"] = dataset_dict["train"].map(config.training_transform, **map_args)
     dataset_dict["validation"] = dataset_dict["validation"].map(config.validation_transform, **map_args)
     dataset_dict["test"] = dataset_dict["test"].map(config.validation_transform, **map_args)
+    
+    # set the format of the dataset to torch tensors and create dataloaders for each split
     dataset_dict = dataset_dict.with_format(type="torch")
-    dataloader_args = {"batch_size": config.batch_size, "num_workers": config.num_cpus, "pin_memory": True}
+
+    dataloader_args = {"batch_size": config.batch_size, "num_workers": 4, "pin_memory": True, "prefetch_factor": 2}
     train_dataloader: torch.utils.data.DataLoader = torch.utils.data.DataLoader(dataset_dict["train"], **dataloader_args)
     validation_dataloader: torch.utils.data.DataLoader = torch.utils.data.DataLoader(dataset_dict["validation"], **dataloader_args)
     test_dataloader: torch.utils.data.DataLoader = torch.utils.data.DataLoader(dataset_dict["test"], **dataloader_args)
     dl_dict = {"train": train_dataloader, "validation": validation_dataloader, "test": test_dataloader}
     print("\t...initializing_streaming_dataloader complete")
     return dl_dict
-
