@@ -19,9 +19,9 @@ if __name__ == "__main__":
         time_limit=16 * 60 * 60,  # 16 hours
         weight_decay=1e-2,
         learning_rate=1e-4,
-        batch_size=32,
-        patience=15,
-        max_nr_epochs=400,
+        batch_size=256,
+        patience=50,
+        max_nr_epochs=500,
         dataset_location="Sam-Roggeman/SamRoggeman_Thesis_Dataset",
         dataset_size=0.15,
         training_transorm=apply_image_transform,
