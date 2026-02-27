@@ -1,7 +1,10 @@
 import torch
+from fvcore.nn import FlopCountAnalysis, flop_count_str
+
+from Models.custom_model_template import AbstractNNModel
 
 
-class OneLayerNet(torch.nn.Module):
+class OneLayerNet(AbstractNNModel):
     def __init__(self, input_size, nr_neurons, output_size, dropout_rate=0.5):
         """
         Initialize the network architecture.
@@ -29,6 +32,12 @@ class OneLayerNet(torch.nn.Module):
         # Apply dropout for regularization during training
         x = self.output_layer(self.dropout(x))
         return x
+    def input_shape(self):
+        # Return the expected input shape for the model (excluding batch dimension)
+        return 168 * 168 * 3,  # Assuming input images are 168x168 RGB (3 channels)
+
+
+
 
 def create_onelayer_model():
     input_size = 168 * 168
@@ -36,3 +45,5 @@ def create_onelayer_model():
     output_size = 5
     model = OneLayerNet(input_size, nr_neurons, output_size)
     return model
+
+

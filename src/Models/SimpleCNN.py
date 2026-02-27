@@ -2,10 +2,10 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from Models.custom_model_template import AbstractNNModel
 
 
-
-class SimpleCNN(nn.Module):
+class SimpleCNN(AbstractNNModel):
     def __init__(self, input_size=168, dropout_rate=0.5):
         super().__init__()
 
@@ -54,6 +54,6 @@ class SimpleCNN(nn.Module):
         # Output layer (no activation - raw logits for classification)
         x = self.fc3(x)
         return x
-
-
-
+    def input_shape(self):
+        # Return the expected input shape for the model (excluding batch dimension)
+        return 3, 168, 168  # Assuming input images are 168x168 RGB (3 channels)

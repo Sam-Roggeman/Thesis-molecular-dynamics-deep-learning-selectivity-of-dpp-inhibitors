@@ -35,6 +35,10 @@ class ModelStatistics:
         self.accuracy, self.loss, self.precision, self.recall, self.f1_score, self.cm = stat_dir.values()
 
 
+        # get flops and  params
+        self.flops = model.get_flops()
+        self.param_count = model.count_parameters()
+        self.vram_params, self.vram_batch = model.get_vram_usage()
 
 
 class ModelComparison:
@@ -49,6 +53,18 @@ class ModelComparison:
         for model_stat in self.model_stats_list:
             print(
                 f"{model_stat.model_name:<{col_widths[0]}}{model_stat.accuracy:<{col_widths[1]}.4f}{model_stat.loss:<{col_widths[2]}.4f}{model_stat.precision:<{col_widths[3]}.4f}{model_stat.recall:<{col_widths[4]}.4f}{model_stat.f1_score:<{col_widths[5]}.4f}")
+    def print_parameters_and_flops(self):
+        col_widths = 20, 15, 15, 15
+        # print header
+        print(f"{'Model':<{col_widths[0]}}{'Parameters':<{col_widths[1]}}{'GFLOPs':<{col_widths[2]}}{'VRAM (GB)':<{col_widths[3]}}")
+        for model_stat in self.model_stats_list:
+            # convert flops to gflops with 4 decimal places
+            total_gflops = model_stat.flops.total() / 1e9
+            # format total_gflops to 4 decimal places
+            total_gflops_formatted = f"{total_gflops:.4f}"
+            vram_gb = f"{model_stat.vram_params / (1024 ** 3):.4f} + {model_stat.vram_batch / (1024 ** 3):.4f} per batch"
+            print(
+                f"{model_stat.model_name:<{col_widths[0]}}{model_stat.param_count:<{col_widths[1]}}{total_gflops_formatted:<{col_widths[2]}}{vram_gb:<{col_widths[3]}}")
     def plot_metrics(self, path="./output/comparison_plots/"):
         """
         Plot the training, validation metrics for all models in the comparison
@@ -96,3 +112,4 @@ if __name__ == "__main__":
     mc.print_table()
     path = "./output/comparison_plots/comparison_metrics.png"
     mc.plot_metrics(path=path)
+    mc.print_parameters_and_flops()

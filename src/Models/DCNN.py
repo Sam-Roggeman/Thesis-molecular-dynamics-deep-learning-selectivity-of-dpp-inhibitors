@@ -5,6 +5,7 @@ import datasets
 import numpy as np
 import torchvision
 
+from Models.custom_model_template import AbstractNNModel
 from src.Transform.ListScrambler import ListScrambler, ScramblingTransform
 from src.Transform.Padder import Padder
 from src.Transform.XYZToRGBTensor import XYZToRGBTensor
@@ -76,7 +77,7 @@ class _Transition(nn.Module):
         return out
 
 
-class CustomDenseNet(nn.Module):
+class CustomDenseNet(AbstractNNModel):
     def __init__(self, growth_rate=48, block_config=(6, 12, 36, 24),
                  num_init_features=96, reduction_ratio=0.5, num_classes=5, bn_size=4, dropout_rate=0.5):
         super(CustomDenseNet, self).__init__()
@@ -132,6 +133,9 @@ class CustomDenseNet(nn.Module):
         out = self.dropout(out)
         out = self.classifier(out)
         return out
+
+    def input_shape(self):
+        return 3, 168, 168  # Assuming input images are 168x168 RGB (3 channels)
 
 
 # Create the model with your specified parameters
