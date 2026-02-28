@@ -16,7 +16,7 @@ filtered_dataset = dataset.filter(lambda x: x["ligand_name"] != "12i", num_proc=
 print(f"Cleaned dataset size: {len(filtered_dataset)}")
 print(any(x == "12i" for x in filtered_dataset["train"]["ligand_name"]))  # should be False
 print(any(x == "12i" for x in filtered_dataset["test"]["ligand_name"]))  # should be False
-print(any(x == "12i" for x in filtered_dataset["val"]["ligand_name"]))  # should be False
+print(any(x == "12i" for x in filtered_dataset["validation"]["ligand_name"]))  # should be False
 filtered_dataset.push_to_hub(repo_id, token=api.token)
 
 
