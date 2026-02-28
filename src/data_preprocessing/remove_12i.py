@@ -6,7 +6,7 @@ from huggingface_hub import HfApi
 load_dotenv()
 api = HfApi(token=os.environ.get("HF_TOKEN"))
 repo_id = "Sam-Roggeman/SamRoggeman_Thesis_Dataset_full"
-cpu_cores = 32
+cpu_cores = 8
 
 # Load the whole dataset from HuggingFace Hub
 dataset = load_dataset(repo_id, token=api.token, num_proc=cpu_cores)
