@@ -12,7 +12,7 @@ cpu_cores = os.cpu_count() or 1
 dataset = load_dataset(repo_id, token=api.token, num_proc=cpu_cores)
 
 # remove the entries in the dataset where the column "ligand_name" has the value "12i"
-filtered_dataset = dataset.filter(lambda x: x["ligand_name"] != "12i", num_proc=cpu_cores, verbose=True)
+filtered_dataset = dataset.filter(lambda x: x["ligand_name"] != "12i", num_proc=cpu_cores)
 print(f"Cleaned dataset size: {len(filtered_dataset)}")
 print(any(x == "12i" for x in filtered_dataset["train"]["lingand_name"]))  # should be False
 print(any(x == "12i" for x in filtered_dataset["test"]["lingand_name"]))  # should be False
