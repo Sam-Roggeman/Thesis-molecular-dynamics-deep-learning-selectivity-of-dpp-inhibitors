@@ -118,8 +118,9 @@ if __name__ == "__main__":
     regenerate = False  # Set to True to regenerate the dataset
     tar_folder = "/project_antwerp/dataset/decompressed/"
     print("Starting data preprocessing...")
-    streaming_pdb_dataset_path = f"./project_scratch/dataset/temp/streaming_pdb_dataset/"
+    streaming_pdb_dataset_path = f"/project_scratch/dataset/temp/streaming_pdb_dataset/"
     # create the directory if it doesn't exist
+    os.makedirs(streaming_pdb_dataset_path, exist_ok=True)
     num_proc = 16
 
     generate_dataset_from_tars(streaming_pdb_dataset_path, tar_folder, regenerate=regenerate, num_proc=num_proc)
