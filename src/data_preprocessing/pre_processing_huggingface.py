@@ -115,7 +115,7 @@ def generate_dataset_from_tars(streaming_pdb_dataset_path, tar_folder, regenerat
                 dataset.save_to_disk(res_dir, max_shard_size="4GB")
     print("✓ Streaming dataset loaded and saved to disk.")
 if __name__ == "__main__":
-    regenerate = False  # Set to True to regenerate the dataset
+    regenerate = True  # Set to True to regenerate the dataset
     tar_folder = "/project_antwerp/dataset/decompressed/"
     print("Starting data preprocessing...")
     streaming_pdb_dataset_path = f"/project_scratch/dataset/temp/streaming_pdb_dataset/"
