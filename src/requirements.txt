@@ -4,3 +4,4 @@ matplotlib
 datasets
 safetensors
 python-dotenv
+Biopython
