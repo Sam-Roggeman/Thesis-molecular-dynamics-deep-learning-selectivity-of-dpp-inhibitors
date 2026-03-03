@@ -74,7 +74,7 @@ def generate_dataset_from_tars(streaming_pdb_dataset_path, tar_folder, regenerat
             with tarfile.open(tar_file, 'r') as tar:
                 frames = tar.getmembers()
                 dpp_class, ligand_name, binding_type, replica_id = parse_filename(filename)
-                split_name = f"{dpp_class}_{binding_type}_{ligand_name}"
+                split_name = f"{dpp_class}_{binding_type}_{ligand_name}_{replica_id}"
                 func = functools.partial(
                     parse_pdb_streaming,
                     tar = tar,
