@@ -70,6 +70,7 @@ def generate_dataset_from_tars(streaming_pdb_dataset_path, tar_folder, regenerat
         tar_files = sorted(Path(tar_folder).glob('*.tar'))
         for tar_file in tar_files:
             filename = tar_file.stem
+            print(f"Processing {filename}...")
             with tarfile.open(tar_file, 'r') as tar:
                 frames = tar.getmembers()
                 dpp_class, ligand_name, binding_type, replica_id = parse_filename(filename)
@@ -94,6 +95,7 @@ def generate_dataset_from_tars(streaming_pdb_dataset_path, tar_folder, regenerat
                 os.makedirs(res_dir, exist_ok=True)
                 # store the dataset to disk as safetensors
                 dataset.save_to_disk(res_dir, max_shard_size="4GB")
+            print(f"✓ Processed {filename} and saved to {res_dir}.")
     print("✓ Streaming dataset loaded and saved to disk.")
 if __name__ == "__main__":
     regenerate = True  # Set to True to regenerate the dataset
@@ -114,6 +116,7 @@ if __name__ == "__main__":
             available_ligands = [ f.name.split('_')[-1] for f in Path(streaming_pdb_dataset_path).glob(f"{sub_name}_*") if f.is_dir()]
             for ligand in available_ligands:
                 split_name = f"{dpp}_{binding}_{ligand}"
+                print(f"Loading dataset for split: {split_name}...")
                 path = os.path.join(streaming_pdb_dataset_path, split_name)
                 partial_ds = load_from_disk(path)
                 full_ds.append(partial_ds)
