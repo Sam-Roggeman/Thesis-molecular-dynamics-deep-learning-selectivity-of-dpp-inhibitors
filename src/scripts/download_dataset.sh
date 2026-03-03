@@ -4,7 +4,7 @@
 # Downloads files for replicas 2-8
 
 # Configuration
-OUTPUT_DIR="/project_antwerp/dataset/downloads"
+OUTPUT_DIR="/project_antwerp/dataset/downloads_testing"
 COOKIE_FEDAUTH="${FedAuth}"
 COOKIE_RTFA="${rtFa}"
 COMPOUND_NAME=$1
@@ -92,7 +92,7 @@ FAILED=0
 FAILED_REPLICAS=""
 # Dpp 8 or 9
 for dpp in 8 9; do
-  for replica in {2..8}; do
+  for replica in {1..8}; do
       download_file $dpp $COMPOUND_NAME $replica
       if [ $? -eq 0 ]; then
           SUCCESSFUL=$((SUCCESSFUL + 1))

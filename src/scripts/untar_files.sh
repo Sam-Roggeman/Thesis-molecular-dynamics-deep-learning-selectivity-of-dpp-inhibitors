@@ -17,10 +17,9 @@ for tar_file in "$INPUT_DIR"/*.tar.gz; do
 
         # Check if extraction is needed
         if [ -d "$extract_dir" ] && [ "$(find "$extract_dir" -type f | wc -l)" -eq 10001 ]; then
-            # Create a directory for the extracted files
-            mkdir -p "$extract_dir"
             echo "Skipping extraction: $extract_dir already exists with 10001 files"
         else
+            # Create a directory for the extracted files
             # Extract the tar.gz file
             tar -xzf "$tar_file" -C "$extract_dir" &
             echo "Started extracting: $tar_file to $extract_dir"
