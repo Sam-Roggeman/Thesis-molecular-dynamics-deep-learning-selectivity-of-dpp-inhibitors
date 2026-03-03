@@ -61,26 +61,7 @@ def extract_coordinates(pdb_file, pdb_id):
     return np.array(coords, dtype=np.float32)
 
 
-def preprocess_batch(batch):
-    """Process a batch of PDB data in parallel."""
-    processed = {
-        'pdb_id': [],
-        'coordinates': [],
-        'center_of_mass': [],
-        'num_atoms': []
-    }
 
-    for pdb_id, coords in zip(batch['pdb_id'], batch['coordinates']):
-        # Normalize coordinates
-        coords_normalized = (coords - coords.mean(axis=0)) / (coords.std(axis=0) + 1e-8)
-        center = coords.mean(axis=0)
-
-        processed['pdb_id'].append(pdb_id)
-        processed['coordinates'].append(coords_normalized.tolist())
-        processed['center_of_mass'].append(center.tolist())
-        processed['num_atoms'].append(len(coords))
-
-    return processed
 
 def generate_dataset_from_tars(streaming_pdb_dataset_path, tar_folder, regenerate=False, num_proc=32):
     if not os.path.exists(streaming_pdb_dataset_path) or regenerate:
@@ -91,7 +72,7 @@ def generate_dataset_from_tars(streaming_pdb_dataset_path, tar_folder, regenerat
             filename = tar_file.stem
             with tarfile.open(tar_file, 'r') as tar:
                 frames = tar.getmembers()
-                dpp_class, ligand_name, binding_type = parse_filename(filename)
+                dpp_class, ligand_name, binding_type, replica_id = parse_filename(filename)
                 split_name = f"{dpp_class}_{binding_type}_{ligand_name}"
                 func = functools.partial(
                     parse_pdb_streaming,
@@ -164,15 +145,3 @@ if __name__ == "__main__":
     print("Datasets saved.")
 
 
-    # else:
-    #     print("Loading dataset from disk...")
-    #     dataset = Dataset.load_from_disk(streaming_pdb_dataset_path)
-    # print("Dataset loaded. Applying batch preprocessing...")
-    #
-    # # Apply batch preprocessing
-    # dataset = dataset.map(
-    #     preprocess_batch,
-    #     batched=True,
-    #     batch_size=32,
-    #     num_proc=8  # Use all CPU cores
-    # )
