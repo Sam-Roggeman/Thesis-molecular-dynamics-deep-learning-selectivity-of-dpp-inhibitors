@@ -51,9 +51,15 @@ def parse_filename(filename):
     Parse filename to get DPP class, binding type and ligand name.
     :param filename: str in format sep_prot_frames_{DPP_class}_{ligand_name}_replica{replica_id}.{extension}
     """
+
+
     filename = remove_extension(filename)
     filename = filename.lower()
     parts = filename.split('_')
+    # if a part is "correct", remove it
+    if parts[5] == "correct":
+        parts.pop(5)
+
     if len(parts) == 5:
         parts.insert(4, None)  # Insert 'none' for ligand name if missing
     if len(parts) != 6:
