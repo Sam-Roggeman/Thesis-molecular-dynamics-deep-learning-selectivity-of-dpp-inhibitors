@@ -16,7 +16,7 @@ from src.utils.configParser import ConfigParserWrapper
 from src.utils.logger import setup_logger, replace_output
 
 
-def parse_pdb_streaming(tar, frames, dpp_class, ligand_name, binding_type):
+def parse_pdb_streaming(tar, frames, dpp_class, ligand_name, binding_type, replica_id):
     """Stream PDB files directly from TAR archives without extraction.
 
     :yield: dict with pdb_id, coordinates, chain_info
@@ -34,7 +34,8 @@ def parse_pdb_streaming(tar, frames, dpp_class, ligand_name, binding_type):
                     'ligand_name': ligand_name,
                     'binding_type': binding_type,
                     'coordinates': coords,
-                    'num_atoms': len(coords)
+                    'num_atoms': len(coords),
+                    'replica_id': replica_id
                 }
             except Exception as e:
                 print(f"Error parsing {pdb_id}: {e}")
@@ -97,7 +98,8 @@ def generate_dataset_from_tars(streaming_pdb_dataset_path, tar_folder, regenerat
                     tar = tar,
                     dpp_class=dpp_class,
                     ligand_name=ligand_name,
-                    binding_type=binding_type
+                    binding_type=binding_type,
+                    replica_id=replica_id
                 )
 
                 dataset = Dataset.from_generator(
@@ -122,7 +124,7 @@ if __name__ == "__main__":
     os.makedirs(streaming_pdb_dataset_path, exist_ok=True)
     num_proc = 16
 
-    generate_dataset_from_tars(streaming_pdb_dataset_path, tar_folder, regenerate=regenerate, num_proc=num_proc)
+    generate_dataset_from_tars(streaming_pdb_dataset_path, tar_folder, regenerate=regenerate, num_proc=num_proc, skip_existing=False)
 
     full_ds = []
     for dpp in ["dpp8", "dpp9"]:
