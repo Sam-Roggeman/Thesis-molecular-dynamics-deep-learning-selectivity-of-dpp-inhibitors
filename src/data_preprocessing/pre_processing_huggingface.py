@@ -70,9 +70,14 @@ def generate_dataset_from_tars(streaming_pdb_dataset_path, tar_folder, regenerat
         tar_files = sorted(Path(tar_folder).glob('*.tar'))
         # 4 GB in bytes
         min_expected_size = 3.5 * 10**9
+        counter = 0
+
+
         for tar_file in tar_files:
             filename = tar_file.stem
-            print(f"Processing {filename}...")
+
+            print(f"Processing file {counter}:\t\t{filename}...")
+            counter += 1
             with tarfile.open(tar_file, 'r') as tar:
                 frames = tar.getmembers()
                 dpp_class, ligand_name, binding_type, replica_id = parse_filename(filename)
@@ -80,7 +85,10 @@ def generate_dataset_from_tars(streaming_pdb_dataset_path, tar_folder, regenerat
                 res_dir = os.path.join(streaming_pdb_dataset_path, split_name)
                 # if the dataset existence should be skipped, doesnt exists, or is not of expected size, skip processing
                 if os.path.exists(res_dir):
-                    existing_size = os.path.getsize(res_dir)
+                    existing_size = 0
+                    for element in os.scandir(res_dir):
+                        if element.is_file():
+                            existing_size += os.path.getsize(element)
                     if skip_existing and existing_size >= min_expected_size:
                         print(f"✓ Skipping {filename} as it already exists and is of expected size.")
                         continue
