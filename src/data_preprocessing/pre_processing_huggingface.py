@@ -127,17 +127,13 @@ if __name__ == "__main__":
     generate_dataset_from_tars(streaming_pdb_dataset_path, tar_folder, regenerate=regenerate, num_proc=num_proc, skip_existing=False)
 
     full_ds = []
-    for dpp in ["dpp8", "dpp9"]:
-        for binding in ["aselective", "dpp8selective", "dpp9selective", "nonbinder", "apo"]:
-            sub_name = f"{dpp}_{binding}"
-            # find the ligands available for this dpp and binding type
-            available_ligands = [ f.name.split('_')[-1] for f in Path(streaming_pdb_dataset_path).glob(f"{sub_name}_*") if f.is_dir()]
-            for ligand in available_ligands:
-                split_name = f"{dpp}_{binding}_{ligand}"
-                print(f"Loading dataset for split: {split_name}...")
-                path = os.path.join(streaming_pdb_dataset_path, split_name)
-                partial_ds = load_from_disk(path)
-                full_ds.append(partial_ds)
+    # loop over the files in streaming_pdb_dataset_path, load them and concatenate them into one dataset
+    for traj_path in os.listdir(streaming_pdb_dataset_path):
+        last_child = traj_path.split('_')[-1]
+
+        print(f"Loading dataset for traj: {last_child}...")
+        partial_ds = load_from_disk(traj_path)
+        full_ds.append(partial_ds)
 
     full_ds = concatenate_datasets(full_ds)
     print(f"✓ Full dataset loaded with {len(full_ds)} samples.")
