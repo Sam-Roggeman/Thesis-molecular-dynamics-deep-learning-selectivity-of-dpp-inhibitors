@@ -68,7 +68,8 @@ def generate_dataset_from_tars(streaming_pdb_dataset_path, tar_folder, regenerat
         print("Loading streaming dataset from TAR files...")
         # Load streaming dataset
         tar_files = sorted(Path(tar_folder).glob('*.tar'))
-        min_expected_size = 4 * 1024 * 1024 * 1024 # 4 GB in bytes
+        # 4 GB in bytes
+        min_expected_size = 3.5 * 10**9
         for tar_file in tar_files:
             filename = tar_file.stem
             print(f"Processing {filename}...")
@@ -83,27 +84,26 @@ def generate_dataset_from_tars(streaming_pdb_dataset_path, tar_folder, regenerat
                     if skip_existing and existing_size >= min_expected_size:
                         print(f"✓ Skipping {filename} as it already exists and is of expected size.")
                         continue
-                else:
-                    func = functools.partial(
-                        parse_pdb_streaming,
-                        tar = tar,
-                        dpp_class=dpp_class,
-                        ligand_name=ligand_name,
-                        binding_type=binding_type
-                    )
+                func = functools.partial(
+                    parse_pdb_streaming,
+                    tar = tar,
+                    dpp_class=dpp_class,
+                    ligand_name=ligand_name,
+                    binding_type=binding_type
+                )
 
-                    dataset = Dataset.from_generator(
-                        func,
-                        gen_kwargs={
-                            'frames': frames,
-                        },
-                        num_proc=num_proc,
-                        split = NamedSplit(split_name)
-                    )
-                    os.makedirs(res_dir, exist_ok=True)
-                    # store the dataset to disk as safetensors
-                    dataset.save_to_disk(res_dir, max_shard_size="4GB")
-                    print(f"✓ Processed {filename} and saved to {res_dir}.")
+                dataset = Dataset.from_generator(
+                    func,
+                    gen_kwargs={
+                        'frames': frames,
+                    },
+                    num_proc=num_proc,
+                    split = NamedSplit(split_name)
+                )
+                os.makedirs(res_dir, exist_ok=True)
+                # store the dataset to disk as safetensors
+                dataset.save_to_disk(res_dir, max_shard_size="4GB")
+                print(f"✓ Processed {filename} and saved to {res_dir}.")
     print("✓ Streaming dataset loaded and saved to disk.")
 if __name__ == "__main__":
     regenerate = True  # Set to True to regenerate the dataset
