@@ -34,7 +34,7 @@ def append_to_hf_dataset(api, repo_id, new_datapath, cpu_cores):
     dataset:  datasets.DatasetDict = datasets.load_dataset(repo_id, token=api.token, num_proc=cpu_cores)
     train_datapath = os.path.join(new_datapath, "train")
     test_datapath = os.path.join(new_datapath, "test")
-    validation_datapath = os.path.join(new_datapath, "validation")
+    validation_datapath = os.path.join(new_datapath, "val")
 
     # read new dataset from save_to_disk
     new_dataset_train: datasets.Dataset = datasets.load_from_disk(train_datapath)
