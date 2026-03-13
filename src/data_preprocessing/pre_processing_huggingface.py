@@ -128,8 +128,8 @@ if __name__ == "__main__":
 
     full_ds = []
     # loop over the files in streaming_pdb_dataset_path, load them and concatenate them into one dataset
-    for traj_path in os.listdir(streaming_pdb_dataset_path):
-        last_child = traj_path.split('_')[-1]
+    for last_child in os.listdir(streaming_pdb_dataset_path):
+        traj_path = os.path.join(streaming_pdb_dataset_path, last_child)
 
         print(f"Loading dataset for traj: {last_child}...")
         partial_ds = load_from_disk(traj_path)
