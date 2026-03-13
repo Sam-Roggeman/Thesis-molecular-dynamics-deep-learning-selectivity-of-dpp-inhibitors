@@ -215,3 +215,8 @@ __marimo__/
 /.idea/Thesis-molecular_dynamics_trajectory_embeddings.iml
 /.idea/vcs.xml
 /.idea/webResources.xml
+
+hf_cache/
+gpulab_env/
+.vs/
+output/
