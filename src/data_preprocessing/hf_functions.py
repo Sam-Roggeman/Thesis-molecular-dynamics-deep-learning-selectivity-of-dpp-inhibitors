@@ -31,15 +31,25 @@ def remove_12i_entries(dataset, api, repo_id, cpu_cores):
 def append_to_hf_dataset(api, repo_id, new_datapath, cpu_cores):
     api = initialize_hf_api()
     # Load the existing dataset from HuggingFace Hub
-    dataset:  datasets.Dataset = datasets.load_dataset(repo_id, token=api.token, num_proc=cpu_cores)
-
+    dataset:  datasets.DatasetDict = datasets.load_dataset(repo_id, token=api.token, num_proc=cpu_cores)
+    train_datapath = os.path.join(new_datapath, "train")
+    test_datapath = os.path.join(new_datapath, "test")
+    validation_datapath = os.path.join(new_datapath, "validation")
 
     # read new dataset from save_to_disk
-    new_dataset: datasets.Dataset = datasets.load_from_disk(new_datapath)
+    new_dataset_train: datasets.Dataset = datasets.load_from_disk(train_datapath)
+    new_dataset_test: datasets.Dataset = datasets.load_from_disk(test_datapath)
+    new_dataset_validation: datasets.Dataset = datasets.load_from_disk(validation_datapath)
     # Append the new data to the existing dataset
-    combined_dataset: datasets.Dataset = datasets.concatenate_datasets([dataset, new_dataset])
+    combined_train: datasets.Dataset = datasets.concatenate_datasets([dataset["train"], new_dataset_train])
+    combined_test: datasets.Dataset = datasets.concatenate_datasets([dataset["test"], new_dataset_test])
+    combined_validation: datasets.Dataset = datasets.concatenate_datasets([dataset["validation"], new_dataset_validation])
     # shuffle the combined dataset
-    combined_dataset = combined_dataset.shuffle(seed=42, num_proc=cpu_cores)
+    combined_dataset = datasets.DatasetDict({
+        "train": combined_train.shuffle(seed=42),
+        "test": combined_test.shuffle(seed=42),
+        "validation": combined_validation.shuffle(seed=42)
+    })
     # Push the combined dataset back to HuggingFace Hub
     combined_dataset.push_to_hub(repo_id, token=api.token, num_proc=cpu_cores)
 
