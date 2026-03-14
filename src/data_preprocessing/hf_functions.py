@@ -41,7 +41,7 @@ def add_replica_id_column(dataset, cpu_cores):
 
 
 
-def append_to_hf_dataset(new_datapath, cpu_cores):
+def append_to_hf_dataset(dataset, new_datapath, cpu_cores):
     # Load the existing dataset from HuggingFace Hub
     train_datapath = os.path.join(new_datapath, "train")
     test_datapath = os.path.join(new_datapath, "test")
@@ -92,7 +92,7 @@ def main_append():
     dataset = load_dataset_from_hf(api, starting_repo_id, cpu_cores)
     dataset = remove_12i_entries(dataset, cpu_cores)
     dataset = add_replica_id_column(dataset, cpu_cores)
-    dataset = append_to_hf_dataset(new_datapath, cpu_cores)
+    dataset = append_to_hf_dataset(dataset, new_datapath, cpu_cores)
     dataset.push_to_hub(repo_id, token=api.token)
     
     print("Combined dataset successfully pushed to HuggingFace Hub.")
