@@ -93,7 +93,7 @@ def main_append():
     dataset = remove_12i_entries(dataset, cpu_cores)
     dataset = add_replica_id_column(dataset, cpu_cores)
     dataset = append_to_hf_dataset(dataset, new_datapath, cpu_cores)
-    dataset.push_to_hub(repo_id, token=api.token)
+    dataset.push_to_hub(repo_id, token=api.token, num_proc=cpu_cores)
     
     print("Combined dataset successfully pushed to HuggingFace Hub.")
 
