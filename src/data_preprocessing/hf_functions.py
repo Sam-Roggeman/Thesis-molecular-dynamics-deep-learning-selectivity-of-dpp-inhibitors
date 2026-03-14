@@ -9,7 +9,6 @@ def initialize_hf_api():
     return api
 
 def load_dataset_from_hf(api, repo_id, cpu_cores):
-    api = initialize_hf_api()
     # Load the whole dataset from HuggingFace Hub
     dataset = datasets.load_dataset(repo_id, token=api.token, num_proc=cpu_cores)
     return dataset
@@ -21,11 +20,8 @@ def convert_col_to_int(dataset: datasets.Dataset, column_name:str, cpu_cores):
 
     converted_dataset = dataset.map(convert_to_int, num_proc=cpu_cores)
     return converted_dataset
-def remove_12i_entries(dataset, api, repo_id, cpu_cores):
-    repo_id = "Sam-Roggeman/SamRoggeman_Thesis_Dataset_full"
-    api= initialize_hf_api()
+def remove_12i_entries(dataset, cpu_cores):
 
-    dataset = load_dataset_from_hf(api, repo_id, cpu_cores)
 
     # remove the entries in the dataset where the column "ligand_name" has the value "12i"
     filtered_dataset = dataset.filter(lambda x: x["ligand_name"] != "12i", num_proc=cpu_cores)
@@ -33,15 +29,20 @@ def remove_12i_entries(dataset, api, repo_id, cpu_cores):
     print(any(x == "12i" for x in filtered_dataset["train"]["ligand_name"]))  # should be False
     print(any(x == "12i" for x in filtered_dataset["test"]["ligand_name"]))  # should be False
     print(any(x == "12i" for x in filtered_dataset["validation"]["ligand_name"]))  # should be False
-    filtered_dataset.push_to_hub(repo_id, token=api.token, num_proc=cpu_cores)
+    return filtered_dataset
+def add_replica_id_column(dataset, cpu_cores):
+    # add a column "replica_id" to the dataset, which is 1 for all entries
+    def add_replica_id(example):
+        example["replica_id"] = 1
+        return example
+
+    dataset = dataset.map(add_replica_id, num_proc=cpu_cores)
+    return dataset
 
 
 
-
-def append_to_hf_dataset(api, repo_id, new_datapath, cpu_cores):
-    api = initialize_hf_api()
+def append_to_hf_dataset(new_datapath, cpu_cores):
     # Load the existing dataset from HuggingFace Hub
-    dataset:  datasets.DatasetDict = datasets.load_dataset(repo_id, token=api.token, num_proc=cpu_cores)
     train_datapath = os.path.join(new_datapath, "train")
     test_datapath = os.path.join(new_datapath, "test")
     validation_datapath = os.path.join(new_datapath, "val")
@@ -58,11 +59,11 @@ def append_to_hf_dataset(api, repo_id, new_datapath, cpu_cores):
     new_features["num_atoms"] = datasets.Value("int16")
 
     # convert the column "replica_id" to integers
-    new_dataset_train = new_dataset_train.cast(new_features)
-    new_dataset_test = new_dataset_test.cast(new_features)
-    new_dataset_validation = new_dataset_validation.cast(new_features)
+    new_dataset_train = new_dataset_train.cast(new_features, num_proc=cpu_cores)
+    new_dataset_test = new_dataset_test.cast(new_features, num_proc=cpu_cores)
+    new_dataset_validation = new_dataset_validation.cast(new_features, num_proc=cpu_cores)
     dataset = dataset.cast(new_features)
-    
+
     print("Column 'replica_id' converted to integers.")
     print("Appending new dataset to existing dataset...")
     # Append the new data to the existing dataset
@@ -79,15 +80,25 @@ def append_to_hf_dataset(api, repo_id, new_datapath, cpu_cores):
     print(f"Combined dataset size: {len(combined_dataset['train'])} train, {len(combined_dataset['test'])} test, {len(combined_dataset['validation'])} validation")
     print("Pushing the combined dataset back to HuggingFace Hub...")
     # Push the combined dataset back to HuggingFace Hub
-    combined_dataset.push_to_hub(repo_id, token=api.token, num_proc=cpu_cores)
-    print("Combined dataset successfully pushed to HuggingFace Hub.")
+    return combined_dataset
 
 def main_append():  
+    starting_repo_id = "Sam-Roggeman/SamRoggeman_Thesis_Dataset"
     repo_id = "Sam-Roggeman/SamRoggeman_Thesis_Dataset_full"
-    api = initialize_hf_api()
     cpu_cores = 8
     new_datapath = "/project_antwerp/dataset/full_dataset/full_dataset"
-    append_to_hf_dataset(api, repo_id, new_datapath, cpu_cores)
+
+    api = initialize_hf_api()
+    dataset = load_dataset_from_hf(api, starting_repo_id, cpu_cores)
+    dataset = remove_12i_entries(dataset, cpu_cores)
+    dataset = add_replica_id_column(dataset, cpu_cores)
+    dataset = append_to_hf_dataset(new_datapath, cpu_cores)
+    dataset.push_to_hub(repo_id, token=api.token)
+    
+    print("Combined dataset successfully pushed to HuggingFace Hub.")
+
+    
+    
 
 
 if __name__ == "__main__":
