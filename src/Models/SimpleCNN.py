@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from Models.custom_model_template import AbstractNNModel
+from src.Models.custom_model_template import AbstractNNModel
 
 
 class SimpleCNN(AbstractNNModel):

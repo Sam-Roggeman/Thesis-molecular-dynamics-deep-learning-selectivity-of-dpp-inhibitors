@@ -1,7 +1,7 @@
 import torch
 from fvcore.nn import FlopCountAnalysis, flop_count_str
 
-from Models.custom_model_template import AbstractNNModel
+from src.Models.custom_model_template import AbstractNNModel
 
 
 class OneLayerNet(AbstractNNModel):

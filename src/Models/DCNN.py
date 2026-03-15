@@ -5,7 +5,7 @@ import datasets
 import numpy as np
 import torchvision
 
-from Models.custom_model_template import AbstractNNModel
+from src.Models.custom_model_template import AbstractNNModel
 from src.Transform.ListScrambler import ListScrambler, ScramblingTransform
 from src.Transform.Padder import Padder
 from src.Transform.XYZToRGBTensor import XYZToRGBTensor
