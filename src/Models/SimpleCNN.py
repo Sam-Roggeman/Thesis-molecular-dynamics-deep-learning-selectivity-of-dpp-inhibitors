@@ -57,3 +57,5 @@ class SimpleCNN(AbstractNNModel):
     def input_shape(self):
         # Return the expected input shape for the model (excluding batch dimension)
         return 3, 168, 168  # Assuming input images are 168x168 RGB (3 channels)
+    
+    

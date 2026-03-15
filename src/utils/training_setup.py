@@ -90,7 +90,7 @@ def load_and_prepare_test(config) -> DataLoader[Any]:
 
 def load_dataset_from_hf(config: TrainingConfig, split: str):
     """Load dataset from Hugging Face Hub"""
-    num_proc_load = 1 if "pydevd" in sys.modules else 8
+    num_proc_load = 1 if "pydevd" in sys.modules else config.transform_num_proc
     percent_str = str(int(config.dataset_size * 100))
     cache_folder = os.environ.get("HF_CACHE_DIR")
     hf_token = os.environ.get("HF_TOKEN")
