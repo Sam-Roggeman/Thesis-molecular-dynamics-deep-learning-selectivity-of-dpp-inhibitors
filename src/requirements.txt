@@ -5,3 +5,4 @@ datasets
 safetensors
 python-dotenv
 Biopython
+fvcore
