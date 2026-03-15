@@ -58,13 +58,15 @@ def rename_columns(dataset) -> datasets.Dataset:
         dataset = dataset.rename_column("binding_type", "labels")
     return dataset
 def set_format_and_create_dataloaders(dataset, config: TrainingConfig, device):
+    num_workers = 0 if "pydevd" in sys.modules else config.transform_num_proc
     dataset.set_format(type='torch', columns=['data', 'labels'], device=device)
-    dataloader = torch.utils.data.DataLoader(dataset, batch_size=config.batch_size, shuffle=True, num_workers=8)
+    dataloader = torch.utils.data.DataLoader(dataset, batch_size=config.batch_size, shuffle=True, num_workers=num_workers, multiprocessing_context="spawn")
     return dataloader
 
 def prepare_dataset(dataset, transform, split_name, config: TrainingConfig, cache_dir) -> DataLoader[Any]:
     """Subset and transform datasets"""
     device = get_device()
+    num_proc = 1 if "pydevd" in sys.modules else config.transform_num_proc
 
     dataset = rename_columns(dataset)
     # Apply transforms
@@ -74,7 +76,8 @@ def prepare_dataset(dataset, transform, split_name, config: TrainingConfig, cach
         batched=True,
         input_columns=['data', 'labels', "num_atoms"],
         remove_columns=['pdb_id', 'dpp_class', 'ligand_name', 'num_atoms'],
-        num_proc=8,
+        num_proc=num_proc,
+        
         cache_file_name=os.path.join(cache_dir, f"{split_name}_transformed_{config.dataset_size}.arrow"),
     )
     # Set format and create dataloaders
