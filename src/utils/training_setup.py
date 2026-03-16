@@ -129,7 +129,7 @@ def load_dataset_from_hf(config: TrainingConfig, split: str):
     # Load the specified fraction of the dataset into memory
     # Use the `take` method to load only the required number of samples
     dataset = streaming_dataset.take(n_samples).shuffle(seed=42) 
-    dataset = datasets.Dataset.from_generator(lambda: (x for x in dataset), cache_file_name=os.path.join(downloaded_cache_folder, f"{split}_downloaded_{config.dataset_size}.arrow"), num_proc=config.num_cpus)
+    dataset = datasets.Dataset.from_generator(lambda: (x for x in dataset), cache_dir=os.path.join(downloaded_cache_folder, f"{split}_downloaded_{config.dataset_size}"), num_proc=config.num_cpus)
     return dataset
 
 def load_and_prepare_facehub_datasets(config: TrainingConfig) -> Dict:
