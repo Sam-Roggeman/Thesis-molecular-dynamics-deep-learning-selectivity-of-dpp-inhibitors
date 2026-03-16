@@ -1,9 +1,11 @@
+from logging import config
 from typing import Tuple, Dict, Any
 import os
+from networkx import config
 from datetime import datetime
 import torch
-from dotenv import load_dotenv
-from torch import optim
+from dotenv import load, split_dotenv
+from torch import optim, split, split
 from huggingface_hub import HfApi
 import sys
 
@@ -95,12 +97,18 @@ def load_and_prepare_test(config) -> DataLoader[Any]:
 def load_dataset_from_hf(config: TrainingConfig, split: str):
     """Load dataset from Hugging Face Hub"""
     num_proc_load = 1 if "pydevd" in sys.modules else config.num_cpus
-    percent_str = str(int(config.dataset_size * 100))
+    percent_str = f"{float(config.dataset_size * 100):.4f}"
     cache_folder = os.environ.get("HF_CACHE_DIR")
     hf_token = os.environ.get("HF_TOKEN")
     # set size in string format
     downloaded_cache_folder = os.path.join(cache_folder, "downloaded_cache")
-    return datasets.load_dataset(config.dataset_location, split=f"{split}[:{percent_str}%]", token=hf_token, cache_dir=downloaded_cache_folder, streaming=True)
+    return datasets.load_dataset(
+        config.dataset_location, 
+        split=f"{split}[:{percent_str}%]", 
+        token=hf_token, 
+        cache_dir=downloaded_cache_folder, 
+        streaming=True
+    )
 
 def load_and_prepare_facehub_datasets(config: TrainingConfig) -> Dict:
     """Load datasets from Hugging Face Hub, subset, and transform"""
