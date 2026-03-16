@@ -44,7 +44,7 @@ class TrainingConfig:
     validation_transform: Callable = apply_image_transform_noscramble
     transform_batch_size:int = 32
     # set num_cpus to environment variable "GPULAB_CPUS_RESERVED"/2 if it exists, otherwise default to 8
-    num_cpus:int = int(os.environ.get("GPULAB_CPUS_RESERVED", 16)) // 2
+    num_cpus:int = field(default_factory=calculate_num_cpus)
 
     
 
