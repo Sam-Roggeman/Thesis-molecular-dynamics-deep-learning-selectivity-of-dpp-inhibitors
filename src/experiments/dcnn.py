@@ -33,7 +33,7 @@ if __name__ == "__main__":
         training_transorm=apply_image_transform,
         validation_transform=apply_image_transform_noscramble,
         transform_batch_size=32,
-        transform_num_proc=8,
+        num_cpus=8,
     )
 
     train_model(config_dcnn, "CustomDenseNet_Randomsplit_Dataset")

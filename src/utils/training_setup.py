@@ -58,14 +58,14 @@ def rename_columns(dataset) -> datasets.Dataset:
         dataset = dataset.rename_column("binding_type", "labels")
     return dataset
 def set_format_and_create_dataloaders(dataset, config: TrainingConfig):
-    num_workers = 0 if "pydevd" in sys.modules else config.transform_num_proc
+    num_workers = 0 if "pydevd" in sys.modules else config.num_cpus
     dataset.set_format(type='torch', columns=['data', 'labels'])
     dataloader = torch.utils.data.DataLoader(dataset, batch_size=config.batch_size, shuffle=True, num_workers=num_workers, multiprocessing_context="spawn")
     return dataloader
 
 def prepare_dataset(dataset, transform, split_name, config: TrainingConfig, cache_dir) -> DataLoader[Any]:
     """Subset and transform datasets"""
-    num_proc = 1 if "pydevd" in sys.modules else config.transform_num_proc
+    num_proc = 1 if "pydevd" in sys.modules else config.num_cpus
 
     dataset = rename_columns(dataset)
     print(f"Applying transforms to {split_name} dataset with {len(dataset)} samples...")
@@ -94,7 +94,7 @@ def load_and_prepare_test(config) -> DataLoader[Any]:
 
 def load_dataset_from_hf(config: TrainingConfig, split: str):
     """Load dataset from Hugging Face Hub"""
-    num_proc_load = 1 if "pydevd" in sys.modules else config.transform_num_proc
+    num_proc_load = 1 if "pydevd" in sys.modules else config.num_cpus
     percent_str = str(int(config.dataset_size * 100))
     cache_folder = os.environ.get("HF_CACHE_DIR")
     hf_token = os.environ.get("HF_TOKEN")

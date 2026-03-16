@@ -36,7 +36,10 @@ class TrainingConfig:
     training_transorm: Callable = apply_image_transform
     validation_transform: Callable = apply_image_transform_noscramble
     transform_batch_size:int = 32
-    transform_num_proc:int = 8
+    # set num_cpus to environment variable "GPULAB_CPUS_RESERVED"/2 if it exists, otherwise default to 8
+    num_cpus:int = int(os.environ.get("GPULAB_CPUS_RESERVED", 16)) // 2
+
+    
 
     def save(self, path):
         torch.save(asdict(self), os.path.join(path, "training_config.pt"))
@@ -60,7 +63,7 @@ class TestConfig():
     critrion: Callable = CrossEntropyLoss
     validation_transform: Callable = apply_image_transform_noscramble
     transform_batch_size:int = 32
-    transform_num_proc:int = 8
+    num_cpus:int = 8
     dataset_location: str = "Sam-Roggeman/SamRoggeman_Thesis_Dataset"
 
 

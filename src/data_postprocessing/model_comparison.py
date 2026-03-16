@@ -94,7 +94,7 @@ if __name__ == "__main__":
         dataset_size=0.15,
         validation_transform=apply_image_transform_noscramble,
         transform_batch_size=32,
-        transform_num_proc=8
+        num_cpus=8
     )
     models = [dcnn, scnn, onelayer]
     test_loader = load_and_prepare_test(test_config)
