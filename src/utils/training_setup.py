@@ -4,7 +4,7 @@ import os
 from networkx import config
 from datetime import datetime
 import torch
-from dotenv import load, split_dotenv
+from dotenv import load_dotenv
 from torch import optim, split, split
 from huggingface_hub import HfApi
 import sys
