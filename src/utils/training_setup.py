@@ -100,8 +100,7 @@ def load_dataset_from_hf(config: TrainingConfig, split: str):
     hf_token = os.environ.get("HF_TOKEN")
     # set size in string format
     downloaded_cache_folder = os.path.join(cache_folder, "downloaded_cache")
-    print(f"datasets.load_dataset(config.dataset_location, split={split}[:{percent_str}%], token=hf_token, num_proc=num_proc_load, cache_dir=downloaded_cache_folder)")
-    return datasets.load_dataset(config.dataset_location, split=f"{split}[:{percent_str}%]", token=hf_token, num_proc=num_proc_load, cache_dir=downloaded_cache_folder, streaming=True)
+    return datasets.load_dataset(config.dataset_location, split=f"{split}[:{percent_str}%]", token=hf_token, cache_dir=downloaded_cache_folder, streaming=True)
 
 def load_and_prepare_facehub_datasets(config: TrainingConfig) -> Dict:
     """Load datasets from Hugging Face Hub, subset, and transform"""
