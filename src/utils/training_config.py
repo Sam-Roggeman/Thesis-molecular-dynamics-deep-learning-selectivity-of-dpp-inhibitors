@@ -9,6 +9,14 @@ from torch.nn import CrossEntropyLoss
 
 from src.Transform.tranformators import apply_image_transform, apply_image_transform_noscramble
 
+def calculate_num_cpus():
+    """Calculate the number of CPUs to use based on environment variable or default"""
+    if "GPULAB_CPUS_RESERVED" in os.environ:
+        cpu_str = int(os.environ["GPULAB_CPUS_RESERVED"])
+        cpu_count = len(cpu_str.split(",")) if cpu_str else 0
+        return max(1, cpu_count // 2)  # Use half of the reserved CPUs, but at least 1
+    return 1
+
 @dataclass
 class TrainingConfig:
     """Configuration for training runs"""
