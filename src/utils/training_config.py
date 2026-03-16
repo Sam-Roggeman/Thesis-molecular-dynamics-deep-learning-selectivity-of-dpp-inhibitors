@@ -15,7 +15,7 @@ def calculate_num_cpus():
         cpu_str = int(os.environ["GPULAB_CPUS_RESERVED"])
         cpu_count = len(cpu_str.split(",")) if cpu_str else 0
         return max(1, cpu_count // 2)  # Use half of the reserved CPUs, but at least 1
-    return 1
+    return os.cpu_count() # Default to the total number of CPUs available if environment variable is not set
 
 @dataclass
 class TrainingConfig:
