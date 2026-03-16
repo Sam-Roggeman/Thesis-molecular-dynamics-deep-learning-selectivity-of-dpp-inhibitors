@@ -62,7 +62,20 @@ def rename_columns(dataset) -> datasets.Dataset:
 def set_format_and_create_dataloaders(dataset, config: TrainingConfig):
     num_workers = 0 if "pydevd" in sys.modules else config.num_cpus
     dataset.set_format(type='torch', columns=['data', 'labels'])
-    dataloader = torch.utils.data.DataLoader(dataset, batch_size=config.batch_size, shuffle=True, num_workers=num_workers, multiprocessing_context="spawn")
+    dataloader_kwargs = {
+        "batch_size": config.batch_size,
+        "shuffle": True,
+        "num_workers": num_workers,
+        "pin_memory": torch.cuda.is_available(),
+    }
+    if num_workers > 0:
+        dataloader_kwargs.update({
+            "persistent_workers": True,
+            "prefetch_factor": 4,
+            'multiprocessing_context': 'spawn'
+        })
+
+    dataloader = torch.utils.data.DataLoader(dataset, **dataloader_kwargs)
 
     
     return dataloader
@@ -116,7 +129,7 @@ def load_dataset_from_hf(config: TrainingConfig, split: str):
     # Load the specified fraction of the dataset into memory
     # Use the `take` method to load only the required number of samples
     dataset = streaming_dataset.take(n_samples).shuffle(seed=42) 
-    dataset = datasets.Dataset.from_generator(lambda: (x for x in dataset))
+    dataset = datasets.Dataset.from_generator(lambda: (x for x in dataset), cache_file_name=os.path.join(downloaded_cache_folder, f"{split}_downloaded_{config.dataset_size}.arrow"), num_proc=config.num_cpus)
     return dataset
 
 def load_and_prepare_facehub_datasets(config: TrainingConfig) -> Dict:

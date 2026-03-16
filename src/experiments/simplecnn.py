@@ -17,7 +17,7 @@ if __name__ == "__main__":
         time_limit=16 * 60 * 60,  # 16 hours
         weight_decay=1e-2,
         learning_rate=1e-4,
-        batch_size=256,
+        batch_size=1024,
         patience=50,
         max_nr_epochs=500,
         dataset_location="Sam-Roggeman/SamRoggeman_Thesis_Dataset_full",
