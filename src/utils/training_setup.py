@@ -63,6 +63,8 @@ def set_format_and_create_dataloaders(dataset, config: TrainingConfig):
     num_workers = 0 if "pydevd" in sys.modules else config.num_cpus
     dataset.set_format(type='torch', columns=['data', 'labels'])
     dataloader = torch.utils.data.DataLoader(dataset, batch_size=config.batch_size, shuffle=True, num_workers=num_workers, multiprocessing_context="spawn")
+
+    
     return dataloader
 
 def prepare_dataset(dataset, transform, split_name, config: TrainingConfig, cache_dir) -> DataLoader[Any]:
@@ -96,19 +98,26 @@ def load_and_prepare_test(config) -> DataLoader[Any]:
 
 def load_dataset_from_hf(config: TrainingConfig, split: str):
     """Load dataset from Hugging Face Hub"""
-    num_proc_load = 1 if "pydevd" in sys.modules else config.num_cpus
-    percent_str = f"{float(config.dataset_size * 100):.4f}"
     cache_folder = os.environ.get("HF_CACHE_DIR")
     hf_token = os.environ.get("HF_TOKEN")
     # set size in string format
     downloaded_cache_folder = os.path.join(cache_folder, "downloaded_cache")
-    return datasets.load_dataset(
-        config.dataset_location, 
-        split=f"{split}[:{percent_str}%]", 
-        token=hf_token, 
-        cache_dir=downloaded_cache_folder, 
-        streaming=True
+    streaming_dataset = datasets.load_dataset(
+        config.dataset_location,
+        split=split,
+        token=hf_token,
+        streaming=True,          
     )
+    total_samples = streaming_dataset.info.splits[split].num_examples
+    n_samples = int(total_samples * config.dataset_size)  # dataset_size=0.15 for 15%, fill to a multiple of batch size rounded up 
+    n_samples = ((n_samples + config.batch_size - 1) // config.batch_size) * config.batch_size
+
+    # Calculate number of samples to load based on dataset_size    total_samples = streaming_dataset.num_rows * config.dataset_size
+    # Load the specified fraction of the dataset into memory
+    # Use the `take` method to load only the required number of samples
+    dataset = streaming_dataset.take(n_samples).shuffle(seed=42) 
+    dataset = datasets.Dataset.from_generator(lambda: (x for x in dataset))
+    return dataset
 
 def load_and_prepare_facehub_datasets(config: TrainingConfig) -> Dict:
     """Load datasets from Hugging Face Hub, subset, and transform"""
