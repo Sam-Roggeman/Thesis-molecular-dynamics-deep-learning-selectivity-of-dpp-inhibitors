@@ -129,8 +129,6 @@ def load_dataset_from_hf(config: TrainingConfig, split: str):
     # Load the specified fraction of the dataset into memory
     # Use the `take` method to load only the required number of samples
     dataset = streaming_dataset.take(n_samples).shuffle(seed=42) 
-    dataset = datasets.Dataset.from_generator(lambda: (x for x in dataset), cache_dir=os.path.join(downloaded_cache_folder, f"{split}_downloaded_{config.dataset_size}"), num_proc=config.num_cpus)
-
     dataloader = DataLoader(dataset, num_workers=config.num_cpus, batch_size=config.batch_size, shuffle=False) 
     dataset = datasets.Dataset.from_generator(dataloader.__iter__)
 
