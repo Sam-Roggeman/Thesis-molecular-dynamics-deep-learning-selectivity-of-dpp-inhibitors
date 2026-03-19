@@ -30,7 +30,7 @@ class TrainingConfig:
     # Base learning rate used by the optimizer.
     learning_rate: float = 1e-4
     # Number of samples per optimization step.
-    batch_size: int = 1024*4
+    batch_size: int = 256
     # Early stopping patience (number of eval windows without improvement).
     patience: int = 15
     # Upper bound on full epochs.
@@ -65,7 +65,7 @@ class TrainingConfig:
     # Enable streaming for the test split.
     stream_test_split: bool = True
     # Shuffle buffer size used for streamed train data.
-    shuffle_buffer_size: int = 10_000
+    shuffle_buffer_size: int = 1000 
     # RNG seed used by dataset shuffle.
     shuffle_seed: int = 42
     # Optional cap on validation batches per evaluation.
@@ -77,7 +77,7 @@ class TrainingConfig:
     # Batch transform applied to validation/test data.
     validation_transform: Callable = apply_image_transform_noscramble
     # Batch size used inside dataset.map for preprocessing.
-    transform_batch_size:int = 1024*4
+    transform_batch_size:int = 512
     # CPU workers used by dataset processing/DataLoader. Derived from GPULAB_CPUS_RESERVED when available.
     num_cpus:int = field(default_factory=calculate_num_cpus)
 
