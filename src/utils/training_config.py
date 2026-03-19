@@ -42,7 +42,7 @@ class TrainingConfig:
     # Evaluate validation metrics every N train steps.
     eval_every_steps: int = 1000
     # Log training metrics every N train steps.
-    log_every_steps: int = 100
+    log_every_steps: int = 1
 
     # Loss function factory/callable.
     criterion: Callable = CrossEntropyLoss
