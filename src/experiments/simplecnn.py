@@ -18,6 +18,14 @@ if __name__ == "__main__":
         weight_decay=1e-2,
         learning_rate=1e-4,
         batch_size=1024,
+
+        max_train_steps=200, eval_every_steps=100, log_every_steps=20,
+        stream_validation_split=True,
+        stream_test_split=True,
+        validation_max_batches=200,
+        test_max_batches=200,
+
+
         patience=50,
         max_nr_epochs=500,
         dataset_location="Sam-Roggeman/SamRoggeman_Thesis_Dataset_full",

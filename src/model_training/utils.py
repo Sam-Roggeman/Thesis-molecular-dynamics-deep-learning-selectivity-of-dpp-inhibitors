@@ -58,10 +58,12 @@ def train_val_test_split(dataset, train_fraction=0.7, val_fraction=0.15, seed=42
     return {"train": train_set, "val": val_set,"test": test_set}
 
 def training_phase(model, trainloader, optimizer, criterion, device):
+    """Train over a finite dataloader and return aggregate accuracy/loss."""
     model.train()
     correct = 0
     total = 0
     running_loss = 0.0
+    num_batches = 0
     for i, batch in enumerate(trainloader, 0):
         # get the inputs; data is a list of [inputs, labels]
         inputs, labels = batch["data"], batch["labels"]
@@ -81,20 +83,92 @@ def training_phase(model, trainloader, optimizer, criterion, device):
         correct += (predicted == labels).sum().item()
 
         running_loss += loss.item()
-    train_loss = running_loss / len(trainloader)
-    train_acc = correct / total
+        num_batches += 1
+
+    train_loss = running_loss / max(num_batches, 1)
+    train_acc = correct / max(total, 1)
     return train_acc, train_loss
 
-def training_loop(model, trainloader, validationloader, optimizer, criterion, model_folder,scheduler=None,max_epochs=200, patience=10, time_limit=None ):
+
+def _train_single_batch(model, batch, optimizer, criterion, device):
+    """Train one batch and return correct predictions, sample count and loss."""
+    model.train()
+    inputs, labels = batch["data"], batch["labels"]
+    inputs, labels = inputs.to(device), labels.to(device)
+
+    optimizer.zero_grad()
+    outputs = model(inputs)
+    loss = criterion(outputs, labels)
+    loss.backward()
+    optimizer.step()
+
+    _, predicted = torch.max(outputs, 1)
+    batch_total = labels.size(0)
+    batch_correct = (predicted == labels).sum().item()
+    return batch_correct, batch_total, loss.item()
+
+
+def _safe_len(dataloader):
+    """Return dataloader length when available, otherwise None."""
+    try:
+        return len(dataloader)
+    except (TypeError, AttributeError):
+        return None
+
+
+def training_loop(
+    model,
+    trainloader,
+    validationloader,
+    optimizer,
+    criterion,
+    model_folder,
+    scheduler=None,
+    max_epochs=200,
+    max_train_steps=None,
+    steps_per_epoch=1000,
+    eval_every_steps=1000,
+    log_every_steps=100,
+    validation_max_batches=None,
+    patience=10,
+    time_limit=None,
+):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     metric_path =os.path.join(model_folder, f'metrics_training_loop.pt')
     plot_path = os.path.join(model_folder, f'plots_training_loop.png')
     print(f"Using device: {device}")
     print(f"Using metrics path: {metric_path}")
     print(f"Using patience: {patience}")
-    # size of trainloader and validationloader
-    print(f"Training set size: {len(trainloader.dataset)}")
-    print(f"Validation set size: {len(validationloader.dataset)}")
+
+    trainloader_len = _safe_len(trainloader)
+    validationloader_len = _safe_len(validationloader)
+    if trainloader_len is not None:
+        print(f"Training batches per pass: {trainloader_len}")
+    else:
+        print("Training loader is streaming/iterable (unknown length per pass).")
+
+    if validationloader_len is not None:
+        print(f"Validation batches per pass: {validationloader_len}")
+    else:
+        print("Validation loader length is unknown.")
+
+    if max_train_steps is None:
+        if trainloader_len is not None and max_epochs is not None:
+            max_train_steps = max_epochs * trainloader_len
+            steps_per_epoch = trainloader_len
+            eval_every_steps = trainloader_len
+        else:
+            max_train_steps = max_epochs * steps_per_epoch
+
+    eval_every_steps = max(1, eval_every_steps)
+    log_every_steps = max(1, log_every_steps)
+    steps_per_epoch = max(1, steps_per_epoch)
+
+    print(f"Using max_train_steps: {max_train_steps}")
+    print(f"Using steps_per_epoch: {steps_per_epoch}")
+    print(f"Using eval_every_steps: {eval_every_steps}")
+    print(f"Using log_every_steps: {log_every_steps}")
+
     # time limit in readable format for logging
     if time_limit:
         time_limit_str = f"{time_limit // 3600}h {(time_limit % 3600) // 60}m {time_limit % 60}s"
@@ -107,49 +181,107 @@ def training_loop(model, trainloader, validationloader, optimizer, criterion, mo
     best_model_state_dict = None
     epochs_best_model = None
     metrics = Metrics(patience=patience)
+
     start_time = time.time()
-    for epoch in range(max_epochs):  # loop over the dataset multiple times
-        # TRAINING PHASE
-        start_time_epoch = time.time()
-        train_acc, train_loss = training_phase(model, trainloader, optimizer, criterion, device)
-        # VALIDATION PHASE
-        model.eval()
-        val_acc, val_loss = calculate_accuracy_and_loss(model, validationloader, criterion, device)
-        if scheduler:
-            scheduler.step()
 
-        metrics.update(train_acc * 100, train_loss, val_acc * 100, val_loss)
-        # override metrics and plot
-        metrics.save_metrics(metric_path)
-        metrics.save_plot("Training and Validation Metrics", plot_path)
+    global_step = 0
+    train_iter = iter(trainloader)
+    interval_correct = 0
+    interval_total = 0
+    interval_loss = 0.0
+    interval_batches = 0
+    interval_start = time.time()
 
+    while global_step < max_train_steps:
+        try:
+            batch = next(train_iter)
+        except StopIteration:
+            train_iter = iter(trainloader)
+            batch = next(train_iter)
 
-        print(f'Epoch {epoch + 1}:')
-        average_time_per_epoch = (time.time() - start_time) / (epoch + 1)
-        time_epoch = time.time() - start_time_epoch
-        print(f'\tTraining  \tAccuracy: {metrics.training_accuracy[-1]:.4f}%\tLoss: {metrics.train_loss[-1]:.4f}')
-        print(f'\tValidation\tAccuracy: {metrics.validation_accuracy[-1]:.4f}%\tLoss: {metrics.validation_loss[-1]:.4f}')
-        print('-'*100)
-        # print patience counter
-        if metrics.is_overfitting():
-            print("Early stopping due to overfitting.")
-            return best_model_state_dict, epochs_best_model,metrics
-        elif time_limit and (time.time() - start_time) > time_limit:
+        batch_correct, batch_total, batch_loss = _train_single_batch(model, batch, optimizer, criterion, device)
+        global_step += 1
+
+        interval_correct += batch_correct
+        interval_total += batch_total
+        interval_loss += batch_loss
+        interval_batches += 1
+
+        if global_step % log_every_steps == 0:
+            running_acc = interval_correct / max(interval_total, 1)
+            running_loss = interval_loss / max(interval_batches, 1)
+            print(
+                f"Step {global_step}/{max_train_steps} | "
+                f"Train Acc: {running_acc * 100:.4f}% | "
+                f"Train Loss: {running_loss:.4f}"
+            )
+
+        should_eval = (global_step % eval_every_steps == 0) or (global_step == max_train_steps)
+        if should_eval:
+            train_acc = interval_correct / max(interval_total, 1)
+            train_loss = interval_loss / max(interval_batches, 1)
+
+            model.eval()
+            val_acc, val_loss = calculate_accuracy_and_loss(
+                model,
+                validationloader,
+                criterion,
+                device,
+                max_batches=validation_max_batches,
+            )
+            if scheduler:
+                scheduler.step()
+
+            metrics.update(train_acc * 100, train_loss, val_acc * 100, val_loss)
+            metrics.save_metrics(metric_path)
+            metrics.save_plot("Training and Validation Metrics", plot_path)
+
+            pseudo_epoch = (global_step - 1) // steps_per_epoch + 1
+            average_time_per_eval = (time.time() - start_time) / len(metrics.training_accuracy)
+            interval_time = time.time() - interval_start
+
+            print(f'Eval checkpoint at step {global_step} (pseudo-epoch {pseudo_epoch}):')
+            print(f'\tTraining  \tAccuracy: {metrics.training_accuracy[-1]:.4f}%\tLoss: {metrics.train_loss[-1]:.4f}')
+            print(f'\tValidation\tAccuracy: {metrics.validation_accuracy[-1]:.4f}%\tLoss: {metrics.validation_loss[-1]:.4f}')
+            print('-' * 100)
+
+            improved = metrics.model_improved()
+            if improved:
+                best_model_state_dict = model.state_dict()
+                path = os.path.join(model_folder, f'current_best_model.pth')
+                torch.save(best_model_state_dict, path)
+                print(f"\tSaved best model at step {global_step} to {path}")
+                epochs_best_model = pseudo_epoch
+            else:
+                metrics.patience_counter += 1
+
+            print(f'\tPatience Counter: {metrics.patience_counter}/{patience}')
+            print(
+                f'\tTime for eval interval: {interval_time // 60:.2f}m {interval_time % 60:.0f}s\t'
+                f'(avg: {average_time_per_eval // 60}m {average_time_per_eval % 60:.0f}s/check)\t'
+                f'Time elapsed since start: {(time.time() - start_time) // 60:.0f}m'
+            )
+            if scheduler:
+                print(f'\tLearning Rate: {optimizer.param_groups[0]["lr"]:.2e}')
+            print('=' * 100)
+
+            interval_correct = 0
+            interval_total = 0
+            interval_loss = 0.0
+            interval_batches = 0
+            interval_start = time.time()
+
+            if metrics.patience_counter >= patience:
+                print("Early stopping due to overfitting.")
+                break
+
+        if time_limit and (time.time() - start_time) > time_limit:
             print("Time limit reached, stopping training.")
-            return best_model_state_dict, epochs_best_model,metrics
-        elif metrics.model_improved():
-            best_model_state_dict = model.state_dict()
-            # save the best model
-            path = os.path.join(model_folder, f'current_best_model.pth')
-            torch.save(best_model_state_dict, path)
-            print(f"\tSaved best model at epoch {epoch+1} to {path}")
+            break
 
-            epochs_best_model = epoch
-        print(f'\tPatience Counter: {metrics.patience_counter}/{patience}')
-        print(f'\tTime for epoch:   {time_epoch//60:.2f}m {time_epoch%60:.0f}s\t(avg: {average_time_per_epoch//60}m {average_time_per_epoch%60:.0f}s/epoch)\t Time elapsed since start: {(time.time() - start_time)//60:.0f}m')
-        if scheduler:
-            print(f'\tLearning Rate: {optimizer.param_groups[0]["lr"]:.2e}')
-        print('='*100)
+    if best_model_state_dict is None:
+        best_model_state_dict = model.state_dict()
+        epochs_best_model = (global_step - 1) // steps_per_epoch + 1 if global_step > 0 else 0
 
     print('Finished Training')
     return best_model_state_dict, epochs_best_model,metrics

@@ -60,11 +60,23 @@ def rename_columns(dataset) -> datasets.Dataset:
         dataset = dataset.rename_column("binding_type", "labels")
     return dataset
 def set_format_and_create_dataloaders(dataset, config: TrainingConfig):
-    num_workers = 0 if "pydevd" in sys.modules else config.num_cpus
-    dataset.set_format(type='torch', columns=['data', 'labels'])
+    is_iterable = isinstance(dataset, datasets.IterableDataset)
+    num_workers = 0 if ("pydevd" in sys.modules or is_iterable) else config.num_cpus
+
+    if is_iterable:
+        # HF datasets versions differ: some IterableDataset.with_format versions
+        # do not accept the `columns` argument.
+        try:
+            dataset = dataset.with_format(type='torch', columns=['data', 'labels'])
+        except TypeError:
+            dataset = dataset.with_format(type='torch')
+        
+    else:
+        dataset.set_format(type='torch', columns=['data', 'labels'])
+
     dataloader_kwargs = {
         "batch_size": config.batch_size,
-        "shuffle": True,
+        "shuffle": not is_iterable,
         "num_workers": num_workers,
         "pin_memory": torch.cuda.is_available(),
     }
@@ -82,21 +94,26 @@ def set_format_and_create_dataloaders(dataset, config: TrainingConfig):
 
 def prepare_dataset(dataset, transform, split_name, config: TrainingConfig, cache_dir) -> DataLoader[Any]:
     """Subset and transform datasets"""
-    num_proc = 1 if "pydevd" in sys.modules else config.num_cpus
+    is_iterable = isinstance(dataset, datasets.IterableDataset)
+    num_proc = 1 if ("pydevd" in sys.modules or is_iterable) else config.num_cpus
 
     dataset = rename_columns(dataset)
-    print(f"Applying transforms to {split_name} dataset with {len(dataset)} samples...")
+    if is_iterable:
+        print(f"Applying transforms to {split_name} dataset (streaming, size unknown)...")
+    else:
+        print(f"Applying transforms to {split_name} dataset with {len(dataset)} samples...")
     # Apply transforms
-    dataset = dataset.map(
-        transform,
-        batch_size=config.transform_batch_size,
-        batched=True,
-        input_columns=['data', 'labels', "num_atoms"],
-        remove_columns=['pdb_id', 'dpp_class', 'ligand_name', 'num_atoms'],
-        num_proc=num_proc,
-        
-        cache_file_name=os.path.join(cache_dir, f"{split_name}_transformed_{config.dataset_size}.arrow"),
-    )
+    map_kwargs = {
+        "batch_size": config.transform_batch_size,
+        "batched": True,
+        "input_columns": ['data', 'labels', "num_atoms"],
+        "remove_columns": ['pdb_id', 'dpp_class', 'ligand_name', 'num_atoms'],
+    }
+    if not is_iterable:
+        map_kwargs["num_proc"] = num_proc
+        map_kwargs["cache_file_name"] = os.path.join(cache_dir, f"{split_name}_transformed_{config.dataset_size}.arrow")
+
+    dataset = dataset.map(transform, **map_kwargs)
     # Set format and create dataloaders
     print(f"\t Finished applying transforms to {split_name} dataset.")
     return set_format_and_create_dataloaders(dataset, config)
@@ -111,28 +128,49 @@ def load_and_prepare_test(config) -> DataLoader[Any]:
 
 def load_dataset_from_hf(config: TrainingConfig, split: str):
     """Load dataset from Hugging Face Hub"""
-    cache_folder = os.environ.get("HF_CACHE_DIR")
     hf_token = os.environ.get("HF_TOKEN")
-    # set size in string format
-    downloaded_cache_folder = os.path.join(cache_folder, "downloaded_cache")
-    streaming_dataset = datasets.load_dataset(
-        config.dataset_location,
-        split=split,
-        token=hf_token,
-        streaming=True,          
+    should_stream = (
+        (split == "train" and config.stream_train_split)
+        or (split == "validation" and config.stream_validation_split)
+        or (split == "test" and config.stream_test_split)
     )
-    total_samples = streaming_dataset.info.splits[split].num_examples
-    n_samples = int(total_samples * config.dataset_size)  # dataset_size=0.15 for 15%, fill to a multiple of batch size rounded up 
-    n_samples = ((n_samples + config.batch_size - 1) // config.batch_size) * config.batch_size
 
-    # Calculate number of samples to load based on dataset_size    total_samples = streaming_dataset.num_rows * config.dataset_size
-    # Load the specified fraction of the dataset into memory
-    # Use the `take` method to load only the required number of samples
-    dataset = streaming_dataset.take(n_samples).shuffle(seed=42) 
-    dataloader = DataLoader(dataset, num_workers=config.num_cpus, batch_size=config.batch_size, shuffle=False) 
-    dataset = datasets.Dataset.from_generator(dataloader.__iter__, cache_dir=f"{downloaded_cache_folder}/{split}_{config.dataset_size}")
+    if should_stream:
+        dataset = datasets.load_dataset(
+            config.dataset_location,
+            split=split,
+            token=hf_token,
+            streaming=True,
+        )
+        if split == "train":
+            dataset = dataset.shuffle(buffer_size=config.shuffle_buffer_size, seed=config.shuffle_seed)
 
-    return dataset
+        if config.dataset_size < 1.0:
+            try:
+                total_samples = dataset.info.splits[split].num_examples
+                n_samples = int(total_samples * config.dataset_size)
+                n_samples = max(config.batch_size, n_samples)
+                n_samples = ((n_samples + config.batch_size - 1) // config.batch_size) * config.batch_size
+                print(f"Using streaming subset for {split}: {n_samples}/{total_samples} samples")
+                dataset = dataset.take(n_samples)
+            except Exception:
+                print(
+                    f"Warning: Could not determine split size for streaming subset on {split}. "
+                    "Falling back to full streamed split."
+                )
+        return dataset
+
+    split_spec = split
+    if config.dataset_size < 1.0:
+        percentage = config.dataset_size * 100
+        split_spec = f"{split}[:{percentage}%]"
+
+    return datasets.load_dataset(
+        config.dataset_location,
+        split=split_spec,
+        token=hf_token,
+        streaming=False,
+    )
 
 def load_and_prepare_facehub_datasets(config: TrainingConfig) -> Dict:
     """Load datasets from Hugging Face Hub, subset, and transform"""
@@ -161,6 +199,8 @@ def train_model(config: TrainingConfig, model_name: str):
     print(f"Training {config.model_class.__name__}. Model will be saved to: {run_dir}")
     print(f"Weight Decay: {config.weight_decay}, Learning Rate: {config.learning_rate}")
     print(f"Max Num Epochs: {config.max_nr_epochs}")
+    if config.max_train_steps is not None:
+        print(f"Max Train Steps: {config.max_train_steps}")
     config.save(os.path.join(run_dir))
 
     # Initialize model
@@ -183,13 +223,25 @@ def train_model(config: TrainingConfig, model_name: str):
         optimizer=optimizer,
         criterion=criterion,
         max_epochs=config.max_nr_epochs,
+        max_train_steps=config.max_train_steps,
+        steps_per_epoch=config.steps_per_epoch,
+        eval_every_steps=config.eval_every_steps,
+        log_every_steps=config.log_every_steps,
+        validation_max_batches=config.validation_max_batches,
         patience=config.patience,
         time_limit=config.time_limit
     )
 
     model.load_state_dict(model_state_dict)
 
-    model_testing(model, dataloaders["test"], criterion, device, output_dir=run_dir)
+    model_testing(
+        model,
+        dataloaders["test"],
+        criterion,
+        device,
+        output_dir=run_dir,
+        max_batches=config.test_max_batches,
+    )
     save_results(model_state_dict, run_dir, model_name, metrics)
     # cleanup
     del model

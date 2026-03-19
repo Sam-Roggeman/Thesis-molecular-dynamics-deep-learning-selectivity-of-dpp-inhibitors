@@ -1,0 +1,8 @@
+scipy
+mdtraj
+matplotlib
+datasets
+safetensors
+python-dotenv
+Biopython
+fvcore

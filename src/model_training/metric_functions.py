@@ -2,16 +2,19 @@ import torch
 from sklearn.metrics import precision_score, recall_score, f1_score, accuracy_score, confusion_matrix
 
 
-def calculate_accuracy_and_loss(model, dataloader, criterion, device):
+def calculate_accuracy_and_loss(model, dataloader, criterion, device, max_batches: int | None = None):
     correct = 0
     total = 0
     current_loss = 0.0
+    num_batches = 0
 
     model.to(device)
     model.eval()
 
     with torch.no_grad():
-        for data in dataloader:
+        for batch_idx, data in enumerate(dataloader):
+            if max_batches is not None and batch_idx >= max_batches:
+                break
             images, labels = data["data"], data["labels"]
             images, labels = images.to(device), labels.to(device)
 
@@ -23,20 +26,23 @@ def calculate_accuracy_and_loss(model, dataloader, criterion, device):
             total += labels.size(0)
             correct += (predicted == labels).sum().item()
             current_loss += loss.item()
+            num_batches += 1
 
-    accuracy = correct / total
-    current_loss /= len(dataloader)
+    accuracy = correct / max(total, 1)
+    current_loss /= max(num_batches, 1)
 
     return accuracy, current_loss
 
-def calculate_precision_recall_f1(model, dataloader, device):
+def calculate_precision_recall_f1(model, dataloader, device, max_batches: int | None = None):
     all_labels = []
     all_predictions = []
     model.to(device)
     model.eval()
 
     with torch.no_grad():
-        for data in dataloader:
+        for batch_idx, data in enumerate(dataloader):
+            if max_batches is not None and batch_idx >= max_batches:
+                break
             images, labels = data["data"], data["labels"]
             images, labels = images.to(device), labels.to(device)
             outputs = model(images)
@@ -51,9 +57,20 @@ def calculate_precision_recall_f1(model, dataloader, device):
 
     return precision, recall, f1, conf_matrix
 
-def all_statistics(model, dataloader, criterion, device) -> dict[str, float]:
-    accuracy, loss = calculate_accuracy_and_loss(model=model, dataloader=dataloader, device=device, criterion=criterion)
-    precision, recall, f1, conf_matrix = calculate_precision_recall_f1(model=model, dataloader=dataloader, device=device)
+def all_statistics(model, dataloader, criterion, device, max_batches: int | None = None) -> dict[str, float]:
+    accuracy, loss = calculate_accuracy_and_loss(
+        model=model,
+        dataloader=dataloader,
+        device=device,
+        criterion=criterion,
+        max_batches=max_batches,
+    )
+    precision, recall, f1, conf_matrix = calculate_precision_recall_f1(
+        model=model,
+        dataloader=dataloader,
+        device=device,
+        max_batches=max_batches,
+    )
 
     return {
         "accuracy": accuracy,

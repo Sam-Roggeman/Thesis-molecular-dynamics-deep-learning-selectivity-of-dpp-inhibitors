@@ -30,6 +30,10 @@ class TrainingConfig:
     batch_size: int = 16
     patience: int = 15
     max_nr_epochs: int = 100
+    max_train_steps: int | None = None
+    steps_per_epoch: int = 1000
+    eval_every_steps: int = 1000
+    log_every_steps: int = 100
 
     criterion: Callable = CrossEntropyLoss
     optimizer: Callable  = optim.AdamW
@@ -40,6 +44,13 @@ class TrainingConfig:
     # Dataset parameters
     dataset_location: str = "Sam-Roggeman/SamRoggeman_Thesis_Dataset"
     dataset_size: float = 0.15
+    stream_train_split: bool = True
+    stream_validation_split: bool = True
+    stream_test_split: bool = True
+    shuffle_buffer_size: int = 10_000
+    shuffle_seed: int = 42
+    validation_max_batches: int | None = None
+    test_max_batches: int | None = None
     training_transorm: Callable = apply_image_transform
     validation_transform: Callable = apply_image_transform_noscramble
     transform_batch_size:int = 32

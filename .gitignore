@@ -220,3 +220,5 @@ hf_cache/
 gpulab_env/
 .vs/
 output/
+.vscode/launch.json
+.vscode/tasks.json

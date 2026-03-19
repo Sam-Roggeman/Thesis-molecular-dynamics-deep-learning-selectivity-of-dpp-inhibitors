@@ -80,11 +80,16 @@ class Metrics:
         plt.savefig(filename)
         plt.close()
     def model_improved(self):
-        # if not enough data to compare return True
-        if len(self.validation_loss) < 2:
+        # Initialize best loss on first validation checkpoint.
+        if len(self.validation_loss) == 0:
+            return False
+        if self.min_val_loss == float('inf'):
+            self.min_val_loss = self.validation_loss[-1]
+            self.patience_counter = 0
             return True
+
         # val loss decreased
-        elif self.validation_loss[-1] < self.min_val_loss:
+        if self.validation_loss[-1] < self.min_val_loss:
             self.min_val_loss = self.validation_loss[-1]
             self.patience_counter = 0
             return True
