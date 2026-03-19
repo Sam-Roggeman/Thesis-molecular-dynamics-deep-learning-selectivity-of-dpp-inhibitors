@@ -61,7 +61,8 @@ def rename_columns(dataset) -> datasets.Dataset:
     return dataset
 def set_format_and_create_dataloaders(dataset, config: TrainingConfig):
     is_iterable = isinstance(dataset, datasets.IterableDataset)
-    num_workers = 0 if ("pydevd" in sys.modules or is_iterable) else config.num_cpus
+    # Keep workers disabled only under debugger; allow worker parallelism for streaming datasets.
+    num_workers = 0 if "pydevd" in sys.modules else config.num_cpus
 
     if is_iterable:
         # HF datasets versions differ: some IterableDataset.with_format versions
@@ -83,11 +84,15 @@ def set_format_and_create_dataloaders(dataset, config: TrainingConfig):
     if num_workers > 0:
         dataloader_kwargs.update({
             "persistent_workers": True,
-            "prefetch_factor": 2,
+            "prefetch_factor": 4,
             'multiprocessing_context': 'spawn'
         })
 
     dataloader = torch.utils.data.DataLoader(dataset, **dataloader_kwargs)
+    print(
+        f"Created DataLoader: iterable={is_iterable}, batch_size={config.batch_size}, "
+        f"num_workers={num_workers}, pin_memory={dataloader_kwargs['pin_memory']}"
+    )
 
     
     return dataloader
