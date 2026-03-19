@@ -1,7 +1,6 @@
 import os
 
 from huggingface_hub import HfApi
-from numba import typeof
 
 from src.Models.OneLayer import OneLayerNet
 from src.utils.training_setup import train_model, load_and_prepare_facehub_datasets
