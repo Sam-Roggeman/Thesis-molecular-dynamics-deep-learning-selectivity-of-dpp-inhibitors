@@ -83,7 +83,7 @@ def set_format_and_create_dataloaders(dataset, config: TrainingConfig):
     if num_workers > 0:
         dataloader_kwargs.update({
             "persistent_workers": True,
-            "prefetch_factor": 4,
+            "prefetch_factor": 2,
             'multiprocessing_context': 'spawn'
         })
 
