@@ -141,6 +141,7 @@ def load_dataset_from_hf(config: TrainingConfig, split: str):
             split=split,
             token=hf_token,
             streaming=True,
+            num_proc=config.num_cpus,  # Add parallel processing
         )
         if split == "train":
             dataset = dataset.shuffle(buffer_size=config.shuffle_buffer_size, seed=config.shuffle_seed)
