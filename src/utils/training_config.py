@@ -13,48 +13,72 @@ def calculate_num_cpus():
     """Calculate the number of CPUs to use based on environment variable or default"""
     if "GPULAB_CPUS_RESERVED" in os.environ:
         cpu_count = len(os.environ["GPULAB_CPUS_RESERVED"].split(","))
-        return max(1, cpu_count // 2)  # Use half of the reserved CPUs, but at least 1
-    return os.cpu_count() # Default to the total number of CPUs available if environment variable is not set
-
+    else: 
+        cpu_count = os.cpu_count()
+    return max(1, cpu_count // 2)  # Use half of the reserved CPUs so hyperthreading is enabled, but at least 1
 @dataclass
 class TrainingConfig:
     """Configuration for training runs"""
-    # Model class and its arguments
+    # Model class constructor and keyword arguments used to instantiate it.
     model_class: type = None
     model_args: dict = None
 
-    # Training loop parameters
+    # Maximum wall-clock training time in seconds.
     time_limit: int = 4 * 60 * 60
+    # L2 regularization strength used by AdamW.
     weight_decay: float = 1e-2
+    # Base learning rate used by the optimizer.
     learning_rate: float = 1e-4
-    batch_size: int = 16
+    # Number of samples per optimization step.
+    batch_size: int = 1024*4
+    # Early stopping patience (number of eval windows without improvement).
     patience: int = 15
+    # Upper bound on full epochs.
     max_nr_epochs: int = 100
+    # Optional hard cap on training steps; if None, epoch-based stopping is used.
     max_train_steps: int | None = None
+    # Number of train steps to run per epoch abstraction.
     steps_per_epoch: int = 1000
+    # Evaluate validation metrics every N train steps.
     eval_every_steps: int = 1000
+    # Log training metrics every N train steps.
     log_every_steps: int = 100
 
+    # Loss function factory/callable.
     criterion: Callable = CrossEntropyLoss
+    # Optimizer class/factory.
     optimizer: Callable  = optim.AdamW
+    # Keyword arguments passed when creating the optimizer.
     optimizer_params: dict = field(default_factory=lambda: {"lr": 1e-4, "weight_decay": 1e-2})
+    # Optional scheduler factory/callable.
     scheduler: Callable = None
 
 
-    # Dataset parameters
+    # Hugging Face dataset ID or local dataset path.
     dataset_location: str = "Sam-Roggeman/SamRoggeman_Thesis_Dataset"
-    dataset_size: float = 0.15
+    # Fraction of each split to use when < 1.0.
+    dataset_size: float = 0.01
+    # Enable streaming for the train split.
     stream_train_split: bool = True
+    # Enable streaming for the validation split.
     stream_validation_split: bool = True
+    # Enable streaming for the test split.
     stream_test_split: bool = True
+    # Shuffle buffer size used for streamed train data.
     shuffle_buffer_size: int = 10_000
+    # RNG seed used by dataset shuffle.
     shuffle_seed: int = 42
-    validation_max_batches: int | None = None
-    test_max_batches: int | None = None
+    # Optional cap on validation batches per evaluation.
+    validation_max_batches: int | None = 100
+    # Optional cap on test batches.
+    test_max_batches: int | None = 100
+    # Batch transform applied to training data.
     training_transorm: Callable = apply_image_transform
+    # Batch transform applied to validation/test data.
     validation_transform: Callable = apply_image_transform_noscramble
-    transform_batch_size:int = 1024
-    # set num_cpus to environment variable "GPULAB_CPUS_RESERVED"/2 if it exists, otherwise default to 8
+    # Batch size used inside dataset.map for preprocessing.
+    transform_batch_size:int = 1024*4
+    # CPU workers used by dataset processing/DataLoader. Derived from GPULAB_CPUS_RESERVED when available.
     num_cpus:int = field(default_factory=calculate_num_cpus)
 
     
@@ -76,12 +100,19 @@ class TrainingConfig:
 @dataclass
 class TestConfig():
     """Configuration for validation runs"""
+    # Number of samples per batch during evaluation.
     batch_size: int = 32
+    # Fraction of the dataset split to evaluate.
     dataset_size: float = 0.15
+    # Loss function callable used for reporting evaluation loss.
     critrion: Callable = CrossEntropyLoss
+    # Transform applied to validation/test batches.
     validation_transform: Callable = apply_image_transform_noscramble
+    # Batch size used inside dataset.map during preprocessing.
     transform_batch_size:int = 32
+    # Number of CPU workers used by the evaluation pipeline.
     num_cpus:int = 8
+    # Hugging Face dataset ID or local dataset path.
     dataset_location: str = "Sam-Roggeman/SamRoggeman_Thesis_Dataset"
 
 

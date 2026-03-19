@@ -14,25 +14,9 @@ if __name__ == "__main__":
             "input_size": 168,
             "dropout_rate": 0.5
         },
-        time_limit=16 * 60 * 60,  # 16 hours
-        weight_decay=1e-2,
-        learning_rate=1e-4,
-        batch_size=16,
-
-        max_train_steps=5, eval_every_steps=5, log_every_steps=1,
-        stream_validation_split=True,
-        stream_test_split=True,
-        validation_max_batches=5,
-        test_max_batches=5,
-
-
-        patience=50,
-        max_nr_epochs=500,
         dataset_location="Sam-Roggeman/SamRoggeman_Thesis_Dataset_full",
-        dataset_size=0.15,
         training_transorm=apply_image_transform,
         validation_transform=apply_image_transform_noscramble,
-        transform_batch_size=16,
     )
 
     train_model(config_scnn, "SimpleCNN_Randomsplit_Dataset")
