@@ -191,16 +191,22 @@ def training_loop(
     interval_total = 0
     interval_loss = 0.0
     interval_batches = 0
+    interval_data_wait = 0.0
+    interval_compute_time = 0.0
     interval_start = time.time()
     print("Starting training loop...")
     while global_step < max_train_steps:
+        data_wait_start = time.time()
         try:
             batch = next(train_iter)
         except StopIteration:
             train_iter = iter(trainloader)
             batch = next(train_iter)
+        interval_data_wait += time.time() - data_wait_start
 
+        compute_start = time.time()
         batch_correct, batch_total, batch_loss = _train_single_batch(model, batch, optimizer, criterion, device)
+        interval_compute_time += time.time() - compute_start
         global_step += 1
 
         interval_correct += batch_correct
@@ -211,10 +217,19 @@ def training_loop(
         if global_step % log_every_steps == 0:
             running_acc = interval_correct / max(interval_total, 1)
             running_loss = interval_loss / max(interval_batches, 1)
+            avg_data_wait_ms = (interval_data_wait / max(interval_batches, 1)) * 1000
+            avg_compute_ms = (interval_compute_time / max(interval_batches, 1)) * 1000
+            total_interval_time = max(interval_data_wait + interval_compute_time, 1e-9)
+            samples_per_sec = interval_total / total_interval_time
+            data_wait_fraction = interval_data_wait / total_interval_time
             print(
                 f"Step {global_step}/{max_train_steps} | "
                 f"Train Acc: {running_acc * 100:.4f}% | "
-                f"Train Loss: {running_loss:.4f}"
+                f"Train Loss: {running_loss:.4f} | "
+                f"Avg Data Wait: {avg_data_wait_ms:.1f}ms | "
+                f"Avg Compute: {avg_compute_ms:.1f}ms | "
+                f"Samples/s: {samples_per_sec:.1f} | "
+                f"Data Wait Share: {data_wait_fraction * 100:.1f}%"
             )
 
         should_eval = (global_step % eval_every_steps == 0) or (global_step == max_train_steps)
@@ -262,6 +277,11 @@ def training_loop(
                 f'(avg: {average_time_per_eval // 60}m {average_time_per_eval % 60:.0f}s/check)\t'
                 f'Time elapsed since start: {(time.time() - start_time) // 60:.0f}m'
             )
+            print(
+                f'\tPipeline profile: data_wait={interval_data_wait:.2f}s, '
+                f'compute={interval_compute_time:.2f}s, '
+                f'data_wait_share={100 * interval_data_wait / max(interval_data_wait + interval_compute_time, 1e-9):.1f}%'
+            )
             if scheduler:
                 print(f'\tLearning Rate: {optimizer.param_groups[0]["lr"]:.2e}')
             print('=' * 100)
@@ -270,6 +290,8 @@ def training_loop(
             interval_total = 0
             interval_loss = 0.0
             interval_batches = 0
+            interval_data_wait = 0.0
+            interval_compute_time = 0.0
             interval_start = time.time()
 
             if metrics.patience_counter >= patience:
