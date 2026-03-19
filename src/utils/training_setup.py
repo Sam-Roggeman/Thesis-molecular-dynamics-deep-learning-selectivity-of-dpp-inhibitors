@@ -112,10 +112,11 @@ def prepare_dataset(dataset, transform, split_name, config: TrainingConfig, cach
     if not is_iterable:
         map_kwargs["num_proc"] = num_proc
         map_kwargs["cache_file_name"] = os.path.join(cache_dir, f"{split_name}_transformed_{config.dataset_size}.arrow")
-
+    print(f"\tMapping {split_name} dataset with batch size {config.transform_batch_size} and num_proc={map_kwargs.get('num_proc', 'N/A')}...")
     dataset = dataset.map(transform, **map_kwargs)
     # Set format and create dataloaders
     print(f"\t Finished applying transforms to {split_name} dataset.")
+    
     return set_format_and_create_dataloaders(dataset, config)
 def load_and_prepare_test(config) -> DataLoader[Any]:
     """Load only validation and test datasets from huggingface hub, subset, and transform"""
@@ -134,14 +135,13 @@ def load_dataset_from_hf(config: TrainingConfig, split: str):
         or (split == "validation" and config.stream_validation_split)
         or (split == "test" and config.stream_test_split)
     )
-
+    print(f"Loading {split} split from Hugging Face Hub with streaming={should_stream}...")         
     if should_stream:
         dataset = datasets.load_dataset(
             config.dataset_location,
             split=split,
             token=hf_token,
             streaming=True,
-            num_proc=config.num_cpus,  # Add parallel processing
         )
         if split == "train":
             dataset = dataset.shuffle(buffer_size=config.shuffle_buffer_size, seed=config.shuffle_seed)
@@ -159,6 +159,7 @@ def load_dataset_from_hf(config: TrainingConfig, split: str):
                     f"Warning: Could not determine split size for streaming subset on {split}. "
                     "Falling back to full streamed split."
                 )
+        print(f"Finished loading {split} split from Hugging Face Hub with streaming={should_stream}.")
         return dataset
 
     split_spec = split

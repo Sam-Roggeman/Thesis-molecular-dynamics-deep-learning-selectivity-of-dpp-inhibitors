@@ -178,6 +178,7 @@ def training_loop(
     if device == torch.device("cpu"):
         print("WARNING: Training on CPU, this may be slow. Consider using a GPU for faster training.")
     model.to(device)
+
     best_model_state_dict = None
     epochs_best_model = None
     metrics = Metrics(patience=patience)
@@ -191,7 +192,7 @@ def training_loop(
     interval_loss = 0.0
     interval_batches = 0
     interval_start = time.time()
-
+    print("Starting training loop...")
     while global_step < max_train_steps:
         try:
             batch = next(train_iter)

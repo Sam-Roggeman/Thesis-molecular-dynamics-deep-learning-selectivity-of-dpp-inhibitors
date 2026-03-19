@@ -53,7 +53,7 @@ class TrainingConfig:
     test_max_batches: int | None = None
     training_transorm: Callable = apply_image_transform
     validation_transform: Callable = apply_image_transform_noscramble
-    transform_batch_size:int = 32
+    transform_batch_size:int = 1024
     # set num_cpus to environment variable "GPULAB_CPUS_RESERVED"/2 if it exists, otherwise default to 8
     num_cpus:int = field(default_factory=calculate_num_cpus)
 
