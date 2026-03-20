@@ -189,9 +189,9 @@ def load_and_prepare_facehub_datasets(config: TrainingConfig) -> Dict:
     dataset_test = load_dataset_from_hf(config, "test")
 
     return {
-        "train": prepare_dataset(dataset_train, config.training_transorm, "train", config, mapped_cache_folder),
-        "val": prepare_dataset(dataset_val, config.validation_transform, "val", config, mapped_cache_folder),
-        "test": prepare_dataset(dataset_test, config.validation_transform, "test", config, mapped_cache_folder)
+        "train": prepare_dataset(dataset_train, config.training_transorm, "train", config, mapped_cache_folder).batch(config.batch_size),
+        "val": prepare_dataset(dataset_val, config.validation_transform, "val", config, mapped_cache_folder).batch(config.batch_size),
+        "test": prepare_dataset(dataset_test, config.validation_transform, "test", config, mapped_cache_folder).batch(config.batch_size)
     }
 
 
