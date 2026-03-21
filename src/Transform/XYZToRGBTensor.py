@@ -56,13 +56,13 @@ class XYZToRGBTensor:
 
         # Reshape each sample from (28224, 3) to (168, 168, 3)
         coords_reshaped = coords_normalized.reshape(batch_size, self.target_size, self.target_size, 3)
-        # Convert to tensor and permute to (batch, 3, 168, 168)
-        img_tensor = torch.from_numpy(coords_reshaped).permute(0, 3, 1, 2)  # (batch, 3, 168, 168)
+        # Keep batched output as numpy so HF Dataset torch formatting can convert once,
+        # avoiding torch.tensor(existing_tensor) warnings.
+        img_batch = np.transpose(coords_reshaped, (0, 3, 1, 2)).astype(np.float32, copy=False)
 
         if squeeze_output:
-            img_tensor = img_tensor.squeeze(0)
-            return img_tensor
+            return torch.from_numpy(img_batch[0])
 
         if is_list:
-            return list(img_tensor)
-        return img_tensor
+            return [img_batch[i] for i in range(img_batch.shape[0])]
+        return img_batch

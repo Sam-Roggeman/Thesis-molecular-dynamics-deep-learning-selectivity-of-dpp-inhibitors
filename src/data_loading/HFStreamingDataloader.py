@@ -55,5 +55,3 @@ class HFStreamingDataloader:
                     )
         print(f"\t...downloading_dataset complete")
         self.dataset_dict = dataset
-
-    def set_format

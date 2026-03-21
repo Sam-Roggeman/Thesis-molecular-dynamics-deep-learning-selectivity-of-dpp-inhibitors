@@ -1,0 +1,116 @@
+import datasets
+import os
+
+import torch
+
+from src.utils.training_config import TrainingConfig
+
+
+
+def _download_dataset(config: TrainingConfig) -> datasets.DatasetDict:
+    print("Downloading dataset...")
+    dataset_size = config.dataset_size
+    assert dataset_size > 0 and dataset_size <= 1, "Dataset size must be between 0 and 1"
+    print(f"\tDownloading {dataset_size} of {config.dataset_location}")
+    dataset_dict : datasets.DatasetDict = datasets.DatasetDict()
+    # download only a subset of the dataset if dataset_size < 1
+    split_size = int(dataset_size * 100)
+    for split in ['train', 'validation', 'test']:
+        print(f"\t\tDownloading {split_size}% of {split} split")
+        dataset = datasets.load_dataset(
+            config.dataset_location,
+            split=f"{split}[:{split_size}%]",
+            cache_dir=os.environ.get("HF_CACHE_DIR"),
+            token=os.environ.get("HF_TOKEN"),
+            num_proc=config.num_cpus
+        )
+        dataset_dict[split] = dataset
+    print("\t...downloading_dataset complete")
+    # create a dataset dict with the three splits and return it    
+    return dataset_dict
+
+def _download_streaming_dataset(config: TrainingConfig) -> datasets.IterableDatasetDict:
+    dataset_size = config.dataset_size
+    assert dataset_size > 0 and dataset_size <= 1, "Dataset size must be between 0 and 1"
+    print(f"\tDownloading {dataset_size} of {config.dataset_location}")
+    dataset: datasets.IterableDatasetDict = datasets.load_dataset(
+        config.dataset_location,
+        cache_dir=os.environ.get("HF_CACHE_DIR"),
+        token=os.environ.get("HF_TOKEN"),
+        streaming=True
+    )
+    # shuffle the trainssplit of the dataset
+    dataset["train"] = dataset["train"].shuffle(seed=config.shuffle_seed, buffer_size=config.shuffle_buffer_size)
+    if dataset_size < 1:
+        splitinfo: datasets.DatasetInfo = dataset["train"].info
+        for split in dataset.keys():
+            try:
+                total_samples = splitinfo.splits[split].num_examples
+                n_samples = int(total_samples * config.dataset_size)
+                n_samples = max(config.batch_size, n_samples)
+                n_samples = ((n_samples + config.batch_size - 1) // config.batch_size) * config.batch_size
+                print(f"\tUsing streaming subset for {split}: {n_samples}/{total_samples} samples")
+                dataset[split] = dataset[split].take(n_samples)
+            except Exception:
+                print(
+                    f"Warning: Could not determine split size for streaming subset on {split}. "
+                    "Falling back to full streamed split."
+                )
+    print("\t...downloading_streaming_dataset complete")
+    return dataset
+
+# Define a type for the dataloader dict
+DataLoaderDict = dict[str, torch.utils.data.DataLoader]
+
+def initialize_dataloader(config: TrainingConfig) -> DataLoaderDict:
+    """
+    Initialize the dataloader for training.
+    """
+    # Download the dataset
+    print("Initializing dataloader...")
+    print("\tDownloading dataset...")
+    dataset_dict: datasets.DatasetDict = _download_dataset(config)
+    # Shuffle the training split
+    print("\tShuffling training split...")
+    dataset_dict["train"] = dataset_dict["train"].shuffle(seed=config.seed, buffer_size=config.buffer_size)
+    print("\t...initializing_dataloader complete")
+    dataset_dict.rename_columns({'coordinates': 'data', 'binding_type': 'labels'})
+    # apply the training transform to the training split and the validation transform to the validation and test splits
+    
+    print("\tApplying transforms...")
+    map_args = {"batched": True, "batch_size": config.transform_batch_size, "num_proc": config.num_cpus}
+    dataset_dict["train"] = dataset_dict["train"].map(config.training_transform, **map_args, cache_file_name=os.path.join(config.cache_folder, "train_transformed.arrow"))
+    dataset_dict["validation"] = dataset_dict["validation"].map(config.validation_transform, **map_args, cache_file_name=os.path.join(config.cache_folder, "validation_transformed.arrow"))
+    dataset_dict["test"] = dataset_dict["test"].map(config.validation_transform, **map_args, cache_file_name=os.path.join(config.cache_folder, "test_transformed.arrow"))
+    print("\t...applying_transforms complete")
+    dataloader_args = {"batch_size": config.batch_size, "num_workers": config.num_cpus, "pin_memory": True}
+    dataset_dict.with_format(type="torch", columns=["data", "labels"])
+    train_dataloader: torch.utils.data.DataLoader = torch.utils.data.DataLoader(dataset_dict["train"], **dataloader_args)
+    validation_dataloader: torch.utils.data.DataLoader = torch.utils.data.DataLoader(dataset_dict["validation"], **dataloader_args)
+    test_dataloader: torch.utils.data.DataLoader = torch.utils.data.DataLoader(dataset_dict["test"], **dataloader_args)
+    return {"train": train_dataloader, "validation": validation_dataloader, "test": test_dataloader}
+
+def initialize_streaming_dataloader(config: TrainingConfig) -> DataLoaderDict:
+    """
+    Initialize the streaming dataloader for training.
+    """
+    # Download the dataset
+    print("Initializing streaming dataloader...")
+    dataset_dict: datasets.IterableDatasetDict = _download_streaming_dataset(config)
+    # Shuffle the training split
+    dataset_dict["train"] = dataset_dict["train"].shuffle(seed=config.shuffle_seed, buffer_size=config.shuffle_buffer_size)
+    dataset_dict.rename_columns({'coordinates': 'data', 'binding_type': 'labels'})
+    # apply the training transform to the training split and the validation transform to the validation and test splits
+    map_args = {"batched": True, "batch_size": config.transform_batch_size}
+    dataset_dict["train"] = dataset_dict["train"].map(config.training_transform, **map_args)
+    dataset_dict["validation"] = dataset_dict["validation"].map(config.validation_transform, **map_args)
+    dataset_dict["test"] = dataset_dict["test"].map(config.validation_transform, **map_args)
+    dataset_dict = dataset_dict.with_format(type="torch")
+    dataloader_args = {"batch_size": config.batch_size, "num_workers": config.num_cpus, "pin_memory": True}
+    train_dataloader: torch.utils.data.DataLoader = torch.utils.data.DataLoader(dataset_dict["train"], **dataloader_args)
+    validation_dataloader: torch.utils.data.DataLoader = torch.utils.data.DataLoader(dataset_dict["validation"], **dataloader_args)
+    test_dataloader: torch.utils.data.DataLoader = torch.utils.data.DataLoader(dataset_dict["test"], **dataloader_args)
+    dl_dict = {"train": train_dataloader, "validation": validation_dataloader, "test": test_dataloader}
+    print("\t...initializing_streaming_dataloader complete")
+    return dl_dict
+
