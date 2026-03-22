@@ -83,6 +83,9 @@ def initialize_dataloaders(config: TrainingConfig) -> DataLoaderDict:
         "num_proc": config.num_cpus, "input_columns": ['data', 'labels', "num_atoms"], 
         "remove_columns": ['pdb_id', 'dpp_class', 'ligand_name', 'num_atoms', 'replica_id']
         }
+    # Set the sharing strategy to file_system to avoid issues with multiprocessing and large datasets
+    torch.multiprocessing.set_sharing_strategy('file_system')
+    
     mapped_cache_dir = os.path.join(os.environ.get("HF_CACHE_DIR"), "mapped_datasets")
     dataset_dict["train"] = dataset_dict["train"].map(config.training_transform, **map_args, cache_file_name=os.path.join(mapped_cache_dir, "train_transformed.arrow"))
     dataset_dict["validation"] = dataset_dict["validation"].map(config.validation_transform, **map_args, cache_file_name=os.path.join(mapped_cache_dir, "validation_transformed.arrow"))
