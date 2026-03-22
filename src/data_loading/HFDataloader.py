@@ -91,7 +91,7 @@ def initialize_dataloaders(config: TrainingConfig) -> DataLoaderDict:
     dataset_dict["validation"] = dataset_dict["validation"].map(config.validation_transform, **map_args, cache_file_name=os.path.join(mapped_cache_dir, "validation_transformed.arrow"))
     dataset_dict["test"] = dataset_dict["test"].map(config.validation_transform, **map_args, cache_file_name=os.path.join(mapped_cache_dir, "test_transformed.arrow"))
     print("\t...applying_transforms complete")
-    dataloader_args = {"batch_size": config.batch_size, "num_workers": config.num_cpus, "pin_memory": True}
+    dataloader_args = {"batch_size": config.batch_size, "pin_memory": True}
     dataset_dict.with_format(type="torch", columns=["data", "labels"])
     train_dataloader: torch.utils.data.DataLoader = torch.utils.data.DataLoader(dataset_dict["train"], **dataloader_args)
     validation_dataloader: torch.utils.data.DataLoader = torch.utils.data.DataLoader(dataset_dict["validation"], **dataloader_args)
@@ -121,6 +121,7 @@ def initialize_streaming_dataloader(config: TrainingConfig) -> DataLoaderDict:
     # set the format of the dataset to torch tensors and create dataloaders for each split
     dataset_dict = dataset_dict.with_format(type="torch")
 
+    torch.multiprocessing.set_sharing_strategy('file_system')
     dataloader_args = {"batch_size": config.batch_size, "num_workers": config.num_cpus, "pin_memory": True}    
     train_dataloader: torch.utils.data.DataLoader = torch.utils.data.DataLoader(dataset_dict["train"], **dataloader_args)
     validation_dataloader: torch.utils.data.DataLoader = torch.utils.data.DataLoader(dataset_dict["validation"], **dataloader_args)
