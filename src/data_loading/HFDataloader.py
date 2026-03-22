@@ -93,7 +93,7 @@ def initialize_dataloaders(config: TrainingConfig) -> DataLoaderDict:
     print("\t...applying_transforms complete")
     dataloader_args = {"batch_size": config.batch_size, "num_workers": config.num_cpus}
     dataset_dict = dataset_dict.with_format(type="torch", columns=["data", "labels"])
-    train_dataloader: torch.utils.data.DataLoader = torch.utils.data.DataLoader(dataset_dict["train"], **dataloader_args)
+    train_dataloader: torch.utils.data.DataLoader = torch.utils.data.DataLoader(dataset_dict["train"], **dataloader_args, prefetch_factor=2, persistent_workers=True)
     validation_dataloader: torch.utils.data.DataLoader = torch.utils.data.DataLoader(dataset_dict["validation"], **dataloader_args)
     test_dataloader: torch.utils.data.DataLoader = torch.utils.data.DataLoader(dataset_dict["test"], **dataloader_args)
     return {"train": train_dataloader, "validation": validation_dataloader, "test": test_dataloader}

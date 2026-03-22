@@ -40,7 +40,7 @@ class TrainingConfig:
     # Base learning rate used by the optimizer.
     learning_rate: float = 1e-3
     # Number of samples per optimization step.
-    batch_size: int = 1024
+    batch_size: int = 1024 * 8
     # Early stopping patience (number of eval windows without improvement).
     patience: int = 25
     # Upper bound on full epochs.
@@ -48,11 +48,11 @@ class TrainingConfig:
     # Optional hard cap on training steps; if None, epoch-based stopping is used.
     max_train_steps: int | None = None
     # Number of train steps to run per epoch abstraction.
-    steps_per_epoch: int = 100
+    steps_per_epoch: int = 1000
     # Evaluate validation metrics every N train steps.
-    eval_every_steps: int = 100
+    eval_every_steps: int = 1000
     # Log training metrics every N train steps.
-    log_every_steps: int = 25
+    log_every_steps: int = 100
 
     # Loss function factory/callable.
     criterion: Callable = CrossEntropyLoss
@@ -87,7 +87,7 @@ class TrainingConfig:
     # Batch transform applied to validation/test data.
     validation_transform: Callable = apply_image_transform_noscramble
     # Batch size used inside dataset.map for preprocessing.
-    transform_batch_size:int = 1024 * 8
+    transform_batch_size:int = 1024
     # CPU workers used by dataset processing/DataLoader. Derived from GPULAB_CPUS_RESERVED when available.
     num_cpus:int = field(default_factory=calculate_num_cpus)
 
