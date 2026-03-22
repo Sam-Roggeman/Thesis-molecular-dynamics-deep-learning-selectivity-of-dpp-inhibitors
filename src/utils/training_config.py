@@ -87,7 +87,7 @@ class TrainingConfig:
     # Batch transform applied to validation/test data.
     validation_transform: Callable = apply_image_transform_noscramble
     # Batch size used inside dataset.map for preprocessing.
-    transform_batch_size:int = 1024
+    transform_batch_size:int = 1024 * 8
     # CPU workers used by dataset processing/DataLoader. Derived from GPULAB_CPUS_RESERVED when available.
     num_cpus:int = field(default_factory=calculate_num_cpus)
 
