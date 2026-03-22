@@ -10,7 +10,7 @@ from huggingface_hub import HfApi
 import sys
 
 from torch.utils.data import DataLoader
-from src.data_loading.HFDataloader import initialize_streaming_dataloader
+from src.data_loading.HFDataloader import initialize_streaming_dataloader, initialize_dataloaders
 from src.data_postprocessing.model_testing import model_testing
 from src.model_training.metric_functions import all_statistics
 from src.model_training.utils import get_device, get_subset, training_loop
@@ -72,7 +72,7 @@ def train_model(config: TrainingConfig, model_name: str):
     model = config.model_class(**config.model_args)
 
     # Load and prepare data
-    dataloaders = initialize_streaming_dataloader(config)
+    dataloaders = initialize_dataloaders(config)
 
     # Setup training
     device = get_device()

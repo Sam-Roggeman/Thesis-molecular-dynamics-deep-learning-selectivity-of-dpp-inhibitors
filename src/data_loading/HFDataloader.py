@@ -20,7 +20,7 @@ def _download_dataset(config: TrainingConfig) -> datasets.DatasetDict:
         dataset = datasets.load_dataset(
             config.dataset_location,
             split=f"{split}[:{split_size}%]",
-            cache_dir=os.environ.get("HF_CACHE_DIR"),
+            cache_dir=os.environ.get("HF_DOWNLOADED_DATASET_DIR"),
             token=os.environ.get("HF_TOKEN"),
             num_proc=config.num_cpus
         )
@@ -35,7 +35,6 @@ def _download_streaming_dataset(config: TrainingConfig) -> datasets.IterableData
     print(f"\tDownloading {dataset_size} of {config.dataset_location}")
     dataset: datasets.IterableDatasetDict = datasets.load_dataset(
         config.dataset_location,
-        cache_dir=os.environ.get("HF_CACHE_DIR"),
         token=os.environ.get("HF_TOKEN"),
         streaming=True
     )
@@ -62,7 +61,7 @@ def _download_streaming_dataset(config: TrainingConfig) -> datasets.IterableData
 # Define a type for the dataloader dict
 DataLoaderDict = dict[str, torch.utils.data.DataLoader]
 
-def initialize_dataloader(config: TrainingConfig) -> DataLoaderDict:
+def initialize_dataloaders(config: TrainingConfig) -> DataLoaderDict:
     """
     Initialize the dataloader for training.
     """
@@ -84,9 +83,10 @@ def initialize_dataloader(config: TrainingConfig) -> DataLoaderDict:
         "num_proc": config.num_cpus, "input_columns": ['data', 'labels', "num_atoms"], 
         "remove_columns": ['pdb_id', 'dpp_class', 'ligand_name', 'num_atoms', 'replica_id']
         }
-    dataset_dict["train"] = dataset_dict["train"].map(config.training_transform, **map_args, cache_file_name=os.path.join(config.cache_folder, "train_transformed.arrow"))
-    dataset_dict["validation"] = dataset_dict["validation"].map(config.validation_transform, **map_args, cache_file_name=os.path.join(config.cache_folder, "validation_transformed.arrow"))
-    dataset_dict["test"] = dataset_dict["test"].map(config.validation_transform, **map_args, cache_file_name=os.path.join(config.cache_folder, "test_transformed.arrow"))
+    mapped_cache_dir = os.path.join(os.environ.get("HF_CACHE_DIR"), "mapped_datasets")
+    dataset_dict["train"] = dataset_dict["train"].map(config.training_transform, **map_args, cache_file_name=os.path.join(mapped_cache_dir, "train_transformed.arrow"))
+    dataset_dict["validation"] = dataset_dict["validation"].map(config.validation_transform, **map_args, cache_file_name=os.path.join(mapped_cache_dir, "validation_transformed.arrow"))
+    dataset_dict["test"] = dataset_dict["test"].map(config.validation_transform, **map_args, cache_file_name=os.path.join(mapped_cache_dir, "test_transformed.arrow"))
     print("\t...applying_transforms complete")
     dataloader_args = {"batch_size": config.batch_size, "num_workers": config.num_cpus, "pin_memory": True}
     dataset_dict.with_format(type="torch", columns=["data", "labels"])
@@ -118,7 +118,7 @@ def initialize_streaming_dataloader(config: TrainingConfig) -> DataLoaderDict:
     # set the format of the dataset to torch tensors and create dataloaders for each split
     dataset_dict = dataset_dict.with_format(type="torch")
 
-    dataloader_args = {"batch_size": config.batch_size, "num_workers": 4, "pin_memory": True, "prefetch_factor": 2}
+    dataloader_args = {"batch_size": config.batch_size, "num_workers": config.num_cpus, "pin_memory": True}    
     train_dataloader: torch.utils.data.DataLoader = torch.utils.data.DataLoader(dataset_dict["train"], **dataloader_args)
     validation_dataloader: torch.utils.data.DataLoader = torch.utils.data.DataLoader(dataset_dict["validation"], **dataloader_args)
     test_dataloader: torch.utils.data.DataLoader = torch.utils.data.DataLoader(dataset_dict["test"], **dataloader_args)

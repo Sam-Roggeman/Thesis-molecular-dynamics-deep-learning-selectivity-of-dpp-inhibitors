@@ -18,7 +18,7 @@ def calculate_num_cpus():
     is_debug = has_trace or has_breakpoint
     if is_debug:
         print(f"Debug mode detected (has_trace={has_trace}, has_breakpoint={has_breakpoint}), using 1 CPU for easier debugging.")
-        return 1
+        return 0
     # if running in GPULAB environment, use half of the reserved CPUs to allow for hyperthreading, but at least 1
     elif "GPULAB_CPUS_RESERVED" in os.environ:
         cpu_count = len(os.environ["GPULAB_CPUS_RESERVED"].split(","))
@@ -34,25 +34,25 @@ class TrainingConfig:
     model_args: dict = None
 
     # Maximum wall-clock training time in seconds.
-    time_limit: int = 14 * 60 * 60
+    time_limit: int = 4 * 60 * 60
     # L2 regularization strength used by AdamW.
     weight_decay: float = 1e-2
     # Base learning rate used by the optimizer.
     learning_rate: float = 1e-4
     # Number of samples per optimization step.
-    batch_size: int = 16
+    batch_size: int = 8
     # Early stopping patience (number of eval windows without improvement).
-    patience: int = 25
+    patience: int = 15
     # Upper bound on full epochs.
-    max_nr_epochs: int = 200
+    max_nr_epochs: int = 10
     # Optional hard cap on training steps; if None, epoch-based stopping is used.
     max_train_steps: int | None = None
     # Number of train steps to run per epoch abstraction.
-    steps_per_epoch: int = 5000
+    steps_per_epoch: int = 10
     # Evaluate validation metrics every N train steps.
-    eval_every_steps: int = 1000
+    eval_every_steps: int = 10
     # Log training metrics every N train steps.
-    log_every_steps: int = 100
+    log_every_steps: int = 1
 
     # Loss function factory/callable.
     criterion: Callable = CrossEntropyLoss
@@ -67,7 +67,7 @@ class TrainingConfig:
     # Hugging Face dataset ID or local dataset path.
     dataset_location: str = "Sam-Roggeman/SamRoggeman_Thesis_Dataset"
     # Fraction of each split to use when < 1.0.
-    dataset_size: float = 0.15
+    dataset_size: float = 0.01
     # Enable streaming for the train split.
     stream_train_split: bool = True
     # Enable streaming for the validation split.
@@ -75,19 +75,19 @@ class TrainingConfig:
     # Enable streaming for the test split.
     stream_test_split: bool = True
     # Shuffle buffer size used for streamed train data.
-    shuffle_buffer_size: int = 100 
+    shuffle_buffer_size: int = 10 
     # RNG seed used by dataset shuffle.
     shuffle_seed: int = 42
     # Optional cap on validation batches per evaluation.
-    validation_max_batches: int | None = 100
+    validation_max_batches: int | None = 1
     # Optional cap on test batches.
-    test_max_batches: int | None = 100
+    test_max_batches: int | None = 1
     # Batch transform applied to training data.
     training_transform: Callable = apply_image_transform
     # Batch transform applied to validation/test data.
     validation_transform: Callable = apply_image_transform_noscramble
     # Batch size used inside dataset.map for preprocessing.
-    transform_batch_size:int = 16
+    transform_batch_size:int = 8
     # CPU workers used by dataset processing/DataLoader. Derived from GPULAB_CPUS_RESERVED when available.
     num_cpus:int = field(default_factory=calculate_num_cpus)
 

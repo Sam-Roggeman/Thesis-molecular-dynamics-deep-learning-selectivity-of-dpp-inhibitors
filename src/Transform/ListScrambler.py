@@ -13,21 +13,30 @@ class ListScrambler:
         random.seed(seed)
         np.random.seed(seed)
 
-    def __call__(self, batch):
+    def __call__(self, batch, return_numpy=False):
         """
         Apply scrambling to a batch efficiently
         Args:
-            batch: list of frames, where each frame is a list of atoms [[[x,y,z], ...], ...]
+            batch: list of arrays or numpy array of shape (batch, n_atoms, 3)
+            return_numpy: if True, return list of numpy arrays (faster); if False, return list of lists
         Returns:
-            List of scrambled frames with same structure
+            List of scrambled frames (as numpy arrays if return_numpy=True, else as lists)
         """
-        # Process each frame individually since they may have different sizes
+        # Ensure input is list of arrays
+        if isinstance(batch, np.ndarray):
+            batch_list = [batch[i] for i in range(batch.shape[0])]
+        else:
+            batch_list = [np.array(frame, dtype=np.float32) if not isinstance(frame, np.ndarray) else frame for frame in batch]
+        
+        # Process each frame
         scrambled_batch = []
-        for frame in batch:
-            frame_array = np.array(frame, dtype=np.float32)  # (n_atoms, 3)
+        for frame_array in batch_list:
             frame_array = self._oriental_scramble_single(frame_array)
             frame_array = self._positional_scramble_vectorized(frame_array)
-            scrambled_batch.append(frame_array.tolist())
+            # Keep as numpy if return_numpy=True, else convert to list
+            if not return_numpy:
+                frame_array = frame_array.tolist()
+            scrambled_batch.append(frame_array)
 
         return scrambled_batch
 

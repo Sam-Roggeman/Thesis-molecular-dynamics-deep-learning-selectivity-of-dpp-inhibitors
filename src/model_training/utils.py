@@ -196,6 +196,7 @@ def training_loop(
     interval_start = time.time()
     print("Starting training loop...")
     while global_step < max_train_steps:
+        model.train()
         data_wait_start = time.time()
         # Get next batch, or restart the iterator if we've reached the end of the dataloader
         try:
