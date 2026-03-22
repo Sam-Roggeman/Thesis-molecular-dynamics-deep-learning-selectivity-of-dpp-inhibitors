@@ -71,7 +71,7 @@ def initialize_dataloaders(config: TrainingConfig) -> DataLoaderDict:
     dataset_dict: datasets.DatasetDict = _download_dataset(config)
     # Shuffle the training split
     print("\tShuffling training split...")
-    dataset_dict["train"] = dataset_dict["train"].shuffle(seed=config.seed, buffer_size=config.buffer_size)
+    dataset_dict["train"] = dataset_dict["train"].shuffle(seed=config.shuffle_seed, buffer_size=config.shuffle_buffer_size)
     print("\t...initializing_dataloader complete")
     dataset_dict = dataset_dict.rename_columns({'coordinates': 'data', 'binding_type': 'labels'})
     # apply the training transform to the training split and the validation transform to the validation and test splits
