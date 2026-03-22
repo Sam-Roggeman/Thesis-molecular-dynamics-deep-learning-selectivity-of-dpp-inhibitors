@@ -22,7 +22,7 @@ if __name__ == "__main__":
             "num_classes": 5
         },
         dataset_location="Sam-Roggeman/SamRoggeman_Thesis_Dataset_full",
-        training_transorm=apply_image_transform,
+        training_transform=apply_image_transform,
         validation_transform=apply_image_transform_noscramble,
     )
 
