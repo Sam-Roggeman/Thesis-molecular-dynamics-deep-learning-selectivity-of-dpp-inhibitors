@@ -21,17 +21,9 @@ if __name__ == "__main__":
             "reduction_ratio": 0.5,  # reduction ratio of 0.5
             "num_classes": 5
         },
-        time_limit= 4 * 60 * 60,  # 4 hours
-        weight_decay=1e-2,
-        learning_rate=1e-4,
-        batch_size=16,
-        patience=15,
-        max_nr_epochs=100,
         dataset_location="Sam-Roggeman/SamRoggeman_Thesis_Dataset_full",
-        dataset_size=0.15,
         training_transorm=apply_image_transform,
         validation_transform=apply_image_transform_noscramble,
-        transform_batch_size=32,
     )
 
     train_model(config_dcnn, "CustomDenseNet_Randomsplit_Dataset")
