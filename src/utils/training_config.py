@@ -42,7 +42,7 @@ class TrainingConfig:
     # Number of samples per optimization step.
     batch_size: int = 1024
     # Early stopping patience (number of eval windows without improvement).
-    patience: int = 15
+    patience: int = 25
     # Upper bound on full epochs.
     max_nr_epochs: int = 400
     # Optional hard cap on training steps; if None, epoch-based stopping is used.
