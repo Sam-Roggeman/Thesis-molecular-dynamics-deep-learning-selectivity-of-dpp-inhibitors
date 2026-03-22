@@ -11,7 +11,7 @@ if __name__ == "__main__":
         model_class=SimpleCNN,
         model_args={
             "input_size": 168,
-            "dropout_rate": 0.5
+            "dropout_rate": 0.1
         },
         dataset_location="Sam-Roggeman/SamRoggeman_Thesis_Dataset_full",
         training_transform=apply_image_transform,

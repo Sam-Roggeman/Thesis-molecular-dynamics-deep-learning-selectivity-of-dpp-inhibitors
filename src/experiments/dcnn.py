@@ -2,7 +2,7 @@ import os
 
 from huggingface_hub import HfApi
 
-from src.utils.training_setup import train_model, load_and_prepare_facehub_datasets
+from src.utils.training_setup import train_model
 from src.Models.DCNN import CustomDenseNet
 from src.Transform.tranformators import apply_image_transform, apply_image_transform_noscramble
 from src.utils.training_config import TrainingConfig
