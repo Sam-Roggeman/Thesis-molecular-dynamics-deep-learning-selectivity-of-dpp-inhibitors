@@ -34,25 +34,25 @@ class TrainingConfig:
     model_args: dict = None
 
     # Maximum wall-clock training time in seconds.
-    time_limit: int = 4 * 60 * 60
+    time_limit: int = 6 * 60 * 60
     # L2 regularization strength used by AdamW.
     weight_decay: float = 1e-2
     # Base learning rate used by the optimizer.
-    learning_rate: float = 1e-4
+    learning_rate: float = 1e-3
     # Number of samples per optimization step.
-    batch_size: int = 8
+    batch_size: int = 1024
     # Early stopping patience (number of eval windows without improvement).
     patience: int = 15
     # Upper bound on full epochs.
-    max_nr_epochs: int = 10
+    max_nr_epochs: int = 400
     # Optional hard cap on training steps; if None, epoch-based stopping is used.
     max_train_steps: int | None = None
     # Number of train steps to run per epoch abstraction.
-    steps_per_epoch: int = 10
+    steps_per_epoch: int = 100
     # Evaluate validation metrics every N train steps.
-    eval_every_steps: int = 10
+    eval_every_steps: int = 100
     # Log training metrics every N train steps.
-    log_every_steps: int = 1
+    log_every_steps: int = 25
 
     # Loss function factory/callable.
     criterion: Callable = CrossEntropyLoss
@@ -79,15 +79,15 @@ class TrainingConfig:
     # RNG seed used by dataset shuffle.
     shuffle_seed: int = 42
     # Optional cap on validation batches per evaluation.
-    validation_max_batches: int | None = 1
+    validation_max_batches: int | None = 25
     # Optional cap on test batches.
-    test_max_batches: int | None = 1
+    test_max_batches: int | None = 25
     # Batch transform applied to training data.
     training_transform: Callable = apply_image_transform
     # Batch transform applied to validation/test data.
     validation_transform: Callable = apply_image_transform_noscramble
     # Batch size used inside dataset.map for preprocessing.
-    transform_batch_size:int = 8
+    transform_batch_size:int = 1024
     # CPU workers used by dataset processing/DataLoader. Derived from GPULAB_CPUS_RESERVED when available.
     num_cpus:int = field(default_factory=calculate_num_cpus)
 
