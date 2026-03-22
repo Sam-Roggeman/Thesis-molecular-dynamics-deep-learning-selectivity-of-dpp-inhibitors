@@ -34,7 +34,7 @@ class TrainingConfig:
     model_args: dict = None
 
     # Maximum wall-clock training time in seconds.
-    time_limit: int = 4 * 60 * 60
+    time_limit: int = 14 * 60 * 60
     # L2 regularization strength used by AdamW.
     weight_decay: float = 1e-2
     # Base learning rate used by the optimizer.
