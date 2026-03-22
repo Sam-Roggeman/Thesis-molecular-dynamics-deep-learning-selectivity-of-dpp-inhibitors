@@ -25,7 +25,7 @@ def calculate_num_cpus():
     # otherwise, use half of the available CPUs, but at least 1
     else: 
         cpu_count = os.cpu_count()
-    return min(2, max(1, cpu_count // 4))
+    return max(0, cpu_count // 2)
 @dataclass
 class TrainingConfig:
     """Configuration for training runs"""
