@@ -19,13 +19,13 @@ def calculate_num_cpus():
     if is_debug:
         print(f"Debug mode detected (has_trace={has_trace}, has_breakpoint={has_breakpoint}), using 1 CPU for easier debugging.")
         return 1
-    # if running in GPULAB environment, use half of the reserved CPUs to allow for hyperthreading, but at least 1
+    # if running in GPULAB environment
     elif "GPULAB_CPUS_RESERVED" in os.environ:
         cpu_count = len(os.environ["GPULAB_CPUS_RESERVED"].split(","))
-    # otherwise, use half of the available CPUs, but at least 1
+    # otherwise, use all available CPUs
     else: 
         cpu_count = os.cpu_count()
-    return max(0, cpu_count // 2)
+    return max(0, cpu_count-2) # leave 2 cpus free for the main process
 @dataclass
 class TrainingConfig:
     """Configuration for training runs"""

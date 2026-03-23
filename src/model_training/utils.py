@@ -250,12 +250,6 @@ def training_loop(
 
             train_acc = interval_correct / max(interval_total, 1)
             train_loss = interval_loss / max(interval_batches, 1)
-            # get the confusion matrix of the validation set predictions
-            conf_matrix = confusion_matrix(
-                y_true=[label for batch in validationloader for label in batch["labels"].numpy()],
-                y_pred=[pred for batch in validationloader for pred in batch["predictions"].numpy()]
-            )
-
             try:
                 val_acc, val_loss = calculate_accuracy_and_loss(
                     model,

@@ -26,7 +26,7 @@ def _download_dataset(config: TrainingConfig) -> datasets.DatasetDict:
         },
         cache_dir=os.environ.get("HF_DOWNLOADED_DATASET_DIR"),
         token=os.environ.get("HF_TOKEN"),
-        num_proc=_effective_num_proc(config),
+        num_proc=config.num_cpus
     )
     print("\t...downloading_dataset complete")
     # create a dataset dict with the three splits and return it    
