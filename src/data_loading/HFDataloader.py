@@ -80,7 +80,7 @@ def initialize_dataloaders(config: TrainingConfig) -> DataLoaderDict:
     map_args = {
         "batched": True, 
         "batch_size": config.transform_batch_size, 
-        "num_proc": config.num_cpus, "input_columns": ['data', 'labels', "num_atoms"], 
+        "num_proc": config.num_cpus*2, "input_columns": ['data', 'labels', "num_atoms"], 
         "remove_columns": ['pdb_id', 'dpp_class', 'ligand_name', 'num_atoms', 'replica_id']
         }
     # Set the sharing strategy to file_system to avoid issues with multiprocessing and large datasets
