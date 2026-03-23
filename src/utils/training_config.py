@@ -36,9 +36,9 @@ class TrainingConfig:
     # Maximum wall-clock training time in seconds.
     time_limit: int = 12 * 60 * 60
     # L2 regularization strength used by AdamW.
-    weight_decay: float = 1e-3
+    weight_decay: float = 1e-2
     # Base learning rate used by the optimizer.
-    learning_rate: float = 1e-2
+    learning_rate: float = 1e-4
     # Number of samples per optimization step.
     batch_size: int = 1024 * 8
     # Early stopping patience (number of eval windows without improvement).
@@ -58,8 +58,6 @@ class TrainingConfig:
     criterion: Callable = CrossEntropyLoss
     # Optimizer class/factory.
     optimizer: Callable  = optim.AdamW
-    # Keyword arguments passed when creating the optimizer.
-    optimizer_params: dict = field(default_factory=lambda: {"lr": 1e-4, "weight_decay": 1e-2})
     # Optional scheduler factory/callable.
     scheduler: Callable = None
 

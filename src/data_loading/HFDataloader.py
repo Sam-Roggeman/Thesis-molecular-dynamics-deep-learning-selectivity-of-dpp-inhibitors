@@ -95,7 +95,7 @@ def initialize_dataloaders(config: TrainingConfig) -> DataLoaderDict:
     # copy the cache dir to the faster local storage if running in GPULAB
     if "GPULAB_CPUS_RESERVED" in os.environ:
         old_cache_dir = mapped_cache_dir
-        mapped_cache_dir = os.path.join("/project_scratch/dataset_cache/mapped_datasets/", "mapped_datasets")
+        mapped_cache_dir = os.path.join("/project_scratch/dataset_cache/", "mapped_datasets")
         # copy the cache dir to the faster local storage if it doesn't already exist there
         if not os.path.exists(mapped_cache_dir):
             print(f"Copying mapped dataset cache from {old_cache_dir} to {mapped_cache_dir} for faster access...")
