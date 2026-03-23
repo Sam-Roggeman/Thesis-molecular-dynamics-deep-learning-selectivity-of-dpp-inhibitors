@@ -79,9 +79,9 @@ class TrainingConfig:
     # RNG seed used by dataset shuffle.
     shuffle_seed: int = 42
     # Optional cap on validation batches per evaluation.
-    validation_max_batches: int | None
+    validation_max_batches: int | None = None
     # Optional cap on test batches.
-    test_max_batches: int | None
+    test_max_batches: int | None = None
     # Batch transform applied to training data.
     training_transform: Callable = apply_image_transform
     # Batch transform applied to validation/test data.
