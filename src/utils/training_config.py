@@ -34,17 +34,17 @@ class TrainingConfig:
     model_args: dict = None
 
     # Maximum wall-clock training time in seconds.
-    time_limit: int = 6 * 60 * 60
+    time_limit: int = 12 * 60 * 60
     # L2 regularization strength used by AdamW.
-    weight_decay: float = 1e-2
+    weight_decay: float = 1e-1
     # Base learning rate used by the optimizer.
-    learning_rate: float = 1e-3
+    learning_rate: float = 1e-2
     # Number of samples per optimization step.
     batch_size: int = 1024 * 8
     # Early stopping patience (number of eval windows without improvement).
-    patience: int = 25
+    patience: int = 500
     # Upper bound on full epochs.
-    max_nr_epochs: int = 400
+    max_nr_epochs: int = 600
     # Optional hard cap on training steps; if None, epoch-based stopping is used.
     max_train_steps: int | None = None
     # Number of train steps to run per epoch abstraction.
@@ -67,7 +67,7 @@ class TrainingConfig:
     # Hugging Face dataset ID or local dataset path.
     dataset_location: str = "Sam-Roggeman/SamRoggeman_Thesis_Dataset"
     # Fraction of each split to use when < 1.0.
-    dataset_size: float = 0.15
+    dataset_size: float = 0.25
     # Enable streaming for the train split.
     stream_train_split: bool = True
     # Enable streaming for the validation split.
@@ -79,9 +79,9 @@ class TrainingConfig:
     # RNG seed used by dataset shuffle.
     shuffle_seed: int = 42
     # Optional cap on validation batches per evaluation.
-    validation_max_batches: int | None = 25
+    validation_max_batches: int | None
     # Optional cap on test batches.
-    test_max_batches: int | None = 25
+    test_max_batches: int | None
     # Batch transform applied to training data.
     training_transform: Callable = apply_image_transform
     # Batch transform applied to validation/test data.
