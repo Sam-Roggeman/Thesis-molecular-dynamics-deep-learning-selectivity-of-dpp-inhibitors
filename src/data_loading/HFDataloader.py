@@ -1,3 +1,5 @@
+import shutil
+
 import datasets
 import os
 
@@ -26,7 +28,7 @@ def _download_dataset(config: TrainingConfig) -> datasets.DatasetDict:
         },
         cache_dir=os.environ.get("HF_DOWNLOADED_DATASET_DIR"),
         token=os.environ.get("HF_TOKEN"),
-        num_proc=config.num_cpus
+        num_proc= config.num_cpus
     )
     print("\t...downloading_dataset complete")
     # create a dataset dict with the three splits and return it    
@@ -89,8 +91,16 @@ def initialize_dataloaders(config: TrainingConfig) -> DataLoaderDict:
         }
     # Set the sharing strategy to file_system to avoid issues with multiprocessing and large datasets
     torch.multiprocessing.set_sharing_strategy('file_system')
-    
     mapped_cache_dir = os.path.join(os.environ.get("HF_CACHE_DIR"), "mapped_datasets")
+    # copy the cache dir to the faster local storage if running in GPULAB
+    if "GPULAB_CPUS_RESERVED" in os.environ:
+        old_cache_dir = mapped_cache_dir
+        mapped_cache_dir = os.path.join("/project_scratch/dataset_cache/mapped_datasets/", "mapped_datasets")
+        # copy the cache dir to the faster local storage if it doesn't already exist there
+        if not os.path.exists(mapped_cache_dir):
+            print(f"Copying mapped dataset cache from {old_cache_dir} to {mapped_cache_dir} for faster access...")
+            shutil.copytree(old_cache_dir, mapped_cache_dir, dirs_exist_ok=True)          
+                
     print(f"\tUsing mapped dataset cache directory: {mapped_cache_dir}")
     dataset_dict["train"] = dataset_dict["train"].map(
         config.training_transform,
