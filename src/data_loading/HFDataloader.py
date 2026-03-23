@@ -12,19 +12,22 @@ def _download_dataset(config: TrainingConfig) -> datasets.DatasetDict:
     dataset_size = config.dataset_size
     assert dataset_size > 0 and dataset_size <= 1, "Dataset size must be between 0 and 1"
     print(f"\tDownloading {dataset_size} of {config.dataset_location}")
-    dataset_dict : datasets.DatasetDict = datasets.DatasetDict()
     # download only a subset of the dataset if dataset_size < 1
     split_size = int(dataset_size * 100)
     for split in ['train', 'validation', 'test']:
         print(f"\t\tDownloading {split_size}% of {split} split")
-        dataset = datasets.load_dataset(
-            config.dataset_location,
-            split=f"{split}[:{split_size}%]",
-            cache_dir=os.environ.get("HF_DOWNLOADED_DATASET_DIR"),
-            token=os.environ.get("HF_TOKEN"),
-            num_proc=config.num_cpus * 2
-        )
-        dataset_dict[split] = dataset
+
+    dataset_dict: datasets.DatasetDict = datasets.load_dataset(
+        config.dataset_location,
+        split={
+            "train": f"train[:{split_size}%]",
+            "validation": f"validation[:{split_size}%]",
+            "test": f"test[:{split_size}%]",
+        },
+        cache_dir=os.environ.get("HF_DOWNLOADED_DATASET_DIR"),
+        token=os.environ.get("HF_TOKEN"),
+        num_proc=_effective_num_proc(config),
+    )
     print("\t...downloading_dataset complete")
     # create a dataset dict with the three splits and return it    
     return dataset_dict
@@ -80,7 +83,8 @@ def initialize_dataloaders(config: TrainingConfig) -> DataLoaderDict:
     map_args = {
         "batched": True, 
         "batch_size": config.transform_batch_size, 
-        "num_proc": config.num_cpus*2, "input_columns": ['data', 'labels', "num_atoms"], 
+        "num_proc": config.num_cpus,
+        "input_columns": ['data', 'labels', "num_atoms"], 
         "remove_columns": ['pdb_id', 'dpp_class', 'ligand_name', 'num_atoms', 'replica_id']
         }
     # Set the sharing strategy to file_system to avoid issues with multiprocessing and large datasets
@@ -88,13 +92,34 @@ def initialize_dataloaders(config: TrainingConfig) -> DataLoaderDict:
     
     mapped_cache_dir = os.path.join(os.environ.get("HF_CACHE_DIR"), "mapped_datasets")
     print(f"\tUsing mapped dataset cache directory: {mapped_cache_dir}")
-    dataset_dict["train"] = dataset_dict["train"].map(config.training_transform, **map_args, cache_file_name=os.path.join(mapped_cache_dir, f"train_transformed_{config.dataset_size * 100:.0f}pct.arrow"))
-    dataset_dict["validation"] = dataset_dict["validation"].map(config.validation_transform, **map_args, cache_file_name=os.path.join(mapped_cache_dir, f"validation_transformed_{config.dataset_size * 100:.0f}pct.arrow"))
-    dataset_dict["test"] = dataset_dict["test"].map(config.validation_transform, **map_args, cache_file_name=os.path.join(mapped_cache_dir, f"test_transformed_{config.dataset_size * 100:.0f}pct.arrow"))
+    dataset_dict["train"] = dataset_dict["train"].map(
+        config.training_transform,
+        **map_args,
+        load_from_cache_file=True,
+        cache_file_name=os.path.join(mapped_cache_dir, f"train_transformed_{config.dataset_size * 100:.0f}pct.arrow"),
+    )
+    dataset_dict["validation"] = dataset_dict["validation"].map(
+        config.validation_transform,
+        **map_args,
+        load_from_cache_file=True,
+        cache_file_name=os.path.join(mapped_cache_dir, f"validation_transformed_{config.dataset_size * 100:.0f}pct.arrow"),
+    )
+    dataset_dict["test"] = dataset_dict["test"].map(
+        config.validation_transform,
+        **map_args,
+        load_from_cache_file=True,
+        cache_file_name=os.path.join(mapped_cache_dir, f"test_transformed_{config.dataset_size * 100:.0f}pct.arrow"),
+    )
     print("\t...applying_transforms complete")
-    dataloader_args = {"batch_size": config.batch_size, "num_workers": config.num_cpus}
+    dataloader_args = {
+        "batch_size": config.batch_size,
+        "num_workers": config.num_cpus,
+        "pin_memory": torch.cuda.is_available(),
+        "persistent_workers": True,
+        "prefetch_factor": 10
+    }
     dataset_dict = dataset_dict.with_format(type="torch", columns=["data", "labels"])
-    train_dataloader: torch.utils.data.DataLoader = torch.utils.data.DataLoader(dataset_dict["train"], **dataloader_args, prefetch_factor=2, persistent_workers=True)
+    train_dataloader: torch.utils.data.DataLoader = torch.utils.data.DataLoader(dataset_dict["train"], **dataloader_args)
     validation_dataloader: torch.utils.data.DataLoader = torch.utils.data.DataLoader(dataset_dict["validation"], **dataloader_args)
     test_dataloader: torch.utils.data.DataLoader = torch.utils.data.DataLoader(dataset_dict["test"], **dataloader_args)
     return {"train": train_dataloader, "validation": validation_dataloader, "test": test_dataloader}
