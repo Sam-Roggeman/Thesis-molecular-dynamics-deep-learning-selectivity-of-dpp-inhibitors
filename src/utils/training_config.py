@@ -36,7 +36,7 @@ class TrainingConfig:
     # Maximum wall-clock training time in seconds.
     time_limit: int = 12 * 60 * 60
     # L2 regularization strength used by AdamW.
-    weight_decay: float = 1e-1
+    weight_decay: float = 1e-3
     # Base learning rate used by the optimizer.
     learning_rate: float = 1e-2
     # Number of samples per optimization step.
@@ -67,7 +67,7 @@ class TrainingConfig:
     # Hugging Face dataset ID or local dataset path.
     dataset_location: str = "Sam-Roggeman/SamRoggeman_Thesis_Dataset"
     # Fraction of each split to use when < 1.0.
-    dataset_size: float = 0.25
+    dataset_size: float = 0.01
     # Enable streaming for the train split.
     stream_train_split: bool = True
     # Enable streaming for the validation split.

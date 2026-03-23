@@ -6,7 +6,7 @@ import torch
 
 from src.model_training.Metrics import Metrics
 from src.model_training.metric_functions import calculate_accuracy_and_loss
-
+from sklearn.metrics import confusion_matrix
 def model_name(model_name_prefix):
     # current date and time
     date = time.strftime("%Y%m%d-%H%M%S")
@@ -245,12 +245,17 @@ def training_loop(
         batch = None  # Free batch memory
         should_eval = (global_step % eval_every_steps == 0) or (global_step == max_train_steps)
         if should_eval:
+            model.eval()
             
 
             train_acc = interval_correct / max(interval_total, 1)
             train_loss = interval_loss / max(interval_batches, 1)
+            # get the confusion matrix of the validation set predictions
+            conf_matrix = confusion_matrix(
+                y_true=[label for batch in validationloader for label in batch["labels"].numpy()],
+                y_pred=[pred for batch in validationloader for pred in batch["predictions"].numpy()]
+            )
 
-            model.eval()
             try:
                 val_acc, val_loss = calculate_accuracy_and_loss(
                     model,

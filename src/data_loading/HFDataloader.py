@@ -87,6 +87,7 @@ def initialize_dataloaders(config: TrainingConfig) -> DataLoaderDict:
     torch.multiprocessing.set_sharing_strategy('file_system')
     
     mapped_cache_dir = os.path.join(os.environ.get("HF_CACHE_DIR"), "mapped_datasets")
+    print(f"\tUsing mapped dataset cache directory: {mapped_cache_dir}")
     dataset_dict["train"] = dataset_dict["train"].map(config.training_transform, **map_args, cache_file_name=os.path.join(mapped_cache_dir, f"train_transformed_{config.dataset_size * 100:.0f}pct.arrow"))
     dataset_dict["validation"] = dataset_dict["validation"].map(config.validation_transform, **map_args, cache_file_name=os.path.join(mapped_cache_dir, f"validation_transformed_{config.dataset_size * 100:.0f}pct.arrow"))
     dataset_dict["test"] = dataset_dict["test"].map(config.validation_transform, **map_args, cache_file_name=os.path.join(mapped_cache_dir, f"test_transformed_{config.dataset_size * 100:.0f}pct.arrow"))

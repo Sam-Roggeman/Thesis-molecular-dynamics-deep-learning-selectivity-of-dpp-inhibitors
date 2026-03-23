@@ -19,7 +19,9 @@ if __name__ == "__main__":
             "block_config": (6, 12, 36, 24),  # 4 dense blocks with 6, 12, 36, 24 layers
             "num_init_features": 96,  # 96 initial filters
             "reduction_ratio": 0.5,  # reduction ratio of 0.5
-            "num_classes": 5
+            "num_classes": 5, 
+            "dropout_rate": 0.2,  # dropout rate of 0.2
+            
         },
         dataset_location="Sam-Roggeman/SamRoggeman_Thesis_Dataset_full",
         training_transform=apply_image_transform,
