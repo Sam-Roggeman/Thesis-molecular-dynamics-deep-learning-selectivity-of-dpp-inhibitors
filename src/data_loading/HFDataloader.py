@@ -124,10 +124,10 @@ def initialize_dataloaders(config: TrainingConfig) -> DataLoaderDict:
     print("\t...applying_transforms complete")
     dataloader_args = {
         "batch_size": config.batch_size,
-        "num_workers": config.num_cpus,
+        "num_workers": config.num_cpus // 2,
         "pin_memory": torch.cuda.is_available(),
         "persistent_workers": True,
-        "prefetch_factor": 10
+        "prefetch_factor": 4
     }
     dataset_dict = dataset_dict.with_format(type="torch", columns=["data", "labels"])
     train_dataloader: torch.utils.data.DataLoader = torch.utils.data.DataLoader(dataset_dict["train"], **dataloader_args)
