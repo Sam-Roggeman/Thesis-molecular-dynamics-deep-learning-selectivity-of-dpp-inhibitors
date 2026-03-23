@@ -97,9 +97,12 @@ def initialize_dataloaders(config: TrainingConfig) -> DataLoaderDict:
         old_cache_dir = mapped_cache_dir
         mapped_cache_dir = os.path.join("/project_scratch/dataset_cache/", "mapped_datasets")
         # copy the cache dir to the faster local storage if it doesn't already exist there
-        if not os.path.exists(mapped_cache_dir):
+        for file in os.listdir(old_cache_dir):
             print(f"Copying mapped dataset cache from {old_cache_dir} to {mapped_cache_dir} for faster access...")
-            shutil.copytree(old_cache_dir, mapped_cache_dir, dirs_exist_ok=True)      
+            if file.endswith(".arrow"):
+                fp = os.path.join(mapped_cache_dir, file)
+                if not os.path.exists(fp):
+                    shutil.copy(os.path.join(old_cache_dir, file), fp)
             print(f"\t...copying complete")    
                 
     print(f"\tUsing mapped dataset cache directory: {mapped_cache_dir}")
