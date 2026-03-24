@@ -89,8 +89,6 @@ def initialize_dataloaders(config: TrainingConfig) -> DataLoaderDict:
         "input_columns": ['data', 'labels', "num_atoms"], 
         "remove_columns": ['pdb_id', 'dpp_class', 'ligand_name', 'num_atoms', 'replica_id']
         }
-    # Set the sharing strategy to file_system to avoid issues with multiprocessing and large datasets
-    torch.multiprocessing.set_sharing_strategy('file_system')
     mapped_cache_dir = os.path.join(os.environ.get("HF_CACHE_DIR"), "mapped_datasets")
     # copy the cache dir to the faster local storage if running in GPULAB
     if "GPULAB_CPUS_RESERVED" in os.environ:
@@ -163,7 +161,6 @@ def initialize_streaming_dataloader(config: TrainingConfig) -> DataLoaderDict:
     # set the format of the dataset to torch tensors and create dataloaders for each split
     dataset_dict = dataset_dict.with_format(type="torch")
 
-    torch.multiprocessing.set_sharing_strategy('file_system')
     dataloader_args = {"batch_size": config.batch_size, "num_workers": config.num_cpus, "pin_memory": True}    
     train_dataloader: torch.utils.data.DataLoader = torch.utils.data.DataLoader(dataset_dict["train"], **dataloader_args)
     validation_dataloader: torch.utils.data.DataLoader = torch.utils.data.DataLoader(dataset_dict["validation"], **dataloader_args)
