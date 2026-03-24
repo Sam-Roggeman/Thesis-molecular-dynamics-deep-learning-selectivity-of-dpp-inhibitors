@@ -25,6 +25,7 @@ def profile_model(model, dataloader, criterion, optimizer):
             except StopIteration:
                 train_iter = iter(dataloader)
                 batch = next(train_iter)
+            
             model.train()
             inputs, labels = batch["data"], batch["labels"]
             inputs, labels = inputs.to(device), labels.to(device)
@@ -43,7 +44,7 @@ def profile_model(model, dataloader, criterion, optimizer):
     print(prof.key_averages().table(sort_by="cuda_time_total",row_limit=10))
 
     # Export for detailed analysis
-    model_name = model.__name__ 
+    model_name = model.__class__.__name__
     # ensure the output directory exists
     os.makedirs("/project_antwerp/Thesis-molecular_dynamics_trajectory_embeddings/output/profiling", exist_ok=True)
     filepath = f"/project_antwerp/Thesis-molecular_dynamics_trajectory_embeddings/output/profiling/{model_name}_trace.json"
@@ -68,6 +69,7 @@ if __name__ == "__main__":
     )
     # Initialize model
     model = config.model_class(**config.model_args)
+    model = torch.compile(model)
     dataloader = HFDataloader.initialize_dataloaders(config)["train"]
     criterion = config.criterion()
     optimizer = config.optimizer(model.parameters(), lr=config.learning_rate, weight_decay=config.weight_decay)
