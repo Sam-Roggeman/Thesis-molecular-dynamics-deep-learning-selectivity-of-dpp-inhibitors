@@ -5,11 +5,13 @@ from src.Models.SimpleCNN import SimpleCNN
 from src.Transform.tranformators import apply_image_transform, apply_image_transform_noscramble
 from src.data_loading import HFDataloader
 from src.utils.training_config import TrainingConfig 
+import os
 
 
 def profile_model(model, dataloader, criterion, optimizer):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device)
+    train_iter = iter(dataloader)
     
     with profile(
         activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA],
@@ -69,5 +71,11 @@ if __name__ == "__main__":
     # Analyze the results
     print(prof.key_averages().table(sort_by="cuda_time_total",row_limit=10))
 
-    # Export for detailed analysis
-    prof.export_chrome_trace("trace.json")
+    # Export trace to a file for detailed analysis in Chrome Trace Viewer
+    model_name = config.model_class.__name__ 
+    # ensure the output directory exists
+    os.makedirs("/project_antwerp/Thesis-molecular_dynamics_trajectory_embeddings/output/profiling", exist_ok=True)
+    filepath = f"/project_antwerp/Thesis-molecular_dynamics_trajectory_embeddings/output/profiling/{model_name}_trace.json"
+    prof.export_chrome_trace(filepath)
+    print(f"Trace exported to {filepath}")
+    
