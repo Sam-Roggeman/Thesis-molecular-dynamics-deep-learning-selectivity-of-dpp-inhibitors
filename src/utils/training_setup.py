@@ -70,7 +70,7 @@ def train_model(config: TrainingConfig, model_name: str):
 
     # Initialize model
     model = config.model_class(**config.model_args)
-    model = torch.compile(model) 
+    
 
     # Load and prepare data
     dataloaders = initialize_dataloaders(config)
