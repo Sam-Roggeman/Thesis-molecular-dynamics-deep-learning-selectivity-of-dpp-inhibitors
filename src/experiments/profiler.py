@@ -64,8 +64,7 @@ if __name__ == "__main__":
     criterion = torch.nn.CrossEntropyLoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-4)
     # Get a batch of data
-    input_batch, target = next(iter(dataloader))
-    prof = profile_model(model, input_batch, target, criterion, optimizer)
+    prof = profile_model(model, dataloader, criterion, optimizer)
     
     # Analyze the results
     print(prof.key_averages().table(sort_by="cuda_time_total",row_limit=10))
