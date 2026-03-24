@@ -77,8 +77,13 @@ def train_model(config: TrainingConfig, model_name: str):
 
     # Initialize model
     model = config.model_class(**config.model_args)
-
-        
+    # Set up device and CUDA settings before moving model to device 
+    if device.type == "cuda":
+        # Throughput-oriented CUDA backend settings.
+        torch.backends.cudnn.benchmark = True
+        torch.backends.cuda.matmul.allow_tf32 = True
+        torch.backends.cudnn.allow_tf32 = True
+        torch.set_float32_matmul_precision("high")    
     # Load and prepare data
     dataloaders = initialize_dataloaders(config)
 

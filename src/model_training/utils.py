@@ -133,12 +133,7 @@ def training_loop(
     time_limit=None,
 ):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    if device.type == "cuda":
-        # Throughput-oriented CUDA backend settings.
-        torch.backends.cudnn.benchmark = True
-        torch.backends.cuda.matmul.allow_tf32 = True
-        torch.backends.cudnn.allow_tf32 = True
-        torch.set_float32_matmul_precision("high")
+
     metric_path =os.path.join(model_folder, f'metrics_training_loop.pt')
     plot_path = os.path.join(model_folder, f'plots_training_loop.png')
     print(f"Using device: {device}")
