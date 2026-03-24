@@ -19,6 +19,7 @@ def profile_model(model, dataloader, criterion, optimizer):
         profile_memory=True,
         with_stack=True) as prof:
         for _ in range(10):  # Profile a few steps
+            
             try:
                 batch = next(train_iter)
             except StopIteration:
@@ -26,6 +27,7 @@ def profile_model(model, dataloader, criterion, optimizer):
                 batch = next(train_iter)
             model.train()
             inputs, labels = batch["data"], batch["labels"]
+            inputs, labels = inputs.to(device), labels.to(device)
 
             optimizer.zero_grad()
             outputs = model(inputs)
@@ -67,8 +69,8 @@ if __name__ == "__main__":
     # Initialize model
     model = config.model_class(**config.model_args)
     dataloader = HFDataloader.initialize_dataloaders(config)["train"]
-    criterion = torch.nn.CrossEntropyLoss()
-    optimizer = torch.optim.Adam(model.parameters(), lr=1e-4)
+    criterion = config.criterion()
+    optimizer = config.optimizer(model.parameters(), lr=config.learning_rate, weight_decay=config.weight_decay)
     # Get a batch of data
     prof = profile_model(model, dataloader, criterion, optimizer)
     
