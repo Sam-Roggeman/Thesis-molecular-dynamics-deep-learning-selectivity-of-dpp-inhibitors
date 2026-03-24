@@ -26,7 +26,6 @@ def profile_model(model, dataloader, criterion, optimizer):
                 batch = next(train_iter)
             model.train()
             inputs, labels = batch["data"], batch["labels"]
-            inputs, labels = inputs.to(device), labels.to(device)
 
             optimizer.zero_grad()
             outputs = model(inputs)
@@ -42,7 +41,12 @@ def profile_model(model, dataloader, criterion, optimizer):
     print(prof.key_averages().table(sort_by="cuda_time_total",row_limit=10))
 
     # Export for detailed analysis
-    prof.export_chrome_trace("trace.json")  
+    model_name = model.__name__ 
+    # ensure the output directory exists
+    os.makedirs("/project_antwerp/Thesis-molecular_dynamics_trajectory_embeddings/output/profiling", exist_ok=True)
+    filepath = f"/project_antwerp/Thesis-molecular_dynamics_trajectory_embeddings/output/profiling/{model_name}_trace.json"
+    prof.export_chrome_trace(filepath)
+    print(f"Trace exported to {filepath}")
         
 if __name__ == "__main__":
     # load dotenv variables for HuggingFace API token
@@ -68,14 +72,5 @@ if __name__ == "__main__":
     # Get a batch of data
     prof = profile_model(model, dataloader, criterion, optimizer)
     
-    # Analyze the results
-    print(prof.key_averages().table(sort_by="cuda_time_total",row_limit=10))
 
-    # Export trace to a file for detailed analysis in Chrome Trace Viewer
-    model_name = config.model_class.__name__ 
-    # ensure the output directory exists
-    os.makedirs("/project_antwerp/Thesis-molecular_dynamics_trajectory_embeddings/output/profiling", exist_ok=True)
-    filepath = f"/project_antwerp/Thesis-molecular_dynamics_trajectory_embeddings/output/profiling/{model_name}_trace.json"
-    prof.export_chrome_trace(filepath)
-    print(f"Trace exported to {filepath}")
     
