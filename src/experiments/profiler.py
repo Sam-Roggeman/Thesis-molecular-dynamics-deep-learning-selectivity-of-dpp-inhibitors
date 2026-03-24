@@ -43,6 +43,10 @@ def profile_model(model, dataloader, criterion, optimizer):
     prof.export_chrome_trace("trace.json")  
         
 if __name__ == "__main__":
+    # load dotenv variables for HuggingFace API token
+    from dotenv import load_dotenv
+    load_dotenv()
+    
     config = TrainingConfig(
         model_class=SimpleCNN,
         model_args={
