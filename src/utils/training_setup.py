@@ -84,6 +84,9 @@ def train_model(config: TrainingConfig, model_name: str):
 
     # Setup training
     device = get_device()
+    criterion = config.criterion()
+    optimizer = config.optimizer(model.parameters(), lr=config.learning_rate, weight_decay=config.weight_decay)
+
     model.to(device)
     if config.compile_model:
         print("Compiling model with torch.compile() for potentially faster training.")
@@ -92,8 +95,6 @@ def train_model(config: TrainingConfig, model_name: str):
         _warmup(model, dataloaders["train"], optimizer, criterion, device, steps=5)
     
     
-    criterion = config.criterion()
-    optimizer = config.optimizer(model.parameters(), lr=config.learning_rate, weight_decay=config.weight_decay)
 
     # Train
     model_state_dict, nr_epochs, metrics = training_loop(
