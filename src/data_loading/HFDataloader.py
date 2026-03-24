@@ -132,7 +132,7 @@ def initialize_dataloaders(config: TrainingConfig) -> DataLoaderDict:
         "persistent_workers": True,
         "prefetch_factor": 4, 
     }
-    resource.setrlimit(resource.RLIMIT_NOFILE, (65536, 65536))
+    resource.setrlimit(resource.RLIMIT_NOFILE, (10810, 10810))
     
     dataset_dict = dataset_dict.with_format(type="torch", columns=["data", "labels"])
     train_dataloader: torch.utils.data.DataLoader = torch.utils.data.DataLoader(dataset_dict["train"], **dataloader_args)
