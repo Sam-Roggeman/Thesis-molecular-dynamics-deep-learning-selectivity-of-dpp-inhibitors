@@ -40,7 +40,7 @@ class TrainingConfig:
     # Base learning rate used by the optimizer.
     learning_rate: float = 1e-4
     # Number of samples per optimization step.
-    batch_size: int = 1024 * 8
+    batch_size: int = 1024
     # Early stopping patience (number of eval windows without improvement).
     patience: int = 15
     # Upper bound on full epochs.
