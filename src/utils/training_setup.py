@@ -77,8 +77,13 @@ def train_model(config: TrainingConfig, model_name: str):
 
     # Initialize model
     model = config.model_class(**config.model_args)
-    
-
+    model.to(device)
+    if config.compile_model:
+        print("Compiling model with torch.compile() for potentially faster training.")
+        model = torch.compile(model)
+        print("Warming up compiled model...")
+        _warmup(model, dataloaders["train"], optimizer, criterion, device, steps=5)
+        
     # Load and prepare data
     dataloaders = initialize_dataloaders(config)
 
@@ -86,12 +91,7 @@ def train_model(config: TrainingConfig, model_name: str):
     device = get_device()
     criterion = config.criterion()
     optimizer = config.optimizer(model.parameters(), lr=config.learning_rate, weight_decay=config.weight_decay)
-    if config.compile_model:
-        print("Compiling model with torch.compile() for potentially faster training.")
-        model = torch.compile(model)
-        print("Warming up compiled model...")
-        _warmup(model, dataloaders["train"], optimizer, criterion, device, steps=5)
-        
+
     # Train
     model_state_dict, nr_epochs, metrics = training_loop(
         model=model,

@@ -183,7 +183,6 @@ def training_loop(
     if device == torch.device("cpu"):
         print("WARNING: Training on CPU, this may be slow. Consider using a GPU for faster training.")
 
-    model.to(device)
 
     best_model_state_dict = None
     epochs_best_model = None

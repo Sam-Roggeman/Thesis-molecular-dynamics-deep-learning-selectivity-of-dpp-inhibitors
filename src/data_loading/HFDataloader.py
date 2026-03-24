@@ -7,7 +7,7 @@ import torch
 
 from src.utils.training_config import TrainingConfig
 
-
+import resource
 
 def _download_dataset(config: TrainingConfig) -> datasets.DatasetDict:
     print("Downloading dataset...")
@@ -131,8 +131,9 @@ def initialize_dataloaders(config: TrainingConfig) -> DataLoaderDict:
         "pin_memory": torch.cuda.is_available(),
         "persistent_workers": True,
         "prefetch_factor": 4, 
-        "in_order": False
     }
+    resource.setrlimit(resource.RLIMIT_NOFILE, (65536, 65536))
+    
     dataset_dict = dataset_dict.with_format(type="torch", columns=["data", "labels"])
     train_dataloader: torch.utils.data.DataLoader = torch.utils.data.DataLoader(dataset_dict["train"], **dataloader_args)
     validation_dataloader: torch.utils.data.DataLoader = torch.utils.data.DataLoader(dataset_dict["validation"], **dataloader_args)
@@ -168,5 +169,7 @@ def initialize_streaming_dataloader(config: TrainingConfig) -> DataLoaderDict:
     validation_dataloader: torch.utils.data.DataLoader = torch.utils.data.DataLoader(dataset_dict["validation"], **dataloader_args)
     test_dataloader: torch.utils.data.DataLoader = torch.utils.data.DataLoader(dataset_dict["test"], **dataloader_args)
     dl_dict = {"train": train_dataloader, "validation": validation_dataloader, "test": test_dataloader}
+    resource.setrlimit(resource.RLIMIT_NOFILE, (65536, 65536))
+    
     print("\t...initializing_streaming_dataloader complete")
     return dl_dict
