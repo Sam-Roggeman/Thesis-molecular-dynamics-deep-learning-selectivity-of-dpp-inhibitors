@@ -67,7 +67,7 @@ def training_phase(model, trainloader, optimizer, criterion, device):
     for i, batch in enumerate(trainloader, 0):
         # get the inputs; data is a list of [inputs, labels]
         inputs, labels = batch["data"], batch["labels"]
-        inputs, labels = inputs.to(device), labels.to(device)
+        inputs, labels = inputs.to(device, non_blocking=True), labels.to(device, non_blocking=True)
 
         # zero the parameter gradients
         optimizer.zero_grad()
@@ -93,8 +93,7 @@ def training_phase(model, trainloader, optimizer, criterion, device):
 def _train_single_batch(model, batch, optimizer, criterion, device):
     """Train one batch and return correct predictions, sample count and loss."""
     model.train()
-    inputs, labels = batch["data"], batch["labels"]
-    inputs, labels = inputs.to(device), labels.to(device)
+    inputs, labels = batch["data"].to(device, non_blocking=True), batch["labels"].to(device, non_blocking=True)
 
     optimizer.zero_grad()
     outputs = model(inputs)
