@@ -79,7 +79,9 @@ def train_model(config: TrainingConfig, model_name: str):
     device = get_device()
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.AdamW(model.parameters(), lr=config.learning_rate, weight_decay=config.weight_decay)
-
+    if config.compile_model:
+        print("Compiling model with torch.compile() for potentially faster training.")
+        model = torch.compile(model)
     # Train
     model_state_dict, nr_epochs, metrics = training_loop(
         model=model,
