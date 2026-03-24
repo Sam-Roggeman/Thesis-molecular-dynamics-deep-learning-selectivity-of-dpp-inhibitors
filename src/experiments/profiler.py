@@ -13,6 +13,29 @@ def profile_model(model, dataloader, criterion, optimizer):
     model.to(device)
     train_iter = iter(dataloader)
     
+    
+    # warmup — let compile finish (usually 2–5 iterations)
+    for batch in range(10):
+        try:
+            batch = next(train_iter)
+        except StopIteration:
+            train_iter = iter(dataloader)
+            batch = next(train_iter)
+        
+        model.train()
+        inputs, labels = batch["data"], batch["labels"]
+        inputs, labels = inputs.to(device), labels.to(device)
+
+        optimizer.zero_grad()
+        outputs = model(inputs)
+        loss = criterion(outputs, labels)
+        loss.backward()
+        optimizer.step()
+
+        _, predicted = torch.max(outputs, 1)
+        batch_total = labels.size(0)
+        batch_correct = (predicted == labels).sum().item()
+    
     with profile(
         activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA],
         record_shapes=True,
@@ -67,6 +90,7 @@ if __name__ == "__main__":
         validation_transform=apply_image_transform_noscramble,
         batch_size=128,
     )
+    torch.set_float32_matmul_precision('high')
     # Initialize model
     model = config.model_class(**config.model_args)
     model = torch.compile(model)
