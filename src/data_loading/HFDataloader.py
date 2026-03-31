@@ -36,7 +36,9 @@ def _download_dataset(config: TrainingConfig, splits=None) -> datasets.DatasetDi
         num_proc= config.num_cpus
     )
     print("\t...downloading_dataset complete")
-    # create a dataset dict with the three splits and return it    
+    # wrap the dataset in a DatasetDict if it's not already one
+    if not isinstance(dataset_dict, datasets.DatasetDict):
+        dataset_dict = datasets.DatasetDict({splits[0]: dataset_dict})
     return dataset_dict
 
 def _download_streaming_dataset(config: TrainingConfig) -> datasets.IterableDatasetDict:
