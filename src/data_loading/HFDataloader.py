@@ -77,6 +77,8 @@ def initialize_dataloaders(config: TrainingConfig, splits=None) -> DataLoaderDic
     """
     Initialize the dataloader for training.
     """
+    if splits is None:
+        splits = ['train', 'validation', 'test']
     # Download the dataset
     print("Initializing dataloader...")
     print("\tDownloading dataset...")
@@ -131,10 +133,12 @@ def initialize_dataloaders(config: TrainingConfig, splits=None) -> DataLoaderDic
     resource.setrlimit(resource.RLIMIT_NOFILE, (10810, 10810))
     
     dataset_dict = dataset_dict.with_format(type="torch", columns=["data", "labels"])
-    train_dataloader: torch.utils.data.DataLoader = torch.utils.data.DataLoader(dataset_dict["train"], **dataloader_args)
-    validation_dataloader: torch.utils.data.DataLoader = torch.utils.data.DataLoader(dataset_dict["validation"], **dataloader_args)
-    test_dataloader: torch.utils.data.DataLoader = torch.utils.data.DataLoader(dataset_dict["test"], **dataloader_args)
-    return {"train": train_dataloader, "validation": validation_dataloader, "test": test_dataloader}
+    dataloader_dict = {}
+    for split in splits:
+        print(f"\t\tCreating dataloader for {split} split with batch size {config.batch_size} and num_workers {config.num_cpus}...")
+        dataloader = torch.utils.data.DataLoader(dataset_dict[split], **dataloader_args)
+        dataloader_dict[split] = dataloader
+    return dataloader_dict
 
 def initialize_streaming_dataloader(config: TrainingConfig) -> DataLoaderDict:
     """
