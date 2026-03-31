@@ -9,23 +9,28 @@ from src.utils.training_config import TrainingConfig
 
 import resource
 
-def _download_dataset(config: TrainingConfig) -> datasets.DatasetDict:
+def _download_dataset(config: TrainingConfig, splits=None) -> datasets.DatasetDict:
     print("Downloading dataset...")
     dataset_size = config.dataset_size
     assert dataset_size > 0 and dataset_size <= 1, "Dataset size must be between 0 and 1"
     print(f"\tDownloading {dataset_size} of {config.dataset_location}")
     # download only a subset of the dataset if dataset_size < 1
     split_size = int(dataset_size * 100)
-    for split in ['train', 'validation', 'test']:
-        print(f"\t\tDownloading {split_size}% of {split} split")
 
-    dataset_dict: datasets.DatasetDict = datasets.load_dataset(
-        config.dataset_location,
-        split={
+    if splits is not None:
+        print(f"\t\tOnly downloading splits: {splits}")
+        _split_arg = {split: f"{split}[:{split_size}%]" for split in splits}
+    else:
+        for split in ['train', 'validation', 'test']:
+            print(f"\t\tDownloading {split_size}% of {split} split")
+        _split_arg = {
             "train": f"train[:{split_size}%]",
             "validation": f"validation[:{split_size}%]",
             "test": f"test[:{split_size}%]",
-        },
+        }        
+    dataset_dict: datasets.DatasetDict = datasets.load_dataset(
+        config.dataset_location,
+        split=_split_arg,
         cache_dir=os.environ.get("HF_DOWNLOADED_DATASET_DIR"),
         token=os.environ.get("HF_TOKEN"),
         num_proc= config.num_cpus
@@ -66,17 +71,14 @@ def _download_streaming_dataset(config: TrainingConfig) -> datasets.IterableData
 # Define a type for the dataloader dict
 DataLoaderDict = dict[str, torch.utils.data.DataLoader]
 
-def initialize_dataloaders(config: TrainingConfig) -> DataLoaderDict:
+def initialize_dataloaders(config: TrainingConfig, splits=None) -> DataLoaderDict:
     """
     Initialize the dataloader for training.
     """
     # Download the dataset
     print("Initializing dataloader...")
     print("\tDownloading dataset...")
-    dataset_dict: datasets.DatasetDict = _download_dataset(config)
-    # Shuffle the training split
-    print("\tShuffling training split...")
-    dataset_dict["train"] = dataset_dict["train"].shuffle(seed=config.shuffle_seed)
+    dataset_dict: datasets.DatasetDict = _download_dataset(config, splits=splits)
     print("\t...initializing_dataloader complete")
     dataset_dict = dataset_dict.rename_columns({'coordinates': 'data', 'binding_type': 'labels'})
     # apply the training transform to the training split and the validation transform to the validation and test splits

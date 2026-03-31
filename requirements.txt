@@ -7,3 +7,4 @@ python-dotenv
 Biopython
 fvcore
 scikit-learn
+captum
