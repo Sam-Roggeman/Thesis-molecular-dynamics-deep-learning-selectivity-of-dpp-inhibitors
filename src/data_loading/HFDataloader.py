@@ -106,24 +106,18 @@ def initialize_dataloaders(config: TrainingConfig, splits=None) -> DataLoaderDic
             print(f"\t...copying complete")    
                 
     print(f"\tUsing mapped dataset cache directory: {mapped_cache_dir}")
-    dataset_dict["train"] = dataset_dict["train"].map(
-        config.training_transform,
-        **map_args,
-        load_from_cache_file=True,
-        cache_file_name=os.path.join(mapped_cache_dir, f"train_transformed_{config.dataset_size * 100:.0f}pct.arrow"),
-    )
-    dataset_dict["validation"] = dataset_dict["validation"].map(
-        config.validation_transform,
-        **map_args,
-        load_from_cache_file=True,
-        cache_file_name=os.path.join(mapped_cache_dir, f"validation_transformed_{config.dataset_size * 100:.0f}pct.arrow"),
-    )
-    dataset_dict["test"] = dataset_dict["test"].map(
-        config.validation_transform,
-        **map_args,
-        load_from_cache_file=True,
-        cache_file_name=os.path.join(mapped_cache_dir, f"test_transformed_{config.dataset_size * 100:.0f}pct.arrow"),
-    )
+    for split in splits or ['train', 'validation', 'test']:
+        print(f"\t\tApplying transforms to {split} split with cache file: {os.path.join(mapped_cache_dir, f'{split}_transformed_{config.dataset_size * 100:.0f}pct.arrow')}")
+        if split == 'train':
+            transform_fn = config.training_transform
+        else:
+            transform_fn = config.validation_transform
+        dataset_dict[split] = dataset_dict[split].map(
+            transform_fn,
+            **map_args,
+            load_from_cache_file=True,
+            cache_file_name=os.path.join(mapped_cache_dir, f"{split}_transformed_{config.dataset_size * 100:.0f}pct.arrow"),
+        )    
     print("\t...applying_transforms complete")
     dataloader_args = {
         "batch_size": config.batch_size,
