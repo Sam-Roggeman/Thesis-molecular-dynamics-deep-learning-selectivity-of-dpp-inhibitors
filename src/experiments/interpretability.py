@@ -166,6 +166,16 @@ def _save_heatmaps(
         plt.close(fig)
 
 
+def _resolve_device(selection: str) -> torch.device:
+    if selection == "auto":
+        return torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    if selection == "cuda":
+        if not torch.cuda.is_available():
+            raise ValueError("--attribution-device cuda requested, but CUDA is not available.")
+        return torch.device("cuda")
+    return torch.device("cpu")
+
+
 def main():
     parser = argparse.ArgumentParser(description="Run Captum interpretability on a trained model checkpoint.")
     parser.add_argument("--checkpoint", required=True, help="Path to model .pth checkpoint")
@@ -185,6 +195,18 @@ def main():
     )
     parser.add_argument("--max-samples", type=int, default=8)
     parser.add_argument("--n-steps", type=int, default=50)
+    parser.add_argument(
+        "--ig-batch-size",
+        type=int,
+        default=1,
+        help="Internal batch size for Integrated Gradients (smaller uses less memory)",
+    )
+    parser.add_argument(
+        "--attribution-device",
+        default="auto",
+        choices=["auto", "cuda", "cpu"],
+        help="Device used for attribution computations",
+    )
     parser.add_argument("--target", type=int, default=None, help="Optional class index target")
     parser.add_argument("--output-dir", default=None, help="Output folder for heatmaps")
     args = parser.parse_args()
@@ -210,7 +232,7 @@ def main():
     dataloaders = initialize_dataloaders(config, splits=[args.split])
     batch = next(iter(dataloaders[args.split]))
 
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = _resolve_device(args.attribution_device)
     model = model_class(**model_args).to(device)
     state_dict = _load_state_dict(args.checkpoint, device)
     _load_weights(model, state_dict)
@@ -243,6 +265,7 @@ def main():
                 target=target,
                 baselines=torch.zeros_like(inputs),
                 n_steps=args.n_steps,
+                internal_batch_size=args.ig_batch_size,
             )
         elif method == "saliency":
             result = interpreter.saliency(inputs, target=target)
@@ -272,12 +295,17 @@ def main():
             delta_file = os.path.join(method_dir, "convergence_delta.pt")
             torch.save(result.convergence_delta.detach().cpu(), delta_file)
 
+        if device.type == "cuda":
+            torch.cuda.empty_cache()
+
     run_info_path = os.path.join(base_output_dir, "run_info.txt")
     with open(run_info_path, "w", encoding="utf-8") as info:
         info.write(f"checkpoint={args.checkpoint}\n")
         info.write(f"model_class={model_class.__name__}\n")
         info.write(f"methods={','.join(args.methods)}\n")
         info.write(f"max_samples={args.max_samples}\n")
+        info.write(f"ig_batch_size={args.ig_batch_size}\n")
+        info.write(f"attribution_device={args.attribution_device}\n")
 
     print(f"Saved attribution heatmaps to: {base_output_dir}")
 
