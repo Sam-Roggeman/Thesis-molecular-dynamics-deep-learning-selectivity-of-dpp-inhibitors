@@ -25,7 +25,9 @@ def calculate_num_cpus():
     # otherwise, use all available CPUs
     else: 
         cpu_count = os.cpu_count()
-    return max(0, cpu_count-2) # leave 2 cpus free for the main process
+    cpu_count = max(0, cpu_count-2)
+    print (f"Using {cpu_count} CPUs for data loading and processing (GPULAB_CPUS_RESERVED={os.environ.get('GPULAB_CPUS_RESERVED', 'N/A')}, total_cpus={os.cpu_count()}).")
+    return cpu_count# leave 2 cpus free for the main process
 @dataclass
 class TrainingConfig:
     """Configuration for training runs"""
@@ -99,7 +101,8 @@ class TrainingConfig:
             d = asdict(self)
             d = {k: (str(v) if not isinstance(v, (int, float, str, dict, list, type(None))) else v) for k, v in d.items()}
             json.dump(d, f, indent=4)
-
+    def reset_cpus(self):
+        self.num_cpus = calculate_num_cpus()
     @classmethod
     def load(cls, path):
         data = torch.load(path, weights_only=False)

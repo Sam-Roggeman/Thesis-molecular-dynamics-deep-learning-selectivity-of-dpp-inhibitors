@@ -177,6 +177,12 @@ def main():
         choices=["integrated_gradients", "saliency", "guided_backprop"],
     )
     parser.add_argument("--split", default="test", choices=["train", "validation", "test"])
+    parser.add_argument(
+        "--batch-size",
+        type=int,
+        default=None,   
+        help="Optional override for config batch size to reduce memory usage during Captum runs",
+    )
     parser.add_argument("--max-samples", type=int, default=8)
     parser.add_argument("--n-steps", type=int, default=50)
     parser.add_argument("--target", type=int, default=None, help="Optional class index target")
@@ -193,11 +199,15 @@ def main():
         raise ValueError(
             "No training config found. Provide --config or place training_config.pt/json next to checkpoint."
         )
-
+    # reset num_cpus in config based on current environment to avoid issues with dataloader workers in Captum runs
+    config.reset_cpus()
     model_class = _resolve_model_class(config)
     model_args = dict(config.model_args) if isinstance(config.model_args, dict) else {}
 
-    dataloaders = initialize_dataloaders(config, splits=[args.split])
+    if args.batch_size is not None:
+        config.batch_size = args.batch_size
+
+    dataloaders = initialize_dataloaders(config)
     batch = next(iter(dataloaders[args.split]))
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
