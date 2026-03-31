@@ -132,6 +132,7 @@ def _save_heatmaps(
     class_names: list[str],
     method: str,
     output_dir: str,
+    start_index: int = 0,
 ) -> None:
     os.makedirs(output_dir, exist_ok=True)
 
@@ -160,10 +161,22 @@ def _save_heatmaps(
         pred_name = class_names[pred_idx] if pred_idx < len(class_names) else str(pred_idx)
         fig.suptitle(f"Method={method} | true={true_name} | pred={pred_name}")
 
-        filename = os.path.join(output_dir, f"{method}_sample_{idx:03d}.png")
+        filename = os.path.join(output_dir, f"{method}_sample_{start_index + idx:05d}.png")
         plt.tight_layout()
         plt.savefig(filename, dpi=160)
         plt.close(fig)
+
+
+def _save_average_heatmap(heatmap: torch.Tensor, title: str, output_path: str) -> None:
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+    fig, ax = plt.subplots(1, 1, figsize=(5, 4))
+    hm = ax.imshow(heatmap.numpy(), cmap="hot")
+    ax.set_title(title)
+    ax.axis("off")
+    fig.colorbar(hm, ax=ax, fraction=0.046, pad=0.04)
+    plt.tight_layout()
+    plt.savefig(output_path, dpi=180)
+    plt.close(fig)
 
 
 def _resolve_device(selection: str) -> torch.device:
@@ -194,6 +207,18 @@ def main():
         help="Optional override for config batch size to reduce memory usage during Captum runs",
     )
     parser.add_argument("--max-samples", type=int, default=8)
+    parser.add_argument(
+        "--max-batches",
+        type=int,
+        default=1,
+        help="Number of dataloader batches to process for attribution aggregation",
+    )
+    parser.add_argument(
+        "--max-total-samples",
+        type=int,
+        default=None,
+        help="Optional cap on total samples processed across all batches",
+    )
     parser.add_argument("--n-steps", type=int, default=50)
     parser.add_argument(
         "--ig-batch-size",
@@ -209,6 +234,11 @@ def main():
     )
     parser.add_argument("--target", type=int, default=None, help="Optional class index target")
     parser.add_argument("--output-dir", default=None, help="Output folder for heatmaps")
+    parser.add_argument(
+        "--no-individual-plots",
+        action="store_true",
+        help="Disable per-sample plots and only save aggregated hotspot maps",
+    )
     args = parser.parse_args()
 
     load_dotenv()
@@ -230,7 +260,7 @@ def main():
         config.batch_size = args.batch_size
 
     dataloaders = initialize_dataloaders(config, splits=[args.split])
-    batch = next(iter(dataloaders[args.split]))
+    data_iter = iter(dataloaders[args.split])
 
     device = _resolve_device(args.attribution_device)
     model = model_class(**model_args).to(device)
@@ -238,16 +268,9 @@ def main():
     _load_weights(model, state_dict)
     model.eval()
 
-    inputs = batch["data"][: args.max_samples].to(device)
-    labels = batch["labels"][: args.max_samples].to(device)
-    inputs = inputs.clone().detach().requires_grad_(True)
-
-    with torch.no_grad():
-        logits = model(inputs)
-        preds = torch.argmax(logits, dim=1)
-
     interpreter = CaptumInterpreter(model)
     class_names = LabelEncoder().get_classes()
+    nr_classes = len(class_names)
 
     base_output_dir = args.output_dir
     if base_output_dir is None:
@@ -258,52 +281,158 @@ def main():
 
     target = args.target if args.target is not None else None
 
-    for method in args.methods:
-        if method == "integrated_gradients":
-            result = interpreter.integrated_gradients(
-                inputs,
-                target=target,
-                baselines=torch.zeros_like(inputs),
-                n_steps=args.n_steps,
-                internal_batch_size=args.ig_batch_size,
+    global_sum: dict[str, torch.Tensor] = {}
+    global_count: dict[str, int] = {method: 0 for method in args.methods}
+    class_sum: dict[str, list[torch.Tensor | None]] = {
+        method: [None for _ in range(nr_classes)] for method in args.methods
+    }
+    class_count: dict[str, list[int]] = {
+        method: [0 for _ in range(nr_classes)] for method in args.methods
+    }
+
+    processed_samples = 0
+    processed_batches = 0
+
+    for _ in range(args.max_batches):
+        try:
+            batch = next(data_iter)
+        except StopIteration:
+            break
+
+        inputs = batch["data"]
+        labels = batch["labels"]
+
+        if args.max_samples is not None:
+            inputs = inputs[: args.max_samples]
+            labels = labels[: args.max_samples]
+
+        if args.max_total_samples is not None:
+            remaining = args.max_total_samples - processed_samples
+            if remaining <= 0:
+                break
+            inputs = inputs[:remaining]
+            labels = labels[:remaining]
+
+        if inputs.shape[0] == 0:
+            break
+
+        inputs = inputs.to(device).clone().detach().requires_grad_(True)
+        labels = labels.to(device)
+
+        with torch.no_grad():
+            logits = model(inputs)
+            preds = torch.argmax(logits, dim=1)
+
+        for method in args.methods:
+            if method == "integrated_gradients":
+                result = interpreter.integrated_gradients(
+                    inputs,
+                    target=target,
+                    baselines=torch.zeros_like(inputs),
+                    n_steps=args.n_steps,
+                    internal_batch_size=args.ig_batch_size,
+                )
+            elif method == "saliency":
+                result = interpreter.saliency(inputs, target=target)
+            elif method == "guided_backprop":
+                result = interpreter.guided_backprop(inputs, target=target)
+            else:
+                raise ValueError(f"Unsupported method requested: {method}")
+
+            heatmaps = CaptumInterpreter.summarize_attributions(
+                result.attributions,
+                reduce_dim=1,
+                normalize=False,
             )
-        elif method == "saliency":
-            result = interpreter.saliency(inputs, target=target)
-        elif method == "guided_backprop":
-            result = interpreter.guided_backprop(inputs, target=target)
-        else:
-            raise ValueError(f"Unsupported method requested: {method}")
+            heatmaps_cpu = heatmaps.detach().cpu()
+            labels_cpu = labels.detach().cpu()
 
-        heatmaps = CaptumInterpreter.summarize_attributions(
-            result.attributions,
-            reduce_dim=1,
-            normalize=True,
-        )
+            if method not in global_sum:
+                global_sum[method] = heatmaps_cpu.sum(dim=0)
+            else:
+                global_sum[method] += heatmaps_cpu.sum(dim=0)
+            global_count[method] += int(heatmaps_cpu.shape[0])
 
-        method_dir = os.path.join(base_output_dir, method)
-        _save_heatmaps(
-            inputs=inputs.detach().cpu(),
-            labels=labels.detach().cpu(),
-            preds=preds.detach().cpu(),
-            attribution_map=heatmaps,
-            class_names=class_names,
-            method=method,
-            output_dir=method_dir,
-        )
+            for class_idx in range(nr_classes):
+                class_mask = labels_cpu == class_idx
+                class_nr = int(class_mask.sum().item())
+                if class_nr == 0:
+                    continue
+                class_map_sum = heatmaps_cpu[class_mask].sum(dim=0)
+                if class_sum[method][class_idx] is None:
+                    class_sum[method][class_idx] = class_map_sum
+                else:
+                    class_sum[method][class_idx] += class_map_sum
+                class_count[method][class_idx] += class_nr
 
-        if result.convergence_delta is not None:
-            delta_file = os.path.join(method_dir, "convergence_delta.pt")
-            torch.save(result.convergence_delta.detach().cpu(), delta_file)
+            method_dir = os.path.join(base_output_dir, method)
+            if not args.no_individual_plots:
+                # Normalize for display only.
+                display_maps = CaptumInterpreter.summarize_attributions(
+                    result.attributions,
+                    reduce_dim=1,
+                    normalize=True,
+                )
+                _save_heatmaps(
+                    inputs=inputs.detach().cpu(),
+                    labels=labels_cpu,
+                    preds=preds.detach().cpu(),
+                    attribution_map=display_maps.detach().cpu(),
+                    class_names=class_names,
+                    method=method,
+                    output_dir=method_dir,
+                    start_index=processed_samples,
+                )
 
-        if device.type == "cuda":
-            torch.cuda.empty_cache()
+            if result.convergence_delta is not None:
+                delta_file = os.path.join(method_dir, f"convergence_delta_batch_{processed_batches:03d}.pt")
+                torch.save(result.convergence_delta.detach().cpu(), delta_file)
+
+            if device.type == "cuda":
+                torch.cuda.empty_cache()
+
+        processed_samples += int(inputs.shape[0])
+        processed_batches += 1
+
+        if args.max_total_samples is not None and processed_samples >= args.max_total_samples:
+            break
+
+    averages_dir = os.path.join(base_output_dir, "averages")
+    for method in args.methods:
+        if global_count[method] > 0:
+            global_avg = global_sum[method] / global_count[method]
+            global_avg_norm = _to_display_image(global_avg.unsqueeze(0).repeat(3, 1, 1))[:, :, 0]
+            _save_average_heatmap(
+                heatmap=global_avg_norm,
+                title=f"Global average hotspot ({method})",
+                output_path=os.path.join(averages_dir, f"global_{method}.png"),
+            )
+
+        for class_idx, class_name in enumerate(class_names):
+            if class_count[method][class_idx] == 0:
+                continue
+            cls_sum = class_sum[method][class_idx]
+            if cls_sum is None:
+                continue
+            cls_avg = cls_sum / class_count[method][class_idx]
+            cls_avg_norm = _to_display_image(cls_avg.unsqueeze(0).repeat(3, 1, 1))[:, :, 0]
+            safe_name = class_name.replace(" ", "_")
+            _save_average_heatmap(
+                heatmap=cls_avg_norm,
+                title=f"Class average hotspot ({method}) - {class_name}",
+                output_path=os.path.join(averages_dir, "per_class", method, f"{safe_name}.png"),
+            )
 
     run_info_path = os.path.join(base_output_dir, "run_info.txt")
     with open(run_info_path, "w", encoding="utf-8") as info:
         info.write(f"checkpoint={args.checkpoint}\n")
         info.write(f"model_class={model_class.__name__}\n")
         info.write(f"methods={','.join(args.methods)}\n")
+        info.write(f"processed_batches={processed_batches}\n")
+        info.write(f"processed_samples={processed_samples}\n")
         info.write(f"max_samples={args.max_samples}\n")
+        info.write(f"max_batches={args.max_batches}\n")
+        info.write(f"max_total_samples={args.max_total_samples}\n")
         info.write(f"ig_batch_size={args.ig_batch_size}\n")
         info.write(f"attribution_device={args.attribution_device}\n")
 
