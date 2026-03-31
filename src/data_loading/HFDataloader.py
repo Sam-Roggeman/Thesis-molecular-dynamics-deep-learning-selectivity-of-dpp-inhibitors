@@ -110,7 +110,7 @@ def initialize_dataloaders(config: TrainingConfig, splits=None) -> DataLoaderDic
             print(f"\t...copying complete")    
                 
     print(f"\tUsing mapped dataset cache directory: {mapped_cache_dir}")
-    for split in splits or ['train', 'validation', 'test']:
+    for split in splits:
         print(f"\t\tApplying transforms to {split} split with cache file: {os.path.join(mapped_cache_dir, f'{split}_transformed_{config.dataset_size * 100:.0f}pct.arrow')}")
         if split == 'train':
             transform_fn = config.training_transform

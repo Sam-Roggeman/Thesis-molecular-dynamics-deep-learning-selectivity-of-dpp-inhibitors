@@ -207,7 +207,7 @@ def main():
     if args.batch_size is not None:
         config.batch_size = args.batch_size
 
-    dataloaders = initialize_dataloaders(config)
+    dataloaders = initialize_dataloaders(config, splits=[args.split])
     batch = next(iter(dataloaders[args.split]))
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
