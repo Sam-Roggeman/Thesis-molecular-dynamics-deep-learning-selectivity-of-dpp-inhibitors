@@ -28,30 +28,31 @@ def extract_coordinates(pdb_file, pdb_id):
 	return np.array(coords, dtype=np.float32)
 
 
-def parse_pdb_streaming(tar, frames, dpp_class, ligand_name, binding_type, replica_id):
+def parse_pdb_streaming(tar_path, dpp_class, ligand_name, binding_type, replica_id):
 	"""Yield frame records parsed from PDB files in a TAR archive."""
-	for frame in frames:
-		if not frame.name.endswith(".pdb"):
-			continue
+	with tarfile.open(tar_path, "r:gz") as tar:
+		for frame in tar:
+			if not frame.isfile() or not frame.name.endswith(".pdb"):
+				continue
 
-		pdb_file = tar.extractfile(frame)
-		if pdb_file is None:
-			continue
+			pdb_file = tar.extractfile(frame)
+			if pdb_file is None:
+				continue
 
-		pdb_id = Path(frame.name).stem
-		try:
-			coords = extract_coordinates(pdb_file, pdb_id)
-			yield {
-				"pdb_id": pdb_id,
-				"dpp_class": dpp_class,
-				"ligand_name": ligand_name,
-				"binding_type": binding_type,
-				"coordinates": coords,
-				"num_atoms": len(coords),
-				"replica_id": replica_id,
-			}
-		except Exception as exc:
-			print(f"Error parsing {pdb_id}: {exc}")
+			pdb_id = Path(frame.name).stem
+			try:
+				coords = extract_coordinates(pdb_file, pdb_id)
+				yield {
+					"pdb_id": pdb_id,
+					"dpp_class": dpp_class,
+					"ligand_name": ligand_name,
+					"binding_type": binding_type,
+					"coordinates": coords,
+					"num_atoms": len(coords),
+					"replica_id": replica_id,
+				}
+			except Exception as exc:
+				print(f"Error parsing {pdb_id}: {exc}")
 
 
 def parse_metadata_from_filename(stem):
@@ -82,25 +83,21 @@ def generate_unique_test_runs_dataset(
 		dpp_class, ligand_name, binding_type, replica_id = parse_metadata_from_filename(stem)
 
 		print(f"[{idx}/{len(tar_files)}] Processing {tar_path.name}...")
-		with tarfile.open(tar_path, "r:gz") as tar:
-			frames = tar.getmembers()
+		generator = functools.partial(
+			parse_pdb_streaming,
+			tar_path=str(tar_path),
+			dpp_class=dpp_class,
+			ligand_name=ligand_name,
+			binding_type=binding_type,
+			replica_id=replica_id,
+		)
 
-			generator = functools.partial(
-				parse_pdb_streaming,
-				tar=tar,
-				dpp_class=dpp_class,
-				ligand_name=ligand_name,
-				binding_type=binding_type,
-				replica_id=replica_id,
-			)
-
-			ds = Dataset.from_generator(
-				generator,
-				gen_kwargs={"frames": frames},
-				num_proc=num_proc,
-				split=NamedSplit("unique_test_runs"),
-			)
-			partial_datasets.append(ds)
+		ds = Dataset.from_generator(
+			generator,
+			num_proc=num_proc,
+			split=NamedSplit("unique_test_runs"),
+		)
+		partial_datasets.append(ds)
 
 	full_ds = concatenate_datasets(partial_datasets) if len(partial_datasets) > 1 else partial_datasets[0]
 	print(f"Final unique_test_runs dataset size: {len(full_ds)}")
