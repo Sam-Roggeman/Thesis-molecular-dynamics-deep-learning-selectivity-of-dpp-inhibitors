@@ -3,6 +3,7 @@ import tarfile
 from io import StringIO
 from pathlib import Path
 
+from dotenv import load_dotenv
 import numpy as np
 from Bio import PDB
 from datasets import Dataset, NamedSplit
@@ -118,6 +119,7 @@ def generate_unique_test_runs_dataset(
 
 
 def main():
+    load_dotenv()  # Load environment variables from .env file
 	parser = argparse.ArgumentParser(
 		description="Preprocess .tar.gz PDB trajectories into a single unique_test_runs split"
 	)
