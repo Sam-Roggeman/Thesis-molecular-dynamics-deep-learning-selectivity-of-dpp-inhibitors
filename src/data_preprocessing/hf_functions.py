@@ -139,8 +139,9 @@ if __name__ == "__main__":
         print("Error: Failed to load .env file.")
         raise Exception("Failed to load .env file.")
     print("Environment variables loaded successfully.")
-    print(os.environ.get("HF_TOKEN"))  # Debug: Print the HF_TOKEN environment variable to verify loading
     print(os.environ.get("HF_HOME"))  # Debug: Print the HF_HOME environment variable to verify loading
+    print(os.environ.get("HF_DATASETS_CACHE"))  # Debug: Print the HF_DATASETS_CACHE environment variable to verify loading
+
     parser = argparse.ArgumentParser(description="Append a new split to an existing HuggingFace dataset and push to the Hub")
     parser.add_argument("--new-datapath", required=True, help="Path to the new split saved on disk (e.g., 'unique_test_runs')")
     parser.add_argument("--new-split-name", required=True, help="Name of the new split (e.g., 'unique_test_runs')")
