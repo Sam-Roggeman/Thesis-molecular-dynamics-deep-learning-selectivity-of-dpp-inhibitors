@@ -55,14 +55,6 @@ def parse_pdb_streaming(tar_path, dpp_class, ligand_name, binding_type, replica_
 				print(f"Error parsing {pdb_id}: {exc}")
 
 
-def parse_metadata_from_filename(stem):
-	"""Extract metadata from filename and fall back to unknown fields if parsing fails."""
-	try:
-		return parse_filename(stem)
-	except Exception:
-		return "unknown", "unknown", "unknown", stem
-
-
 def parse_pdb_streaming_many_tars(tar_paths):
 	"""Yield frame records from a list of TAR files.
 
@@ -72,7 +64,7 @@ def parse_pdb_streaming_many_tars(tar_paths):
 	for tar_path in tar_paths:
 		path_obj = Path(tar_path)
 		stem = path_obj.name.removesuffix(".tar.gz").removesuffix(".tgz")
-		dpp_class, ligand_name, binding_type, replica_id = parse_metadata_from_filename(stem)
+		dpp_class, ligand_name, binding_type, replica_id = parse_filename(stem)
 
 		print(f"Processing {path_obj.name}...")
 		yield from parse_pdb_streaming(

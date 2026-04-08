@@ -18,6 +18,10 @@ ligand_to_binding_type = {
         "0005356": "dpp9selective", # dpp9 selective
         "0005862": "dpp8selective", # DPP8selective
         "0005362": "aselective",# Aselective
+        "0000193": "nonbinder", # Nonbinder
+        "0004067": "aselective", # Aselective
+        "0004804": "dpp9selective", # dpp9 selective
+        "0005858": "dpp8selective", # DPP8selective
     }
 
 def ligant_to_class(ligand_name):
@@ -51,7 +55,6 @@ def parse_filename(filename):
     Parse filename to get DPP class, binding type and ligand name.
     :param filename: str in format sep_prot_frames_{DPP_class}_{ligand_name}_replica{replica_id}.{extension}
     """
-
 
     filename = remove_extension(filename)
     filename = filename.lower()
