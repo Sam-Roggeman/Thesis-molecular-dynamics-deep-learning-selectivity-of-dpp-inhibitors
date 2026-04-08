@@ -112,7 +112,6 @@ def generate_unique_test_runs_dataset(
 	full_ds.save_to_disk(
 		str(set_path),
 		max_shard_size=max_shard_size,
-		num_shards=max(1, num_proc),
 		num_proc=num_proc,
 	)
 	print("Dataset saved.")
