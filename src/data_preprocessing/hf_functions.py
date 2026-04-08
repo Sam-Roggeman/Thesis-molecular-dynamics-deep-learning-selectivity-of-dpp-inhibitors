@@ -4,6 +4,37 @@ load_dotenv()
 
 import datasets
 from huggingface_hub import HfApi
+    
+
+def _align_dataset_to_features(
+    ds: datasets.Dataset,
+    target_features: datasets.Features,
+    cpu_cores: int,
+) -> datasets.Dataset:
+    """Align dataset column types to target features (notably int-like metadata columns)."""
+    for column_name, target_feature in target_features.items():
+        if column_name not in ds.column_names:
+            continue
+        current_feature = ds.features.get(column_name)
+        if current_feature == target_feature:
+            continue
+
+        # If target is an integer type but source is string, coerce values first.
+        if (
+            isinstance(target_feature, datasets.Value)
+            and isinstance(current_feature, datasets.Value)
+            and target_feature.dtype.startswith("int")
+            and current_feature.dtype == "string"
+        ):
+            def _to_int(example, col=column_name):
+                example[col] = int(example[col])
+                return example
+
+            ds = ds.map(_to_int, num_proc=cpu_cores)
+
+    return ds.cast(target_features, num_proc=cpu_cores)
+
+
 def initialize_hf_api():
     load_dotenv()
     api = HfApi(token=os.environ.get("HF_TOKEN"))
@@ -99,6 +130,13 @@ def append_custom_split_to_hf_dataset(new_datapath, new_split_name, repo_id, cpu
     print(f"Loading new split '{new_split_name}' from disk at: {new_datapath}")
     new_split_dataset: datasets.Dataset = datasets.load_from_disk(new_datapath)
     print(f"New split '{new_split_name}' loaded with size: {len(new_split_dataset)}")
+
+    # Match the existing DatasetDict schema before adding a new split.
+    reference_split = next(iter(dataset.keys()))
+    target_features = dataset[reference_split].features
+    print(f"Aligning new split features to reference split '{reference_split}'...")
+    new_split_dataset = _align_dataset_to_features(new_split_dataset, target_features, cpu_cores)
+    print(f"Aligned features for '{new_split_name}': {new_split_dataset.features}")
 
     # Add the new split to the existing dataset
     dataset[new_split_name] = new_split_dataset
