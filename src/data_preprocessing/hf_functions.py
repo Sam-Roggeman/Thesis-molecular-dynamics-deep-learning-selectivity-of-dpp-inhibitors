@@ -155,7 +155,9 @@ def append_custom_split_to_hf_dataset(new_datapath, new_split_name, repo_id, cpu
     # print the first few entries of the new split to verify loading except the coordinates/data column
     print(f"First 3 entries of the new split '{new_split_name}':")
     for i in range(3):
-        print(new_split_dataset[i].copy().pop("data", None))  # Remove 'data' column for cleaner output
+        entry = new_split_dataset[i]
+        entry_without_data = {k: v for k, v in entry.items() if k != "data"}
+        print(f"\tEntry {i}: {entry_without_data}")
     
     print(f"New split '{new_split_name}' loaded with size: {len(new_split_dataset)}")
 
