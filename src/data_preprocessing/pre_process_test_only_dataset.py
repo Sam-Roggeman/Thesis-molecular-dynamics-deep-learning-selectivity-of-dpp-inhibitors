@@ -1,4 +1,5 @@
 import argparse
+import os
 import tarfile
 from io import StringIO
 from pathlib import Path
@@ -118,17 +119,23 @@ def generate_unique_test_runs_dataset(
 
 
 def main():
-    load_dotenv()  # Load environment variables from .env file
-    parser = argparse.ArgumentParser(
+	load_dotenv()  # Load environment variables from .env file
+	print(os.environ.get("HF_TOKEN"))  # Debug: Print the HF_TOKEN environment variable to verify loading
+	print(os.environ.get("HF_HOME"))  # Debug: Print the HF_HOME environment variable to verify loading
+	if not os.environ.get("HF_HOME"):
+		print("Warning: HF_HOME environment variable is not set. Hugging Face datasets will be stored in the default location.")
+		return -1
+	
+	parser = argparse.ArgumentParser(
 		description="Preprocess .tar.gz PDB trajectories into a single unique_test_runs split"
 	)
-    parser.add_argument("--tar-folder", required=True, help="Folder containing .tar.gz/.tgz files")
-    parser.add_argument("--output-root", required=True, help="Output root directory for the saved split")
-    parser.add_argument("--num-proc", type=int, default=1, help="Number of processes for generation/sharding")
-    parser.add_argument("--max-shard-size", default="4GB", help="HF dataset shard size")
-    args = parser.parse_args()
+	parser.add_argument("--tar-folder", required=True, help="Folder containing .tar.gz/.tgz files")
+	parser.add_argument("--output-root", required=True, help="Output root directory for the saved split")
+	parser.add_argument("--num-proc", type=int, default=1, help="Number of processes for generation/sharding")
+	parser.add_argument("--max-shard-size", default="4GB", help="HF dataset shard size")
+	args = parser.parse_args()
 
-    generate_unique_test_runs_dataset(
+	generate_unique_test_runs_dataset(
 		tar_folder=args.tar_folder,
 		output_root=args.output_root,
 		num_proc=args.num_proc,
