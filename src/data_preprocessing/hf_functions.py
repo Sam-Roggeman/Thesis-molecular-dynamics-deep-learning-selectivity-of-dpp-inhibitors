@@ -82,6 +82,35 @@ def append_to_hf_dataset(dataset, new_datapath, cpu_cores):
     # Push the combined dataset back to HuggingFace Hub
     return combined_dataset
 
+def append_custom_split_to_hf_dataset(new_datapath, new_split_name, repo_id, cpu_cores):
+    """ Append new data from disk to an existing HuggingFace dataset as a new split, then push to the Hub.
+    Args:
+        new_datapath (_type_): Path to the new split saved on disk that belongs to the new split (e.g., "unique_test_runs") 
+        new_split_name (_type_): Name of the new split (e.g., "unique_test_runs")
+        repo_id (_type_): HuggingFace Hub repository ID (e.g., "username/dataset_name")
+        cpu_cores (_type_): Number of CPU cores to use for processing
+    """
+    # Load the existing dataset from HuggingFace Hub
+    api = initialize_hf_api()
+    dataset = load_dataset_from_hf(api, repo_id, cpu_cores)
+
+    # Load the new split from disk
+    print(f"Loading new split '{new_split_name}' from disk at: {new_datapath}")
+    new_split_dataset: datasets.Dataset = datasets.load_from_disk(new_datapath)
+    print(f"New split '{new_split_name}' loaded with size: {len(new_split_dataset)}")
+
+    # Add the new split to the existing dataset
+    dataset[new_split_name] = new_split_dataset
+
+    print(f"New split '{new_split_name}' added to the existing dataset. Total splits now: {list(dataset.keys())}")
+
+    # Push the updated dataset back to HuggingFace Hub
+    print("Pushing the updated dataset with the new split back to HuggingFace Hub...")
+    dataset.push_to_hub(repo_id, token=api.token, num_proc=cpu_cores)
+    print("Dataset successfully updated on HuggingFace Hub with the new split.")
+    
+    
+    
 def main_append():  
     starting_repo_id = "Sam-Roggeman/SamRoggeman_Thesis_Dataset"
     repo_id = "Sam-Roggeman/SamRoggeman_Thesis_Dataset_full"
@@ -102,7 +131,20 @@ def main_append():
 
 
 if __name__ == "__main__":
-    main_append()
+    # take args from command line to specify the new datapath, new split name, repo id and cpu cores
+    import argparse
+    parser = argparse.ArgumentParser(description="Append a new split to an existing HuggingFace dataset and push to the Hub")
+    parser.add_argument("--new-datapath", required=True, help="Path to the new split saved on disk (e.g., 'unique_test_runs')")
+    parser.add_argument("--new-split-name", required=True, help="Name of the new split (e.g., 'unique_test_runs')")
+    parser.add_argument("--repo-id", required=True, help="HuggingFace Hub repository ID (e.g., 'username/dataset_name')", default="Sam-Roggeman/SamRoggeman_Thesis_Dataset_full")
+    parser.add_argument("--cpu-cores", type=int, default=1, help="Number of CPU cores to use for processing", default=8)
+    args = parser.parse_args()
+    append_custom_split_to_hf_dataset(
+        new_datapath=args.new_datapath,
+        new_split_name=args.new_split_name,
+        repo_id=args.repo_id,
+        cpu_cores=args.cpu_cores,
+    )
 
 
     
