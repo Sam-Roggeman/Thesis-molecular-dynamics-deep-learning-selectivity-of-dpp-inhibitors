@@ -1,10 +1,11 @@
+from dotenv import load_dotenv
+load_dotenv()  # Load environment variables from .env file
 import argparse
 import os
 import tarfile
 from io import StringIO
 from pathlib import Path
 
-from dotenv import load_dotenv
 import numpy as np
 from Bio import PDB
 from datasets import Dataset, NamedSplit
@@ -111,7 +112,6 @@ def generate_unique_test_runs_dataset(
 
 
 def main():
-	load_dotenv()  # Load environment variables from .env file
 	print(os.environ.get("HF_TOKEN"))  # Debug: Print the HF_TOKEN environment variable to verify loading
 	print(os.environ.get("HF_HOME"))  # Debug: Print the HF_HOME environment variable to verify loading
 	if not os.environ.get("HF_HOME"):
