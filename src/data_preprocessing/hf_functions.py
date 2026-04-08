@@ -1,4 +1,5 @@
 import os
+import re
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -12,6 +13,28 @@ def _align_dataset_to_features(
     cpu_cores: int,
 ) -> datasets.Dataset:
     """Align dataset column types to target features (notably int-like metadata columns)."""
+    def _coerce_to_int(value, column_name: str) -> int:
+        if isinstance(value, int):
+            return value
+        if isinstance(value, float):
+            return int(value)
+
+        text = str(value).strip()
+        # Common case for this project: values like '..._replica1'.
+        if column_name == "replica_id":
+            replica_match = re.search(r"replica\s*([0-9]+)", text, flags=re.IGNORECASE)
+            if replica_match:
+                return int(replica_match.group(1))
+
+        # Generic integer extraction fallback.
+        plain_int = re.fullmatch(r"[-+]?\d+", text)
+        if plain_int:
+            return int(text)
+
+        raise ValueError(
+            f"Cannot coerce value '{value}' from column '{column_name}' to integer."
+        )
+
     for column_name, target_feature in target_features.items():
         if column_name not in ds.column_names:
             continue
@@ -27,7 +50,7 @@ def _align_dataset_to_features(
             and current_feature.dtype == "string"
         ):
             def _to_int(example, col=column_name):
-                example[col] = int(example[col])
+                example[col] = _coerce_to_int(example[col], col)
                 return example
 
             ds = ds.map(_to_int, num_proc=cpu_cores)
@@ -129,6 +152,11 @@ def append_custom_split_to_hf_dataset(new_datapath, new_split_name, repo_id, cpu
     # Load the new split from disk
     print(f"Loading new split '{new_split_name}' from disk at: {new_datapath}")
     new_split_dataset: datasets.Dataset = datasets.load_from_disk(new_datapath)
+    # print the first few entries of the new split to verify loading
+    print(f"First 3 entries of the new split '{new_split_name}':")
+    for i in range(3):
+        print(new_split_dataset[i])
+    
     print(f"New split '{new_split_name}' loaded with size: {len(new_split_dataset)}")
 
     # Match the existing DatasetDict schema before adding a new split.
