@@ -1,7 +1,8 @@
 import os
-import datasets
 from dotenv import load_dotenv
+load_dotenv()
 
+import datasets
 from huggingface_hub import HfApi
 def initialize_hf_api():
     load_dotenv()
@@ -134,12 +135,10 @@ if __name__ == "__main__":
     # take args from command line to specify the new datapath, new split name, repo id and cpu cores
     import argparse
     print("Starting the process to append a new split to the HuggingFace dataset...")
-    status = load_dotenv()  # Load environment variables from .env file
-    if not status:
-        print("Error: Failed to load .env file.")
-        raise Exception("Failed to load .env file.")
+    load_dotenv()  # Load environment variables from .env file if present.
     print("Environment variables loaded successfully.")
     print(os.environ.get("HF_HOME"))  # Debug: Print the HF_HOME environment variable to verify loading
+    print(os.environ.get("HF_HUB_CACHE"))  # Debug: Verify the Hub cache location
     print(os.environ.get("HF_DATASETS_CACHE"))  # Debug: Print the HF_DATASETS_CACHE environment variable to verify loading
 
     parser = argparse.ArgumentParser(description="Append a new split to an existing HuggingFace dataset and push to the Hub")
