@@ -152,10 +152,10 @@ def append_custom_split_to_hf_dataset(new_datapath, new_split_name, repo_id, cpu
     # Load the new split from disk
     print(f"Loading new split '{new_split_name}' from disk at: {new_datapath}")
     new_split_dataset: datasets.Dataset = datasets.load_from_disk(new_datapath)
-    # print the first few entries of the new split to verify loading
+    # print the first few entries of the new split to verify loading except the coordinates/data column
     print(f"First 3 entries of the new split '{new_split_name}':")
     for i in range(3):
-        print(new_split_dataset[i])
+        print(new_split_dataset[i].copy().pop("data", None))  # Remove 'data' column for cleaner output
     
     print(f"New split '{new_split_name}' loaded with size: {len(new_split_dataset)}")
 
