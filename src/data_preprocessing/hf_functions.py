@@ -138,7 +138,7 @@ if __name__ == "__main__":
     parser.add_argument("--new-datapath", required=True, help="Path to the new split saved on disk (e.g., 'unique_test_runs')")
     parser.add_argument("--new-split-name", required=True, help="Name of the new split (e.g., 'unique_test_runs')")
     parser.add_argument("--repo-id", required=True, help="HuggingFace Hub repository ID (e.g., 'username/dataset_name')", default="Sam-Roggeman/SamRoggeman_Thesis_Dataset_full")
-    parser.add_argument("--cpu-cores", type=int, default=1, help="Number of CPU cores to use for processing", default=8)
+    parser.add_argument("--cpu-cores", type=int, default=1, help="Number of CPU cores to use for processing")
     args = parser.parse_args()
     append_custom_split_to_hf_dataset(
         new_datapath=args.new_datapath,
