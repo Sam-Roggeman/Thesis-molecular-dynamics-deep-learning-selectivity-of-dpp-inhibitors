@@ -133,7 +133,14 @@ def main_append():
 if __name__ == "__main__":
     # take args from command line to specify the new datapath, new split name, repo id and cpu cores
     import argparse
-    load_dotenv()  # Load environment variables from .env file
+    print("Starting the process to append a new split to the HuggingFace dataset...")
+    status = load_dotenv()  # Load environment variables from .env file
+    if not status:
+        print("Error: Failed to load .env file.")
+        raise Exception("Failed to load .env file.")
+    print("Environment variables loaded successfully.")
+    print(os.environ.get("HF_TOKEN"))  # Debug: Print the HF_TOKEN environment variable to verify loading
+    print(os.environ.get("HF_HOME"))  # Debug: Print the HF_HOME environment variable to verify loading
     parser = argparse.ArgumentParser(description="Append a new split to an existing HuggingFace dataset and push to the Hub")
     parser.add_argument("--new-datapath", required=True, help="Path to the new split saved on disk (e.g., 'unique_test_runs')")
     parser.add_argument("--new-split-name", required=True, help="Name of the new split (e.g., 'unique_test_runs')")
