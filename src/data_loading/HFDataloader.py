@@ -100,32 +100,24 @@ def initialize_dataloaders(config: TrainingConfig, splits=None, keep_all_columns
         "input_columns": ['data', 'labels', "num_atoms"], 
         }
 
-    # cache folder = name of the transform + dataset size + split name
-    cache_name = f"{config.transform.__class__.__name__}_{config.dataset_size * 100:.0f}pct"
     if not keep_all_columns:
         map_args["remove_columns"] = ['pdb_id', 'dpp_class', 'ligand_name', 'num_atoms', 'replica_id']
-        cache_name += "_removed_extra_columns"
-    mapped_cache_dir = os.path.join(os.environ.get("HF_CACHE_DIR"), "mapped_datasets", cache_name)
-    cache_exists = os.path.exists(mapped_cache_dir) 
-    fast_cache_dir = os.path.join("/project_scratch/dataset_cache/", "mapped_datasets", cache_name)
-    
-    
-    if cache_exists:
-        print(f"\tFound existing mapped dataset cache at {mapped_cache_dir}, using it to speed up dataloader initialization...")
-        # copy the cache dir to the faster local storage if running in GPULAB
-        if "GPULAB_CPUS_RESERVED" in os.environ:
-            # copy the cache dir to the faster local storage if it doesn't already exist there
-            for file in os.listdir(mapped_cache_dir):
-                print(f"Copying mapped dataset cache from {mapped_cache_dir} to {fast_cache_dir} for faster access...")
-                if file.endswith(".arrow"):
-                    fp = os.path.join(fast_cache_dir, file)
-                    if not os.path.exists(fp):
-                        shutil.copy(os.path.join(mapped_cache_dir, file), fp)
-                print(f"\t...copying complete")    
+    # if cache_exists:
+    #     print(f"\tFound existing mapped dataset cache at {mapped_cache_dir}, using it to speed up dataloader initialization...")
+    #     # copy the cache dir to the faster local storage if running in GPULAB
+    #     if "GPULAB_CPUS_RESERVED" in os.environ:
+    #         # copy the cache dir to the faster local storage if it doesn't already exist there
+    #         for file in os.listdir(mapped_cache_dir):
+    #             print(f"Copying mapped dataset cache from {mapped_cache_dir} to {fast_cache_dir} for faster access...")
+    #             if file.endswith(".arrow"):
+    #                 fp = os.path.join(fast_cache_dir, file)
+    #                 if not os.path.exists(fp):
+    #                     shutil.copy(os.path.join(mapped_cache_dir, file), fp)
+    #             print(f"\t...copying complete")    
                 
-    print(f"\tUsing mapped dataset cache directory: {mapped_cache_dir}")
+    # print(f"\tUsing mapped dataset cache directory: {mapped_cache_dir}")
     for split in splits:
-        print(f"\t\tApplying transforms to {split} split with cache file: {os.path.join(mapped_cache_dir, f'{split}_transformed_{config.dataset_size * 100:.0f}pct.arrow')}")
+        print(f"\t\tApplying transforms to {split}')")
         if split == 'train':
             transform_fn = config.training_transform
         else:
@@ -134,17 +126,16 @@ def initialize_dataloaders(config: TrainingConfig, splits=None, keep_all_columns
             transform_fn,
             **map_args,
             load_from_cache_file=True,
-            cache_file_name=os.path.join(mapped_cache_dir, f"{split}.arrow"),
         )
-    if not cache_exists:
-        print(f"\tFinished applying transforms and caching mapped dataset at {fast_cache_dir}")
-        print(f"\tCopying mapped dataset from {fast_cache_dir} cache to {mapped_cache_dir} for future runs...")
-        for file in os.listdir(fast_cache_dir):
-            if file.endswith(".arrow"):
-                fp = os.path.join(mapped_cache_dir, file)
-                if not os.path.exists(fp):
-                    shutil.copy(os.path.join(fast_cache_dir, file), fp)
-        print(f"\t...copying complete")
+    # if not cache_exists:
+    #     print(f"\tFinished applying transforms and caching mapped dataset at {fast_cache_dir}")
+    #     print(f"\tCopying mapped dataset from {fast_cache_dir} cache to {mapped_cache_dir} for future runs...")
+    #     for file in os.listdir(fast_cache_dir):
+    #         if file.endswith(".arrow"):
+    #             fp = os.path.join(mapped_cache_dir, file)
+    #             if not os.path.exists(fp):
+    #                 shutil.copy(os.path.join(fast_cache_dir, file), fp)
+    #     print(f"\t...copying complete")
         
     print("\t...applying_transforms complete")
     dataloader_args = {
