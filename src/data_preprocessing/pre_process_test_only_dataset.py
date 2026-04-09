@@ -66,8 +66,7 @@ def parse_pdb_streaming_many_tars(tar_paths):
 		path_obj = Path(tar_path)
 		stem = path_obj.name.removesuffix(".tar.gz").removesuffix(".tgz")
 		dpp_class, ligand_name, binding_type, replica_id = parse_filename(stem)
-
-		print(f"Processing {path_obj.name}...")
+		print(f"Processing {path_obj.name} with DPP class: {dpp_class}, ligand: {ligand_name}, binding type: {binding_type}, replica ID: {replica_id}...")
 		yield from parse_pdb_streaming(
 			tar_path=str(path_obj),
 			dpp_class=dpp_class,
