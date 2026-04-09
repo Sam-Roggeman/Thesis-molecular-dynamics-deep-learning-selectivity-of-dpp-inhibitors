@@ -156,7 +156,7 @@ def _build_parser() -> argparse.ArgumentParser:
 	)
  
 	parser.add_argument("--dataset-location", default=None, help="Override dataset location from config.")
-	parser.add_argument("--dataset-size", type=float, default=None, help="Override dataset fraction (0, 1].")
+	parser.add_argument("--dataset-size", type=float, default=1, help="Override dataset fraction (0, 1].")
 	parser.add_argument("--batch-size", type=int, default=None, help="Override evaluation batch size.")
 	parser.add_argument("--num-cpus", type=int, default=None, help="Override dataloader worker count.")
 	parser.add_argument("--max-batches", type=int, default=None, help="Cap number of test batches.")

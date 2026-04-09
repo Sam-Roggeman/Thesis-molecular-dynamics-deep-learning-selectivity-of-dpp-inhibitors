@@ -16,19 +16,19 @@ def _download_dataset(config: TrainingConfig, splits=None) -> datasets.DatasetDi
     print(f"\tDownloading {dataset_size} of {config.dataset_location}")
     # download only a subset of the dataset if dataset_size < 1
     split_size = int(dataset_size * 100)
+    split_str = f"[:{split_size}%]" if dataset_size < 0.9999 else ""
     cache_dir = os.environ.get("HF_DOWNLOADED_DATASET_DIR")
-    
 
     if splits is not None:
         print(f"\t\tOnly downloading splits: {splits}")
-        _split_arg = {split: f"{split}[:{split_size}%]" for split in splits}
+        _split_arg = {split: f"{split}{split_str}" for split in splits}
     else:
         for split in ['train', 'validation', 'test']:
             print(f"\t\tDownloading {split_size}% of {split} split")
         _split_arg = {
-            "train": f"train[:{split_size}%]",
-            "validation": f"validation[:{split_size}%]",
-            "test": f"test[:{split_size}%]",
+            "train": f"train{split_str}",
+            "validation": f"validation{split_str}",
+            "test": f"test{split_str}",
         }    
     # cache dir
     print(f"\tUsing cache directory: {cache_dir}")
@@ -199,6 +199,27 @@ def initialize_streaming_dataloader(config: TrainingConfig, keep_all_columns: bo
     
     print("\t...initializing_streaming_dataloader complete")
     return dataloader_dict
+
+def clear_cache(remove_dataset_cache: bool = False, remove_mapped_cache: bool = True):
+    """
+    Clear the Hugging Face dataset cache directory.
+    """
+    cache_dir = os.environ.get("HF_DOWNLOADED_DATASET_DIR")
+    mapped_cache_dir = os.environ.get("HF_MAPPED_DATASET_DIR")
+
+    if remove_dataset_cache and os.path.exists(cache_dir):
+        print(f"Clearing dataset cache directory: {cache_dir}")
+        shutil.rmtree(cache_dir)
+        print("\t...dataset cache cleared")
+
+    if remove_mapped_cache and os.path.exists(mapped_cache_dir):
+        print(f"Clearing mapped cache directory: {mapped_cache_dir}")
+        shutil.rmtree(mapped_cache_dir)
+        print("\t...mapped cache cleared")
+    else:
+        print(f"Cache directory {cache_dir} does not exist, nothing to clear.")
+
+
 
 if __name__ == "__main__":
     import argparse
