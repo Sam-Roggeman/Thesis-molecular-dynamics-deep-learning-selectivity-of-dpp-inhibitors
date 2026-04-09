@@ -111,8 +111,6 @@ def generate_unique_test_runs_dataset(
 
 
 def main():
-	print(os.environ.get("HF_TOKEN"))  # Debug: Print the HF_TOKEN environment variable to verify loading
-	print(os.environ.get("HF_HOME"))  # Debug: Print the HF_HOME environment variable to verify loading
 	if not os.environ.get("HF_HOME"):
 		print("Warning: HF_HOME environment variable is not set. Hugging Face datasets will be stored in the default location.")
 		return -1
