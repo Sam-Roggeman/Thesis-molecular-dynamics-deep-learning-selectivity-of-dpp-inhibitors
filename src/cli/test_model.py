@@ -5,8 +5,8 @@ import os
 import re
 
 import torch
-from dotenv import load_dotenv, parser
-
+from dotenv import load_dotenv
+load_dotenv()
 from src.Models.DCNN import CustomDenseNet
 from src.Models.LinearAttentionTransformerPP import LinearAttentionTransformerPP
 from src.Models.OneLayer import OneLayerNet
