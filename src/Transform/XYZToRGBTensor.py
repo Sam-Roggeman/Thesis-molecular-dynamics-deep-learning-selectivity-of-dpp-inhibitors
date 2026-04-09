@@ -31,7 +31,7 @@ class XYZToRGBTensor:
                 coords = coords_batch[i]
             
             # Get the number of real atoms for this sample
-            num_real = num_real_atoms_batch[i] if num_real_atoms_batch else coords.shape[0]
+            num_real = num_real_atoms_batch[i] if num_real_atoms_batch is not None else coords.shape[0]
 
             # Compute min/max only from real atoms (excluding padding)
             real_coords = coords[:num_real]

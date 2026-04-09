@@ -115,8 +115,9 @@ def generate_dataset_from_tars(streaming_pdb_dataset_path, tar_folder, regenerat
                 dataset.save_to_disk(res_dir, max_shard_size="4GB")
                 print(f"✓ Processed {filename} and saved to {res_dir}.")
     print("✓ Streaming dataset loaded and saved to disk.")
-if __name__ == "__main__":
-    regenerate = False  # Set to True to regenerate the dataset
+
+def generate_full_dataset_from_tars(regenerate=False num_proc=32, skip_existing=True):
+    """Generate a full dataset by processing all TAR files and concatenating results."""
     tar_folder = "/project_antwerp/dataset/decompressed/"
     print("Starting data preprocessing...")
     streaming_pdb_dataset_path = f"/project_antwerp/dataset/temp/streaming_pdb_dataset/"
@@ -139,6 +140,7 @@ if __name__ == "__main__":
     print(f"✓ Full dataset loaded with {len(full_ds)} samples.")
     # split into train, val, test
     full_set = full_ds.shuffle(seed=42)
+    
     train_val_test = train_val_test_split(full_set, train_fraction=0.7, val_fraction=0.15, seed=42)
     full_training_set = train_val_test['train']
     full_val_set = train_val_test['val']  # Use validation split for
@@ -160,5 +162,7 @@ if __name__ == "__main__":
 
 
     print("Datasets saved.")
-
+if __name__ == "__main__":
+    # generate the full dataset from the tars, set regenerate to True to force regeneration, set skip_existing to False to force processing of all files
+    generate_full_dataset_from_tars(regenerate=False, num_proc=16, skip_existing=True)
 
