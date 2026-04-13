@@ -35,23 +35,27 @@ class _DenseLayer(nn.Module):
         self.relu2 = nn.ReLU(inplace=True)
         self.conv2 = nn.Conv2d(bn_size * growth_rate, growth_rate,
                                kernel_size=3, stride=1, padding=1, bias=False)
+        self.dropout = nn.Dropout2d(dropout_rate)
+
     def forward(self, x):
         # Bottleneck layer
         out = self.relu1(self.conv1(self.norm1(x)))
         out = self.relu2(self.conv2(self.norm2(out)))
+        out = self.dropout(out)
         out = torch.cat([x, out], 1)
         return out
 
 
 class _DenseBlock(nn.Module):
-    def __init__(self, num_layers, num_input_features, growth_rate, bn_size=4):
+    def __init__(self, num_layers, num_input_features, growth_rate, bn_size=4, dropout_rate=0.2):
         super(_DenseBlock, self).__init__()
         self.layers = nn.ModuleList()
         for i in range(num_layers):
             layer = _DenseLayer(
                 num_input_features + i * growth_rate,
                 growth_rate=growth_rate,
-                bn_size=bn_size
+                bn_size=bn_size,
+                dropout_rate=dropout_rate
             )
             self.layers.append(layer)
 
@@ -62,7 +66,7 @@ class _DenseBlock(nn.Module):
 
 
 class _Transition(nn.Module):
-    def __init__(self, num_input_features, reduction_ratio=0.5):
+    def __init__(self, num_input_features, reduction_ratio=0.5, dropout_rate=0.0):
         super(_Transition, self).__init__()
         num_output_features = int(num_input_features * reduction_ratio)
         self.norm = nn.BatchNorm2d(num_input_features)
@@ -70,16 +74,19 @@ class _Transition(nn.Module):
         self.conv = nn.Conv2d(num_input_features, num_output_features,
                               kernel_size=1, stride=1, bias=False)
         self.pool = nn.AvgPool2d(kernel_size=2, stride=2)
+        self.dropout = nn.Dropout2d(dropout_rate)
 
     def forward(self, x):
         out = self.conv(self.relu(self.norm(x)))
         out = self.pool(out)
+        out = self.dropout(out)
         return out
 
 
 class CustomDenseNet(AbstractNNModel):
     def __init__(self, growth_rate=48, block_config=(6, 12, 36, 24),
-                 num_init_features=96, reduction_ratio=0.5, num_classes=5, bn_size=4, dropout_rate=0.5):
+                 num_init_features=96, reduction_ratio=0.5, num_classes=5, bn_size=4,
+                 dropout_rate=0.5, feature_dropout_rate=0, transition_dropout_rate=0):
         super(CustomDenseNet, self).__init__()
 
         # Initial convolution
@@ -97,14 +104,16 @@ class CustomDenseNet(AbstractNNModel):
                 num_layers=num_layers,
                 num_input_features=num_features,
                 growth_rate=growth_rate,
-                bn_size=bn_size
+                bn_size=bn_size,
+                dropout_rate=feature_dropout_rate
             )
             self.features.add_module(f'denseblock{i + 1}', block)
             num_features = num_features + num_layers * growth_rate
 
             if i != len(block_config) - 1:
                 trans = _Transition(num_input_features=num_features,
-                                    reduction_ratio=reduction_ratio)
+                                    reduction_ratio=reduction_ratio,
+                                    dropout_rate=transition_dropout_rate)
                 self.features.add_module(f'transition{i + 1}', trans)
                 num_features = int(num_features * reduction_ratio)
 
@@ -145,6 +154,7 @@ def create_custom_densenet(num_classes=5):
         block_config=(6, 12, 36, 24),  # 4 dense blocks with 6, 12, 36, 24 layers
         num_init_features=96,  # 96 initial filters
         reduction_ratio=0.5,  # reduction ratio of 0.5
+        
         num_classes=num_classes
     )
     return model

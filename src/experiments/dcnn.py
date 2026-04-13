@@ -20,13 +20,14 @@ if __name__ == "__main__":
             "num_init_features": 96,  # 96 initial filters
             "reduction_ratio": 0.5,  # reduction ratio of 0.5
             "num_classes": 5, 
-            "dropout_rate": 0.2,  # dropout rate of 0.2
-            
+            "dropout_rate": 0.5,  # dropout rate in the classifier layer
+            "feature_dropout_rate": 0.15,  # no dropout in dense layers
+            "transition_dropout_rate": 0.1,  # no dropout in transition layers
         },
         dataset_location="Sam-Roggeman/SamRoggeman_Thesis_Dataset_full",
         training_transform=apply_image_transform,
         validation_transform=apply_image_transform_noscramble,
-        batch_size=128,
+        batch_size=256,
     )
 
     train_model(config_dcnn, "CustomDenseNet_Randomsplit_Dataset")
