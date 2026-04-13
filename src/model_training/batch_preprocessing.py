@@ -12,12 +12,7 @@ def _labels_to_tensor(labels, device):
         return labels.to(device=device, dtype=torch.long, non_blocking=True)
 
     if isinstance(labels, (list, tuple)):
-        encoded = []
-        for label in labels:
-            if isinstance(label, str):
-                encoded.append(label_encoder.encode(label))
-            else:
-                encoded.append(int(label))
+        encoded = label_encoder.encode_labels(labels)
         return torch.tensor(encoded, dtype=torch.long, device=device)
 
     # Scalar label fallback.
