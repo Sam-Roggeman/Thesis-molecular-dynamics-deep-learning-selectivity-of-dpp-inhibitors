@@ -4,10 +4,18 @@ import datasets
 import os
 
 import torch
-
+from src.utils.cacheManager import cacheManager, construct_file_name
 from src.utils.training_config import TrainingConfig
 
 import resource
+
+
+def _collate_raw_batch(batch):
+    """Keep variable-length fields as python lists for on-the-fly preprocessing."""
+    if not batch:
+        return {}
+    keys = batch[0].keys()
+    return {key: [sample.get(key) for sample in batch] for key in keys}
 
 def _download_dataset(config: TrainingConfig, splits=None) -> datasets.DatasetDict:
     print("Downloading dataset...")
@@ -45,7 +53,7 @@ def _download_dataset(config: TrainingConfig, splits=None) -> datasets.DatasetDi
         dataset_dict = datasets.DatasetDict({splits[0]: dataset_dict})
     return dataset_dict
 
-def _download_streaming_dataset(config: TrainingConfig, splits: list = ["train", "validation", "test"]) -> datasets.IterableDatasetDict:
+def _download_streaming_dataset(config: TrainingConfig, splits: list = ["train", "validation", "test"],  shuffle: bool = False) -> datasets.IterableDatasetDict:
     dataset_size = config.dataset_size
     assert dataset_size > 0 and dataset_size <= 1, "Dataset size must be between 0 and 1"
     print(f"\tDownloading {dataset_size} of {config.dataset_location}")
@@ -54,8 +62,11 @@ def _download_streaming_dataset(config: TrainingConfig, splits: list = ["train",
         token=os.environ.get("HF_TOKEN"),
         streaming=True
     )
-    # shuffle the trainssplit of the dataset
-    dataset["train"] = dataset["train"].shuffle(seed=config.shuffle_seed, buffer_size=config.shuffle_buffer_size)
+    if shuffle:
+        for split in splits:
+            if split != "train":
+                print(f"\tShuffling {split} split...")
+                dataset[split] = dataset[split].shuffle(seed=config.shuffle_seed, buffer_size=config.shuffle_buffer_size)
     if dataset_size < 1:
         splitinfo: datasets.DatasetInfo = dataset["train"].info
         for split in dataset.keys():
@@ -78,80 +89,43 @@ def _download_streaming_dataset(config: TrainingConfig, splits: list = ["train",
 # Define a type for the dataloader dict
 DataLoaderDict = dict[str, torch.utils.data.DataLoader]
 
-def initialize_dataloaders(config: TrainingConfig, splits=None, keep_all_columns: bool = False) -> DataLoaderDict:
+def initialize_dataloaders(config: TrainingConfig, cache_manager: cacheManager,splits=None, keep_all_columns: bool = False, streaming: bool = False) -> DataLoaderDict:
     """
     Initialize the dataloader for training.
     """
     if splits is None:
         splits = ['train', 'validation', 'test']
+    if streaming:
+        return initialize_streaming_dataloader(config, keep_all_columns=keep_all_columns, splits=splits)
+
     # Download the dataset
     print("Initializing dataloader...")
     print("\tDownloading dataset...")
     dataset_dict: datasets.DatasetDict = _download_dataset(config, splits=splits)
+    
     print("\t...initializing_dataloader complete")
     dataset_dict = dataset_dict.rename_columns({'coordinates': 'data', 'binding_type': 'labels'})
-    # apply the training transform to the training split and the validation transform to the validation and test splits
-    
-    print("\tApplying transforms...")
-    map_args = {
-        "batched": True, 
-        "batch_size": config.transform_batch_size, 
-        "num_proc": config.num_cpus,
-        "input_columns": ['data', 'labels', "num_atoms"], 
-        }
-
+    print("\tSkipping dataset.map transforms; using on-the-fly batch preprocessing.")
     if not keep_all_columns:
-        map_args["remove_columns"] = ['pdb_id', 'dpp_class', 'ligand_name', 'num_atoms', 'replica_id']
-    # if cache_exists:
-    #     print(f"\tFound existing mapped dataset cache at {mapped_cache_dir}, using it to speed up dataloader initialization...")
-    #     # copy the cache dir to the faster local storage if running in GPULAB
-    #     if "GPULAB_CPUS_RESERVED" in os.environ:
-    #         # copy the cache dir to the faster local storage if it doesn't already exist there
-    #         for file in os.listdir(mapped_cache_dir):
-    #             print(f"Copying mapped dataset cache from {mapped_cache_dir} to {fast_cache_dir} for faster access...")
-    #             if file.endswith(".arrow"):
-    #                 fp = os.path.join(fast_cache_dir, file)
-    #                 if not os.path.exists(fp):
-    #                     shutil.copy(os.path.join(mapped_cache_dir, file), fp)
-    #             print(f"\t...copying complete")    
-                
-    # print(f"\tUsing mapped dataset cache directory: {mapped_cache_dir}")
-    for split in splits:
-        print(f"\t\tApplying transforms to {split}')")
-        if split == 'train':
-            transform_fn = config.training_transform
-        else:
-            transform_fn = config.validation_transform
-        dataset_dict[split] = dataset_dict[split].map(
-            transform_fn,
-            **map_args,
-            load_from_cache_file=True,
-        )
-    # if not cache_exists:
-    #     print(f"\tFinished applying transforms and caching mapped dataset at {fast_cache_dir}")
-    #     print(f"\tCopying mapped dataset from {fast_cache_dir} cache to {mapped_cache_dir} for future runs...")
-    #     for file in os.listdir(fast_cache_dir):
-    #         if file.endswith(".arrow"):
-    #             fp = os.path.join(mapped_cache_dir, file)
-    #             if not os.path.exists(fp):
-    #                 shutil.copy(os.path.join(fast_cache_dir, file), fp)
-    #     print(f"\t...copying complete")
-        
-    print("\t...applying_transforms complete")
+        drop_cols = [
+            c for c in ['pdb_id', 'ligand_name', 'replica_id']
+            if c in dataset_dict[splits[0]].column_names
+        ]
+        for split in splits:
+            dataset_dict[split] = dataset_dict[split].remove_columns(drop_cols)
+
+    dataloader_workers = max(0, config.num_cpus)
     dataloader_args = {
         "batch_size": config.batch_size,
-        "num_workers": config.num_cpus,
+        "num_workers": dataloader_workers,
         "pin_memory": torch.cuda.is_available(),
-        "persistent_workers": True,
-        "prefetch_factor": 4, 
+        "persistent_workers": dataloader_workers > 0,
+        "collate_fn": _collate_raw_batch,
     }
+    if dataloader_workers > 0:
+        dataloader_args["prefetch_factor"] = 2
     resource.setrlimit(resource.RLIMIT_NOFILE, (10810, 10810))
     
-    dataset_dict = dataset_dict.with_format(
-        type="torch",
-        columns=["data", "labels"],
-        output_all_columns=keep_all_columns,
-    )
     dataloader_dict = {}
     for split in splits:
         print(f"\t\tCreating dataloader for {split} split with batch size {config.batch_size} and num_workers {config.num_cpus}...")
@@ -159,41 +133,39 @@ def initialize_dataloaders(config: TrainingConfig, splits=None, keep_all_columns
         dataloader_dict[split] = dataloader
     return dataloader_dict
 
-def initialize_streaming_dataloader(config: TrainingConfig, keep_all_columns: bool = False, splits: list = ["train", "validation", "test"]) -> DataLoaderDict:
+def initialize_streaming_dataloader(config: TrainingConfig, keep_all_columns: bool = False, splits: list = ["train", "validation", "test"], shuffle: bool = False) -> DataLoaderDict:
     """
     Initialize the streaming dataloader for training.
     """
     # Initialize the streaming dataloader
     print("Initializing streaming dataloader...")
-    dataset_dict: datasets.IterableDatasetDict = _download_streaming_dataset(config, splits=splits)
-    if "train" in splits:
-        print("\tShuffling training split...")
-        # shuffle the training split of the dataset
-        dataset_dict["train"] = dataset_dict["train"].shuffle(seed=config.shuffle_seed, buffer_size=config.shuffle_buffer_size)
+    dataset_dict: datasets.IterableDatasetDict = _download_streaming_dataset(config, splits=splits, shuffle=shuffle)
+
     dataset_dict = dataset_dict.rename_columns({'coordinates': 'data', 'binding_type': 'labels'})
-    # set the format of the dataset to torch tensors and create dataloaders for each split
-    dataset_dict = dataset_dict.with_format(type="torch")
-    # apply the training transform to the training split and the validation transform to the validation and test splits
-    map_args = {"batched": True, "batch_size": config.transform_batch_size, 
-                "input_columns": ['data', 'labels', "num_atoms"], 
-                }
     if not keep_all_columns:
-        map_args["remove_columns"] = ['pdb_id', 'dpp_class', 'ligand_name', 'num_atoms']
+        drop_cols = ['pdb_id', 'ligand_name']
+        for split in splits:
+            if split in dataset_dict:
+                existing = [c for c in drop_cols if c in dataset_dict[split].column_names]
+                if existing:
+                    dataset_dict[split] = dataset_dict[split].remove_columns(existing)
+
     dataloader_dict = {}
     for split in splits:
-        print(f"\t\tApplying transforms to {split} split...")
-        if split == 'train':
-            transform_fn = config.training_transform
-        else:
-            transform_fn = config.validation_transform
-        dataset_dict[split] = dataset_dict[split].map(
-            transform_fn,
-            **map_args,
-        )
-        dataloader_args = {"batch_size": config.batch_size, "num_workers": config.num_cpus, "pin_memory": True}    
+        print(f"\t\tPreparing dataloader for {split} split (on-the-fly preprocessing)...")
+        dataloader_workers = max(0, config.num_cpus)
+        dataloader_args = {
+            "batch_size": config.batch_size,
+            "num_workers": dataloader_workers,
+            "pin_memory": True,
+            "persistent_workers": dataloader_workers > 0,
+            "collate_fn": _collate_raw_batch,
+        }
+        if dataloader_workers > 0:
+            dataloader_args["prefetch_factor"] = 2
         dataloader = torch.utils.data.DataLoader(dataset_dict[split], **dataloader_args)
         dataloader_dict[split] = dataloader
-    print("\t...applying_transforms complete")
+    print("\t...streaming dataloaders ready")
 
     resource.setrlimit(resource.RLIMIT_NOFILE, (65536, 65536))
     

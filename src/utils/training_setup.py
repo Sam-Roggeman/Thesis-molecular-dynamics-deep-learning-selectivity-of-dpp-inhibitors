@@ -14,6 +14,7 @@ from src.data_loading.HFDataloader import initialize_streaming_dataloader, initi
 from src.data_postprocessing.model_testing import model_testing
 from src.model_training.metric_functions import all_statistics
 from src.model_training.utils import _train_single_batch, get_device, get_subset, training_loop
+from src.utils.cacheManager import cacheManager
 from src.utils.training_config import TrainingConfig, TestConfig
 from src.utils.logger import setup_logger, replace_output
 import datasets
@@ -62,7 +63,7 @@ def _warmup(model, dataloader, optimizer, criterion, device, steps=5):
         _train_single_batch(model, batch, optimizer, criterion, device)
     torch.cuda.synchronize()
 
-def train_model(config: TrainingConfig, model_name: str):
+def train_model(config: TrainingConfig, model_name: str, streaming: bool = False):
     """Main training function - single entry point for all models"""
     load_dotenv() # Load environment variables from .env file
 
@@ -77,9 +78,14 @@ def train_model(config: TrainingConfig, model_name: str):
 
     # Initialize model
     model = config.model_class(**config.model_args)
-   
+    cache_dir = os.getenv("HF_CACHE_DIR")
+    fast_cache_dir = os.getenv("FAST_CACHE_DIR")
+    cache_manager = cacheManager(cache_dir, fast_cache_dir)
+    
     # Load and prepare data
-    dataloaders = initialize_dataloaders(config)
+    
+    dataloaders = initialize_dataloaders(config, cache_manager, streaming=streaming)
+
 
     # Setup training
     device = get_device()

@@ -114,7 +114,7 @@ def _build_test_dataloader(config: TrainingConfig, splits=["test"], streaming=Fa
 	try:
 		if streaming:
 			print("Streaming flag is set. Initializing streaming dataloader.")
-			dataloaders = initialize_streaming_dataloader(config, keep_all_columns=True, splits=splits)
+			dataloaders = initialize_streaming_dataloader(config, keep_all_columns=True, splits=splits, shuffle=True)
 			return dataloaders
 		else:
 			dataloaders = initialize_dataloaders(config, keep_all_columns=True, splits=splits)
@@ -124,7 +124,7 @@ def _build_test_dataloader(config: TrainingConfig, splits=["test"], streaming=Fa
 			"Falling back to streaming dataloader because initialize_dataloaders failed: "
 			f"{exc}"
 		)
-		dataloaders = initialize_streaming_dataloader(config, keep_all_columns=True, splits=splits)
+		dataloaders = initialize_streaming_dataloader(config, keep_all_columns=True, splits=splits, shuffle=True)
 		return dataloaders
 
 
@@ -249,6 +249,7 @@ def main() -> None:
 			device=device,
 			output_dir=output_dir,
 			max_batches=args.max_batches,
+			split_name=split,
 		)
 
 		print(f"Testing complete. Confusion matrix saved to: {os.path.join(output_dir, 'confusion_matrix.png')}")

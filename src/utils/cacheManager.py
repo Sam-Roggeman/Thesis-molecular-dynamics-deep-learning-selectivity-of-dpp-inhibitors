@@ -1,8 +1,8 @@
 import os
 import shutil
 
-def construct_file_name(used_transofrmation_function, used_percentage, splitname, extension="arrow", prefix="mapped"):
-    return f"{prefix}_{used_transofrmation_function}_{used_percentage}_{splitname}.{extension}"
+def construct_file_name(used_percentage, splitname, extension="arrow", prefix="mapped"):
+    return f"{prefix}_{used_percentage}_{splitname}.{extension}"
     
 class cacheManager:
     to_cleanup_on_exit: list = []

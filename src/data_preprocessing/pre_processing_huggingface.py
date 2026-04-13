@@ -116,7 +116,7 @@ def generate_dataset_from_tars(streaming_pdb_dataset_path, tar_folder, regenerat
                 print(f"✓ Processed {filename} and saved to {res_dir}.")
     print("✓ Streaming dataset loaded and saved to disk.")
 
-def generate_full_dataset_from_tars(regenerate=False num_proc=32, skip_existing=True):
+def generate_full_dataset_from_tars(regenerate=False, num_proc=32, skip_existing=True):
     """Generate a full dataset by processing all TAR files and concatenating results."""
     tar_folder = "/project_antwerp/dataset/decompressed/"
     print("Starting data preprocessing...")

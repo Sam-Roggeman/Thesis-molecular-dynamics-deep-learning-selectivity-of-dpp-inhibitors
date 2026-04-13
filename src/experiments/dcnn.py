@@ -30,4 +30,4 @@ if __name__ == "__main__":
         batch_size=256,
     )
 
-    train_model(config_dcnn, "CustomDenseNet_Randomsplit_Dataset")
+    train_model(config_dcnn, "CustomDenseNet_Randomsplit_Dataset", streaming=True)

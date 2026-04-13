@@ -5,6 +5,7 @@ import datasets
 import torch
 
 from src.model_training.Metrics import Metrics
+from src.model_training.batch_preprocessing import prepare_model_batch
 from src.model_training.metric_functions import calculate_accuracy_and_loss
 from sklearn.metrics import confusion_matrix
 def model_name(model_name_prefix):
@@ -65,9 +66,7 @@ def training_phase(model, trainloader, optimizer, criterion, device):
     running_loss = 0.0
     num_batches = 0
     for i, batch in enumerate(trainloader, 0):
-        # get the inputs; data is a list of [inputs, labels]
-        inputs, labels = batch["data"], batch["labels"]
-        inputs, labels = inputs.to(device, non_blocking=True), labels.to(device, non_blocking=True)
+        inputs, labels = prepare_model_batch(batch, device, scramble=True)
 
         # zero the parameter gradients
         optimizer.zero_grad()
@@ -93,7 +92,7 @@ def training_phase(model, trainloader, optimizer, criterion, device):
 def _train_single_batch(model, batch, optimizer, criterion, device):
     """Train one batch and return correct predictions, sample count and loss."""
     model.train()
-    inputs, labels = batch["data"].to(device, non_blocking=True), batch["labels"].to(device, non_blocking=True)
+    inputs, labels = prepare_model_batch(batch, device, scramble=True)
 
     optimizer.zero_grad()
     outputs = model(inputs)

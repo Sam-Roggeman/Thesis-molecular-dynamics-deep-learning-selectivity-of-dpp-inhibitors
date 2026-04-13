@@ -3,7 +3,6 @@
 cd /project_antwerp/Thesis-molecular_dynamics_trajectory_embeddings || exit
 export HF_HOME="/project_scratch/hf_cache"
 # Update
-sudo apt update
 # Install the datasets library
 pip install -r ./src/requirements.txt
 
