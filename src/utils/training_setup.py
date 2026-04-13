@@ -197,9 +197,6 @@ def train_model(config: TrainingConfig, model_name: str, streaming: bool = False
                 f"CUDA OOM detected (attempt {attempt}/{max_retries}). "
                 f"Reducing batch size from {old_batch_size} to {new_batch_size} and retrying..."
             )
-            if config.compile_model and config.disable_compile_on_oom:
-                print("Disabling torch.compile after CUDA OOM to reduce memory pressure on retry.")
-                config.compile_model = False
             config.batch_size = new_batch_size
             _cleanup_cuda_memory()
 
