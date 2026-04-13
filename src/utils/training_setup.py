@@ -3,6 +3,7 @@ from typing import Tuple, Dict, Any
 import os
 from networkx import config
 from datetime import datetime
+import gc
 import torch
 from dotenv import load_dotenv
 from torch import optim, split, split
@@ -20,6 +21,25 @@ from src.utils.logger import setup_logger, replace_output
 import datasets
 import torch.nn as nn
 import os
+
+
+def _is_cuda_oom_error(exc: BaseException) -> bool:
+    """Return True when exception indicates a CUDA OOM condition."""
+    if isinstance(exc, torch.OutOfMemoryError):
+        return True
+    msg = str(exc).lower()
+    return "cuda out of memory" in msg or "cudnn_status_alloc_failed" in msg
+
+
+def _cleanup_cuda_memory():
+    """Release cached CUDA memory between retries."""
+    gc.collect()
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+        try:
+            torch.cuda.ipc_collect()
+        except Exception:
+            pass
 
 
 def setup_directories_and_logging(config: TrainingConfig, model_name: str) -> Tuple[str, object]:
@@ -74,74 +94,111 @@ def train_model(config: TrainingConfig, model_name: str, streaming: bool = False
     print(f"Max Num Epochs: {config.max_nr_epochs}")
     if config.max_train_steps is not None:
         print(f"Max Train Steps: {config.max_train_steps}")
-    config.save(os.path.join(run_dir))
-
-    # Initialize model
-    model = config.model_class(**config.model_args)
     cache_dir = os.getenv("HF_CACHE_DIR")
     fast_cache_dir = os.getenv("FAST_CACHE_DIR")
     cache_manager = cacheManager(cache_dir, fast_cache_dir)
-    
-    # Load and prepare data
-    
-    dataloaders = initialize_dataloaders(config, cache_manager, streaming=streaming)
 
+    max_retries = max(0, int(config.oom_max_retries)) if config.oom_retry_enabled else 0
+    attempt = 0
 
-    # Setup training
-    device = get_device()
-    criterion = config.criterion()
-    optimizer = config.optimizer(model.parameters(), lr=config.learning_rate, weight_decay=config.weight_decay)
+    while True:
+        model = None
+        dataloaders = None
+        try:
+            config.save(os.path.join(run_dir))
 
-    # Set up device and CUDA settings before moving model to device 
-    if device.type == "cuda":
-        # Throughput-oriented CUDA backend settings.
-        torch.backends.cudnn.benchmark = True
-        torch.backends.cuda.matmul.allow_tf32 = True
-        torch.backends.cudnn.allow_tf32 = True
-        torch.set_float32_matmul_precision("high") 
+            # Initialize model and data for this attempt (batch size may change after OOM).
+            model = config.model_class(**config.model_args)
+            dataloaders = initialize_dataloaders(config, cache_manager, streaming=streaming)
 
-    model.to(device)
-    if config.compile_model:
-        print("Compiling model with torch.compile() for potentially faster training.")
-        model = torch.compile(model)
-        print("Warming up compiled model...")
-        _warmup(model, dataloaders["train"], optimizer, criterion, device, steps=5)
-    
-    
+            # Setup training
+            device = get_device()
+            criterion = config.criterion()
+            optimizer = config.optimizer(model.parameters(), lr=config.learning_rate, weight_decay=config.weight_decay)
 
-    # Train
-    model_state_dict, nr_epochs, metrics = training_loop(
-        model=model,
-        model_folder=run_dir,
-        trainloader=dataloaders["train"],
-        validationloader=dataloaders["validation"],
-        optimizer=optimizer,
-        criterion=criterion,
-        max_epochs=config.max_nr_epochs,
-        max_train_steps=config.max_train_steps,
-        steps_per_epoch=config.steps_per_epoch,
-        eval_every_steps=config.eval_every_steps,
-        log_every_steps=config.log_every_steps,
-        validation_max_batches=config.validation_max_batches,
-        patience=config.patience,
-        time_limit=config.time_limit
-    )
+            # Set up device and CUDA settings before moving model to device
+            if device.type == "cuda":
+                # Throughput-oriented CUDA backend settings.
+                torch.backends.cudnn.benchmark = True
+                torch.backends.cuda.matmul.allow_tf32 = True
+                torch.backends.cudnn.allow_tf32 = True
+                torch.set_float32_matmul_precision("high")
 
-    model.load_state_dict(model_state_dict)
+            model.to(device)
+            if config.compile_model:
+                print("Compiling model with torch.compile() for potentially faster training.")
+                model = torch.compile(model)
+                print("Warming up compiled model...")
+                _warmup(model, dataloaders["train"], optimizer, criterion, device, steps=5)
 
-    model_testing(
-        model,
-        dataloaders["test"],
-        criterion,
-        device,
-        output_dir=run_dir,
-        max_batches=config.test_max_batches,
-    )
-    save_results(model_state_dict, run_dir, model_name, metrics)
-    # cleanup
-    del model
-    torch.cuda.empty_cache()
-    print("Training complete.")
+            # Train
+            model_state_dict, nr_epochs, metrics = training_loop(
+                model=model,
+                model_folder=run_dir,
+                trainloader=dataloaders["train"],
+                validationloader=dataloaders["validation"],
+                optimizer=optimizer,
+                criterion=criterion,
+                max_epochs=config.max_nr_epochs,
+                max_train_steps=config.max_train_steps,
+                steps_per_epoch=config.steps_per_epoch,
+                eval_every_steps=config.eval_every_steps,
+                log_every_steps=config.log_every_steps,
+                validation_max_batches=config.validation_max_batches,
+                patience=config.patience,
+                time_limit=config.time_limit
+            )
+
+            model.load_state_dict(model_state_dict)
+
+            model_testing(
+                model,
+                dataloaders["test"],
+                criterion,
+                device,
+                output_dir=run_dir,
+                max_batches=config.test_max_batches,
+            )
+            save_results(model_state_dict, run_dir, model_name, metrics)
+            print("Training complete.")
+            break
+
+        except Exception as exc:
+            is_oom = _is_cuda_oom_error(exc)
+            can_retry = (
+                is_oom
+                and torch.cuda.is_available()
+                and config.oom_retry_enabled
+                and attempt < max_retries
+                and config.batch_size > max(1, int(config.min_batch_size))
+            )
+
+            if not can_retry:
+                raise
+
+            old_batch_size = int(config.batch_size)
+            new_batch_size = max(int(config.min_batch_size), old_batch_size // 2)
+
+            if new_batch_size >= old_batch_size:
+                raise
+
+            attempt += 1
+            print(
+                f"CUDA OOM detected (attempt {attempt}/{max_retries}). "
+                f"Reducing batch size from {old_batch_size} to {new_batch_size} and retrying..."
+            )
+            if config.compile_model and config.disable_compile_on_oom:
+                print("Disabling torch.compile after CUDA OOM to reduce memory pressure on retry.")
+                config.compile_model = False
+            config.batch_size = new_batch_size
+            _cleanup_cuda_memory()
+
+        finally:
+            if model is not None:
+                del model
+            if dataloaders is not None:
+                del dataloaders
+            _cleanup_cuda_memory()
 
 
 

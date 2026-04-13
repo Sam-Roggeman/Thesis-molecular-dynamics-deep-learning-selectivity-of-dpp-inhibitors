@@ -56,6 +56,14 @@ class TrainingConfig:
     # Log training metrics every N train steps.
     log_every_steps: int = 100
     compile_model: bool = True
+    # Automatically retry training on CUDA OOM by lowering batch size.
+    oom_retry_enabled: bool = True
+    # Maximum number of CUDA OOM retries per run.
+    oom_max_retries: int = 3
+    # Smallest batch size allowed when retrying after CUDA OOM.
+    min_batch_size: int = 8
+    # Disable torch.compile after CUDA OOM to reduce memory pressure.
+    disable_compile_on_oom: bool = True
 
     # Loss function factory/callable.
     criterion: Callable = CrossEntropyLoss
