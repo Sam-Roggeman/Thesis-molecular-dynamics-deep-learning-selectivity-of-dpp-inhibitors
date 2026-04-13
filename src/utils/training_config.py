@@ -56,6 +56,8 @@ class TrainingConfig:
     # Log training metrics every N train steps.
     log_every_steps: int = 100
     compile_model: bool = True
+    # Number of explicit warmup train steps after torch.compile. Set to 0 to disable.
+    compile_warmup_steps: int = 5
     # Automatically retry training on CUDA OOM by lowering batch size.
     oom_retry_enabled: bool = True
     # Maximum number of CUDA OOM retries per run.
