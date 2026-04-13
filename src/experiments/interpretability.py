@@ -13,7 +13,7 @@ from src.Models.DCNN import CustomDenseNet
 from src.Models.LinearAttentionTransformerPP import LinearAttentionTransformerPP
 from src.Models.OneLayer import OneLayerNet
 from src.Models.SimpleCNN import SimpleCNN
-from src.data_loading.HFDataloader import initialize_dataloaders
+from src.data_loading.HFDataloader import initialize_dataloaders, initialize_streaming_dataloader
 from src.model_training.LabelEncoder import LabelEncoder
 from src.utils.interpretability import CaptumInterpreter
 from src.utils.training_config import TrainingConfig
@@ -143,6 +143,7 @@ def _save_heatmaps(
     method: str,
     output_dir: str,
     start_index: int = 0,
+    dpp_labels: list[str | None] | None = None,
 ) -> None:
     """Save per-sample visualizations: input, heatmap, and overlay."""
     os.makedirs(output_dir, exist_ok=True)
@@ -170,7 +171,7 @@ def _save_heatmaps(
         pred_idx = int(preds[idx].item())
         true_name = class_names[true_idx] if true_idx < len(class_names) else str(true_idx)
         pred_name = class_names[pred_idx] if pred_idx < len(class_names) else str(pred_idx)
-        fig.suptitle(f"Method={method} | true={true_name} | pred={pred_name}")
+        fig.suptitle(f"Method={method} | true={true_name} | pred={pred_name} | DPP={dpp_labels[idx] if dpp_labels is not None else None}", fontsize=10)
 
         filename = os.path.join(output_dir, f"{method}_sample_{start_index + idx:05d}.png")
         plt.tight_layout()
@@ -213,6 +214,38 @@ def _normalize_dpp_label(raw_value) -> str | None:
         return "dpp9"
     return None
 
+
+def _prepare_inputs_for_captum(sample: torch.Tensor) -> torch.Tensor:
+    """Ensure sample tensor is in the right shape and on the right device for Captum."""
+    if sample.ndim == 1:
+        edge = int((sample.numel() / 3) ** 0.5)
+        return sample.view(3, edge, edge)
+    if sample.ndim == 3:
+        return sample
+    raise ValueError(f"Unsupported sample shape {tuple(sample.shape)}. Expected [C,H,W] or flat [features].")
+
+
+def apply_method(method, interpreter: CaptumInterpreter, inputs, target, *args):
+    # target controls which class score gradients are taken from.
+    # None means Captum uses its default behavior (often predicted class per sample).
+    if method == "integrated_gradients":
+        # Integrated Gradients compares predictions along a path from baseline -> input.
+        result = interpreter.integrated_gradients(
+            inputs,
+            target=target,
+            baselines=torch.zeros_like(inputs),
+            n_steps=args.n_steps,
+            internal_batch_size=args.ig_batch_size,
+        )
+    elif method == "saliency":
+        # Saliency uses the raw input gradient magnitude as importance.
+        result = interpreter.saliency(inputs, target=target)
+    elif method == "guided_backprop":
+        # Guided Backprop modifies backward ReLU flow for sharper maps.
+        result = interpreter.guided_backprop(inputs, target=target)
+    else:
+        raise ValueError(f"Unsupported method requested: {method}")
+    return result
 
 def main():
     """Run Captum methods on a checkpoint and export attribution visualizations."""
@@ -259,22 +292,39 @@ def main():
         choices=["auto", "cuda", "cpu"],
         help="Device used for attribution computations",
     )
-    parser.add_argument("--target", type=int, default=None, help="Optional class index target")
-    parser.add_argument("--output-dir", default=None, help="Output folder for heatmaps")
+    parser.add_argument(
+        "--target",
+        type=int,
+        default=None,
+        help=(
+            "Optional target class index for attributions. "
+            "If omitted, attributions are computed with Captum's default target behavior."
+        ),
+    )
+    parser.add_argument("--output-dir", default=None, help="Output folder for heatmaps, defaults to checkpoint_dir/interpretability/<timestamp>/")
     parser.add_argument(
         "--no-individual-plots",
         action="store_true",
         help="Disable per-sample plots and only save aggregated hotspot maps",
     )
+    # add a streaming flag to force using streaming dataloader, default False
+    parser.add_argument(
+        "--streaming",
+        action="store_true",
+        help="Force using streaming dataloader. By default, the script tries to initialize the regular dataloader and falls back to streaming if it fails. Use this flag to skip the \
+         regular dataloader initialization entirely.",
+    )
     args = parser.parse_args()
 
     # Load optional env vars (for datasets, tokens, cache locations, etc.).
     load_dotenv()
-
     # 2) Restore training configuration and checkpoint.
     if not os.path.exists(args.checkpoint):
         raise FileNotFoundError(f"Checkpoint not found: {args.checkpoint}")
-
+    if not args.output_dir:
+        checkpoint_dir = os.path.dirname(args.checkpoint)
+        run_name = datetime.now().strftime("%Y%m%d-%H%M%S")
+        args.output_dir = os.path.join(checkpoint_dir, "interpretability", run_name)
     config = _load_config_from_artifacts(args.config, args.checkpoint)
     if config is None:
         raise ValueError(
@@ -289,7 +339,12 @@ def main():
         config.batch_size = args.batch_size
 
     # Build dataloader for only the split requested by the user.
-    dataloaders = initialize_dataloaders(config, splits=[args.split], keep_all_columns=True)
+    if args.streaming:
+        print("Initializing streaming dataloader...")
+        dataloaders = initialize_streaming_dataloader(config, splits=[args.split], keep_all_columns=True, shuffle=True)
+    else:
+        print("Initializing regular dataloader...")
+        dataloaders = initialize_dataloaders(config, splits=[args.split], keep_all_columns=True)
     data_iter = iter(dataloaders[args.split])
 
     # Initialize model, then load learned weights.
@@ -305,12 +360,10 @@ def main():
 
     # 3) Create output directory for this run.
     base_output_dir = args.output_dir
-    if base_output_dir is None:
-        checkpoint_dir = os.path.dirname(args.checkpoint)
-        run_name = datetime.now().strftime("%Y%m%d-%H%M%S")
-        base_output_dir = os.path.join(checkpoint_dir, "interpretability", run_name)
-    os.makedirs(base_output_dir, exist_ok=True)
+    os.makedirs(args.output_dir, exist_ok=True)
 
+    # Fixed class index to explain (e.g. force class 0 across all samples).
+    # Leave as None to explain each sample using Captum's default target behavior.
     target = args.target if args.target is not None else None
 
     # Running sums used to compute average hotspot maps later.
@@ -351,6 +404,7 @@ def main():
 
         inputs = batch["data"]
         labels = batch["labels"]
+        dpp_labels = batch.get("dpp_class")  # Keep raw DPP labels for per-class aggregation and display, if available.
         dpp_raw = batch.get("dpp_class")
 
         if args.max_samples is not None:
@@ -380,30 +434,17 @@ def main():
         inputs = inputs.to(device).clone().detach().requires_grad_(True)
         labels = labels.to(device)
 
+        # We only need predicted labels for reporting/plot titles here,
+        # so disable gradient tracking for this forward pass.
         with torch.no_grad():
+            # Logits are raw class scores before softmax (classification): shape [batch, num_classes].
             logits = model(inputs)
+            # Select the class index with the highest score for each sample.
             preds = torch.argmax(logits, dim=1)
 
         # Run each selected attribution method on the same batch.
         for method in args.methods:
-            if method == "integrated_gradients":
-                # Integrated Gradients compares predictions along a path from baseline -> input.
-                result = interpreter.integrated_gradients(
-                    inputs,
-                    target=target,
-                    baselines=torch.zeros_like(inputs),
-                    n_steps=args.n_steps,
-                    internal_batch_size=args.ig_batch_size,
-                )
-            elif method == "saliency":
-                # Saliency uses the raw input gradient magnitude as importance.
-                result = interpreter.saliency(inputs, target=target)
-            elif method == "guided_backprop":
-                # Guided Backprop modifies backward ReLU flow for sharper maps.
-                result = interpreter.guided_backprop(inputs, target=target)
-            else:
-                raise ValueError(f"Unsupported method requested: {method}")
-
+            result = apply_method(method, interpreter, inputs, target, args)
             # result.attributions is the per-input-feature importance tensor.
             # Typical shape is [batch, channels, height, width] for image-like inputs.
             heatmaps = CaptumInterpreter.summarize_attributions(
@@ -469,6 +510,7 @@ def main():
                     method=method,
                     output_dir=method_dir,
                     start_index=processed_samples,
+                    dpp_labels = dpp_labels
                 )
 
             if result.convergence_delta is not None:
@@ -564,3 +606,5 @@ def main():
 if __name__ == "__main__":
     # Script entry point.
     main()
+
+

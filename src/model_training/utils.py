@@ -94,6 +94,13 @@ def _train_single_batch(model, batch, optimizer, criterion, device):
     model.train()
     inputs, labels = prepare_model_batch(batch, device, scramble=True)
 
+    return _train_single_batch_prepared(model, inputs, labels, optimizer, criterion)
+
+
+def _train_single_batch_prepared(model, inputs, labels, optimizer, criterion):
+    """Train one already-prepared batch and return correct predictions, sample count and loss."""
+    model.train()
+
     optimizer.zero_grad()
     outputs = model(inputs)
     loss = criterion(outputs, labels)
@@ -104,6 +111,54 @@ def _train_single_batch(model, batch, optimizer, criterion, device):
     batch_total = labels.size(0)
     batch_correct = (predicted == labels).sum().item()
     return batch_correct, batch_total, loss.item()
+
+
+class CUDABatchPrefetcher:
+    """Prefetch and preprocess the next batch on a dedicated CUDA stream."""
+
+    def __init__(self, dataloader, device, scramble=True):
+        self.dataloader = dataloader
+        self.device = device
+        self.scramble = scramble
+        self.stream = torch.cuda.Stream(device=device)
+        self.loader_iter = None
+        self.next_inputs = None
+        self.next_labels = None
+
+    def reset(self):
+        self.loader_iter = iter(self.dataloader)
+        self._preload()
+
+    def _preload(self):
+        try:
+            batch = next(self.loader_iter)
+        except StopIteration:
+            self.next_inputs = None
+            self.next_labels = None
+            return
+
+        with torch.cuda.stream(self.stream):
+            inputs, labels = prepare_model_batch(batch, self.device, scramble=self.scramble)
+            self.next_inputs = inputs
+            self.next_labels = labels
+
+    def next(self):
+        if self.next_inputs is None:
+            raise StopIteration
+
+        current_stream = torch.cuda.current_stream(self.device)
+        current_stream.wait_stream(self.stream)
+
+        inputs = self.next_inputs
+        labels = self.next_labels
+
+        if torch.is_tensor(inputs) and inputs.is_cuda:
+            inputs.record_stream(current_stream)
+        if torch.is_tensor(labels) and labels.is_cuda:
+            labels.record_stream(current_stream)
+
+        self._preload()
+        return inputs, labels
 
 
 def _safe_len(dataloader):
@@ -127,6 +182,7 @@ def training_loop(
     steps_per_epoch=1000,
     eval_every_steps=1000,
     log_every_steps=100,
+    use_cuda_prefetcher=True,
     validation_max_batches=None,
     patience=10,
     time_limit=None,
@@ -186,6 +242,11 @@ def training_loop(
 
     global_step = 0
     train_iter = iter(trainloader)
+    prefetcher = None
+    if device.type == "cuda" and use_cuda_prefetcher:
+        print("CUDA prefetcher enabled: overlapping next-batch preprocessing with current compute.")
+        prefetcher = CUDABatchPrefetcher(trainloader, device=device, scramble=True)
+        prefetcher.reset()
     interval_correct = 0
     interval_total = 0
     interval_loss = 0.0
@@ -197,12 +258,19 @@ def training_loop(
     while global_step < max_train_steps:
         model.train()
         data_wait_start = time.time()
-        # Get next batch, or restart the iterator if we've reached the end of the dataloader
         try:
-            batch = next(train_iter)
+            if prefetcher is not None:
+                inputs, labels = prefetcher.next()
+            else:
+                # Get next batch, or restart iterator if we've reached end of dataloader.
+                batch = next(train_iter)
         except StopIteration:
-            train_iter = iter(trainloader)
-            batch = next(train_iter)
+            if prefetcher is not None:
+                prefetcher.reset()
+                inputs, labels = prefetcher.next()
+            else:
+                train_iter = iter(trainloader)
+                batch = next(train_iter)
         except RuntimeError as exc:
             if "DataLoader worker" in str(exc):
                 raise RuntimeError(
@@ -215,7 +283,16 @@ def training_loop(
         interval_data_wait += time.time() - data_wait_start
 
         compute_start = time.time()
-        batch_correct, batch_total, batch_loss = _train_single_batch(model, batch, optimizer, criterion, device)
+        if prefetcher is not None:
+            batch_correct, batch_total, batch_loss = _train_single_batch_prepared(
+                model,
+                inputs,
+                labels,
+                optimizer,
+                criterion,
+            )
+        else:
+            batch_correct, batch_total, batch_loss = _train_single_batch(model, batch, optimizer, criterion, device)
         interval_compute_time += time.time() - compute_start
         global_step += 1
 
@@ -241,7 +318,11 @@ def training_loop(
                 f"Samples/s: {samples_per_sec:.1f} | "
                 f"Data Wait Share: {data_wait_fraction * 100:.1f}%"
             )
-        batch = None  # Free batch memory
+        if prefetcher is not None:
+            inputs = None
+            labels = None
+        else:
+            batch = None  # Free batch memory
         should_eval = (global_step % eval_every_steps == 0) or (global_step == max_train_steps)
         if should_eval:
             model.eval()

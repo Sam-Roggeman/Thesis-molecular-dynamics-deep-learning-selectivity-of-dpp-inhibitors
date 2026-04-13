@@ -1,5 +1,27 @@
 import torch
 from sklearn.metrics import precision_score, recall_score, f1_score, accuracy_score, confusion_matrix
+import logging
+from src.model_training.batch_preprocessing import prepare_model_batch
+
+def _compute_label_prediction_statistics(labels, predictions, statistics_to_compute):
+    stats = {}
+    if len(labels) == 0:
+        return stats
+
+    if "accuracy" in statistics_to_compute:
+        stats["accuracy"] = accuracy_score(labels, predictions)
+    if "precision" in statistics_to_compute:
+        stats["precision"] = precision_score(labels, predictions, average='weighted', zero_division=0)
+    if "recall" in statistics_to_compute:
+        stats["recall"] = recall_score(labels, predictions, average='weighted', zero_division=0)
+    if "f1_score" in statistics_to_compute:
+        stats["f1_score"] = f1_score(labels, predictions, average='weighted', zero_division=0)
+    if "confusion_matrix" in statistics_to_compute:
+        # make sure to specify labels to include all classes even if some are missing in this subset
+        stats["confusion_matrix"] = confusion_matrix(labels, predictions, labels=list(range(5)))
+        stats["confusion_matrix_normalized"] = confusion_matrix(labels, predictions, normalize='true', labels=list(range(5)))
+
+    return stats
 
 def calculate_statistics(model, dataloader, criterion, device, max_batches: int | None = None, statistics_to_compute: list[str] | None = None) -> dict[str, float]:
     """Calculate specified statistics for a model on a given dataloader. Loop over the dataloader and compute the specified statistics for each batch, then average them over the entire dataloader.
@@ -21,27 +43,48 @@ def calculate_statistics(model, dataloader, criterion, device, max_batches: int 
     all_predictions = []
     total_loss = 0.0
     num_batches = 0
+    dpp_class_examples = {
+        "dpp8": {"labels": [], "predictions": []},
+        "dpp9": {"labels": [], "predictions": []},
+    }
+    has_dpp_class = False
 
     model.to(device)
     model.eval()
 
     with torch.no_grad():
         for batch_idx, data in enumerate(dataloader):
-            print(f"Processing batch {batch_idx + 1}...", end="\r")
+            logging.debug(f"Processing batch {batch_idx + 1}...")
             if max_batches is not None and batch_idx >= max_batches:
                 break
-            images, labels = data["data"], data["labels"]
-            images, labels = images.to(device), labels.to(device)
+            images, labels = prepare_model_batch(data, device, scramble=False)
             outputs = model(images)
             loss = criterion(outputs, labels)
             total_loss += loss.item()
             num_batches += 1
 
             _, predicted = torch.max(outputs.data, 1)
-            all_labels.extend(labels.cpu().numpy())
-            all_predictions.extend(predicted.cpu().numpy())
+            labels_cpu = labels.cpu().numpy()
+            predicted_cpu = predicted.cpu().numpy()
 
+            all_labels.extend(labels_cpu)
+            all_predictions.extend(predicted_cpu)
+
+            if "dpp_class" in data:
+                has_dpp_class = True
+                dpp_values = data["dpp_class"]
+                if isinstance(dpp_values, torch.Tensor):
+                    dpp_values = dpp_values.cpu().numpy()
+                for label, prediction, dpp_value in zip(labels_cpu, predicted_cpu, dpp_values):
+                    if dpp_value is None:
+                        continue
+                    dpp_class_examples[dpp_value]["labels"].append(label)
+                    dpp_class_examples[dpp_value]["predictions"].append(prediction)
+
+    # statistics -> dpp_class -> accuracy, loss, precision, recall, f1_score, confusion_matrix    
     statistics = {}
+
+    
     if "accuracy" in statistics_to_compute:
         statistics["accuracy"] = accuracy_score(all_labels, all_predictions)
     if "loss" in statistics_to_compute:
@@ -55,6 +98,28 @@ def calculate_statistics(model, dataloader, criterion, device, max_batches: int 
     if "confusion_matrix" in statistics_to_compute:
         statistics["confusion_matrix"] = confusion_matrix(all_labels, all_predictions, labels=list(range(5)))
         statistics["confusion_matrix_normalized"] = confusion_matrix(all_labels, all_predictions, normalize='true', labels=list(range(5)))
+
+    if has_dpp_class or any(len(v["labels"]) > 0 for v in dpp_class_examples.values()):
+        statistics["dpp_class"] = {}
+        dpp8_count = len(dpp_class_examples["dpp8"]["labels"])
+        dpp9_count = len(dpp_class_examples["dpp9"]["labels"])
+
+        for group_name in ["dpp8", "dpp9"]:
+            group_stats = _compute_label_prediction_statistics(
+                dpp_class_examples[group_name]["labels"],
+                dpp_class_examples[group_name]["predictions"],
+                statistics_to_compute,
+            )
+            group_stats["num_examples"] = len(dpp_class_examples[group_name]["labels"])
+            statistics["dpp_class"][group_name] = group_stats
+
+        weighted_accuracy_numerator = 0.0
+        if dpp8_count > 0:
+            weighted_accuracy_numerator += statistics["dpp_class"]["dpp8"].get("accuracy", 0.0) * dpp8_count
+        if dpp9_count > 0:
+            weighted_accuracy_numerator += statistics["dpp_class"]["dpp9"].get("accuracy", 0.0) * dpp9_count
+
+
 
     return statistics
 
@@ -72,8 +137,7 @@ def calculate_accuracy_and_loss(model, dataloader, criterion, device, max_batche
         for batch_idx, data in enumerate(dataloader):
             if max_batches is not None and batch_idx >= max_batches:
                 break
-            images, labels = data["data"], data["labels"]
-            images, labels = images.to(device), labels.to(device)
+            images, labels = prepare_model_batch(data, device, scramble=False)
 
             outputs = model(images)
             loss = criterion(outputs, labels)
@@ -100,8 +164,7 @@ def calculate_precision_recall_f1(model, dataloader, device, max_batches: int | 
         for batch_idx, data in enumerate(dataloader):
             if max_batches is not None and batch_idx >= max_batches:
                 break
-            images, labels = data["data"], data["labels"]
-            images, labels = images.to(device), labels.to(device)
+            images, labels = prepare_model_batch(data, device, scramble=False)
             outputs = model(images)
             _, predicted = torch.max(outputs.data, 1)
             all_labels.extend(labels.cpu().numpy())

@@ -35,6 +35,7 @@ def apply_image_transform(examples_data, examples_labels, real_nr_atoms):
     
     return {"data": examples_data, "labels": examples_labels}
 
+
 def apply_image_transform_noscramble(examples_data, examples_labels, real_nr_atoms):
     """Apply transform without scrambling: pad → normalize → RGB tensor."""
     rgb_transformer, _, padder, encoder = _get_transforms()

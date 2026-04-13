@@ -1,18 +1,17 @@
-from logging import config
 from typing import Tuple, Dict, Any
 import os
-from networkx import config
-from datetime import datetime
 import gc
+from datetime import datetime
 import torch
 from dotenv import load_dotenv
 from torch import optim, split, split
 from huggingface_hub import HfApi
 import sys
-
+from torch import optim, split
 from torch.utils.data import DataLoader
 from src.data_loading.HFDataloader import initialize_streaming_dataloader, initialize_dataloaders
 from src.data_postprocessing.model_testing import model_testing
+from src.model_training.batch_preprocessing import prepare_model_batch
 from src.model_training.metric_functions import all_statistics
 from src.model_training.utils import _train_single_batch, get_device, get_subset, training_loop
 from src.utils.cacheManager import cacheManager
@@ -83,7 +82,14 @@ def _warmup(model, dataloader, optimizer, criterion, device, steps=5):
             break
         fetch_elapsed = (datetime.now() - fetch_start).total_seconds()
         step_start = datetime.now()
-        _train_single_batch(model, batch, optimizer, criterion, device)
+        model.train()
+        inputs, labels = prepare_model_batch(batch, device, scramble=True)
+        optimizer.zero_grad(set_to_none=True)
+        outputs = model(inputs)
+        loss = criterion(outputs, labels)
+        loss.backward()
+        # Warmup is for graph capture/compilation only: do not update weights here.
+        optimizer.zero_grad(set_to_none=True)
         step_elapsed = (datetime.now() - step_start).total_seconds()
         print(f"Warmup step {step_idx + 1}/{steps}: fetch={fetch_elapsed:.2f}s, train_step={step_elapsed:.2f}s")
     if torch.cuda.is_available():
@@ -154,6 +160,7 @@ def train_model(config: TrainingConfig, model_name: str, streaming: bool = False
                 steps_per_epoch=config.steps_per_epoch,
                 eval_every_steps=config.eval_every_steps,
                 log_every_steps=config.log_every_steps,
+                use_cuda_prefetcher=config.use_cuda_prefetcher,
                 validation_max_batches=config.validation_max_batches,
                 patience=config.patience,
                 time_limit=config.time_limit

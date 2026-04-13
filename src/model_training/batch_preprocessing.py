@@ -12,12 +12,17 @@ def _labels_to_tensor(labels, device):
         return labels.to(device=device, dtype=torch.long, non_blocking=True)
 
     if isinstance(labels, (list, tuple)):
-        encoded = label_encoder.encode_labels(labels)
-        return torch.tensor(encoded, dtype=torch.long, device=device)
+        if len(labels) == 0:
+            return torch.empty(0, dtype=torch.long, device=device)
+        first = labels[0]
+        if isinstance(first, str):
+            encoded = label_encoder.encode_labels(labels)
+            return torch.tensor(encoded, dtype=torch.long, device=device)
+        return torch.as_tensor(labels, dtype=torch.long, device=device)
 
     # Scalar label fallback.
     if isinstance(labels, str):
-        return torch.tensor([label_encoder.encode(labels)], dtype=torch.long, device=device)
+        return torch.tensor([label_encoder.encode_label(labels)], dtype=torch.long, device=device)
     return torch.tensor([int(labels)], dtype=torch.long, device=device)
 
 
@@ -27,6 +32,15 @@ def _coords_to_tensor(batch_data, device):
 
     if isinstance(batch_data, (list, tuple)) and len(batch_data) > 0 and torch.is_tensor(batch_data[0]):
         return torch.stack([x.to(dtype=torch.float32) for x in batch_data], dim=0).to(device=device, non_blocking=True)
+
+    # Fast path for pre-packed fixed-shape batches (e.g., [B, TARGET_PIXELS, 3]).
+    if isinstance(batch_data, (list, tuple)) and len(batch_data) > 0:
+        try:
+            packed = torch.as_tensor(batch_data, dtype=torch.float32)
+            if packed.ndim == 3 and packed.shape[-1] == 3:
+                return packed.to(device=device, non_blocking=True)
+        except Exception:
+            pass
 
     if isinstance(batch_data, (list, tuple)):
         tensor_list = [torch.as_tensor(item, dtype=torch.float32) for item in batch_data]

@@ -222,3 +222,4 @@ gpulab_env/
 output/
 .vscode/launch.json
 .vscode/tasks.json
+.vscode/run_current_file_as_module.py

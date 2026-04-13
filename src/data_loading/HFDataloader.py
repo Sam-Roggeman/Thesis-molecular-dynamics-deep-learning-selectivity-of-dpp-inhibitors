@@ -2,12 +2,57 @@ import shutil
 
 import datasets
 import os
+import numpy as np
 
 import torch
+from src.model_training.LabelEncoder import LabelEncoder
+from src.model_training.batch_preprocessing import TARGET_PIXELS
 from src.utils.cacheManager import cacheManager, construct_file_name
 from src.utils.training_config import TrainingConfig
 
 import resource
+
+
+label_encoder = LabelEncoder()
+
+
+def _encode_and_pack_batch(batch):
+    labels = batch.get("labels")
+    data = batch.get("data")
+
+    if labels is None and data is None:
+        return batch
+
+    encoded = []
+    if labels is not None:
+        for label in labels:
+            if isinstance(label, str):
+                encoded.append(label_encoder.encode_label(label))
+            else:
+                encoded.append(int(label))
+
+    if data is None:
+        return {"labels": encoded}
+
+    batch_size = len(data)
+    packed = np.zeros((batch_size, TARGET_PIXELS, 3), dtype=np.float32)
+    num_atoms = np.zeros((batch_size,), dtype=np.int16)
+    for i, coords in enumerate(data):
+        arr = np.asarray(coords, dtype=np.float32)
+        if arr.ndim == 1:
+            arr = arr.reshape(-1, 3)
+        elif arr.ndim != 2 or arr.shape[1] != 3:
+            arr = arr.reshape(-1, 3)
+
+        n = min(arr.shape[0], TARGET_PIXELS)
+        if n > 0:
+            packed[i, :n, :] = arr[:n, :]
+        num_atoms[i] = n
+
+    result = {"data": packed, "num_atoms": num_atoms}
+    if labels is not None:
+        result["labels"] = encoded
+    return result
 
 
 def _collate_raw_batch(batch):
@@ -89,7 +134,7 @@ def _download_streaming_dataset(config: TrainingConfig, splits: list = ["train",
 # Define a type for the dataloader dict
 DataLoaderDict = dict[str, torch.utils.data.DataLoader]
 
-def initialize_dataloaders(config: TrainingConfig, cache_manager: cacheManager,splits=None, keep_all_columns: bool = False, streaming: bool = False) -> DataLoaderDict:
+def initialize_dataloaders(config: TrainingConfig, cache_manager: cacheManager, splits=None, keep_all_columns: bool = False, streaming: bool = False) -> DataLoaderDict:
     """
     Initialize the dataloader for training.
     """
@@ -105,7 +150,17 @@ def initialize_dataloaders(config: TrainingConfig, cache_manager: cacheManager,s
     
     print("\t...initializing_dataloader complete")
     dataset_dict = dataset_dict.rename_columns({'coordinates': 'data', 'binding_type': 'labels'})
-    print("\tSkipping dataset.map transforms; using on-the-fly batch preprocessing.")
+    print("\tPre-encoding labels and packing coordinates into fixed-size tensors in dataset artifacts...")
+    for split in splits:
+        dataset_dict[split] = dataset_dict[split].map(
+            _encode_and_pack_batch,
+            batched=True,
+            batch_size=max(1, int(config.transform_batch_size)),
+            num_proc=max(1, int(config.num_cpus)),
+            desc=f"Encoding labels and packing coords for {split}",
+            cache_file_name=cache_manager.get_file_path(construct_file_name(config.dataset_location, split, "labels_and_coords_packed", config.dataset_size))
+        )
+    print("\tDataset map preprocessing done; using fast fixed-shape batch path.")
     if not keep_all_columns:
         drop_cols = [
             c for c in ['pdb_id', 'ligand_name', 'replica_id']
@@ -142,6 +197,14 @@ def initialize_streaming_dataloader(config: TrainingConfig, keep_all_columns: bo
     dataset_dict: datasets.IterableDatasetDict = _download_streaming_dataset(config, splits=splits, shuffle=shuffle)
 
     dataset_dict = dataset_dict.rename_columns({'coordinates': 'data', 'binding_type': 'labels'})
+    print("\tEncoding labels and packing coordinates in streaming pipeline...")
+    for split in splits:
+        if split in dataset_dict:
+            dataset_dict[split] = dataset_dict[split].map(
+                _encode_and_pack_batch,
+                batched=True,
+                batch_size=max(1, int(config.transform_batch_size)),
+            )
     if not keep_all_columns:
         drop_cols = ['pdb_id', 'ligand_name']
         for split in splits:
