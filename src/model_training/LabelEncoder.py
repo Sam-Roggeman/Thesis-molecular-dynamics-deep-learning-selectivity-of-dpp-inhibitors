@@ -21,6 +21,7 @@ class LabelEncoder:
         reverse_mapping = {v: k for k, v in self.label_mapping.items()}
         labels = [reverse_mapping[encoded_label] for encoded_label in encoded_labels]
         return labels
-
+    def encode_label(self, label):
+        return self.label_mapping[label]
     def get_classes(self):
         return list(self.label_mapping.keys())

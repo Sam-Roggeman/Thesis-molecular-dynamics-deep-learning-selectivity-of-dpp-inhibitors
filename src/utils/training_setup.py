@@ -75,13 +75,19 @@ def save_results(model_state_dict, model_dir: str, model_name: str, metrics):
 
 def _warmup(model, dataloader, optimizer, criterion, device, steps=5):
     train_iter = iter(dataloader)
-    for _ in range(steps):
+    for step_idx in range(steps):
+        fetch_start = datetime.now()
         try:
             batch = next(train_iter)
         except StopIteration:
             break
+        fetch_elapsed = (datetime.now() - fetch_start).total_seconds()
+        step_start = datetime.now()
         _train_single_batch(model, batch, optimizer, criterion, device)
-    torch.cuda.synchronize()
+        step_elapsed = (datetime.now() - step_start).total_seconds()
+        print(f"Warmup step {step_idx + 1}/{steps}: fetch={fetch_elapsed:.2f}s, train_step={step_elapsed:.2f}s")
+    if torch.cuda.is_available():
+        torch.cuda.synchronize()
 
 def train_model(config: TrainingConfig, model_name: str, streaming: bool = False):
     """Main training function - single entry point for all models"""
@@ -128,8 +134,12 @@ def train_model(config: TrainingConfig, model_name: str, streaming: bool = False
             if config.compile_model:
                 print("Compiling model with torch.compile() for potentially faster training.")
                 model = torch.compile(model)
-                print("Warming up compiled model...")
-                _warmup(model, dataloaders["train"], optimizer, criterion, device, steps=5)
+                warmup_steps = max(0, int(getattr(config, "compile_warmup_steps", 1)))
+                if warmup_steps > 0:
+                    print(f"Warming up compiled model for {warmup_steps} step(s)...")
+                    _warmup(model, dataloaders["train"], optimizer, criterion, device, steps=warmup_steps)
+                else:
+                    print("Skipping explicit compile warmup (compile_warmup_steps=0).")
 
             # Train
             model_state_dict, nr_epochs, metrics = training_loop(
