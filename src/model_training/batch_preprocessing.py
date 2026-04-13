@@ -66,24 +66,55 @@ def _rodrigues_rotation_matrix(vector, random_vector, device):
 def _scramble_in_place(coords, num_atoms, diameter=140.0):
     radius = diameter / 2.0
     device = coords.device
-    for i in range(coords.shape[0]):
-        n_real = int(num_atoms[i].item())
-        n_real = max(1, min(n_real, coords.shape[1]))
-        frame = coords[i, :n_real]
+    batch_size, seq_len, _ = coords.shape
 
-        if n_real >= 2:
-            random_vector = torch.randn(3, device=device, dtype=coords.dtype)
-            random_vector = random_vector / torch.linalg.norm(random_vector).clamp_min(1e-8)
+    n_real = num_atoms.to(device=device, dtype=torch.long).clamp(min=1, max=seq_len)
+    atom_idx = torch.arange(seq_len, device=device).unsqueeze(0)
+    valid_mask = atom_idx < n_real.unsqueeze(1)
+    valid_mask_3d = valid_mask.unsqueeze(-1)
 
-            vector = frame[1] - frame[0]
-            vector = vector / torch.linalg.norm(vector).clamp_min(1e-8)
+    rotated = coords
+    if seq_len >= 2:
+        has_two_atoms = n_real >= 2
+        if bool(has_two_atoms.any()):
+            vectors = coords[:, 1, :] - coords[:, 0, :]
+            vectors = vectors / torch.linalg.norm(vectors, dim=1, keepdim=True).clamp_min(1e-8)
 
-            rotation_matrix = _rodrigues_rotation_matrix(vector, random_vector, device)
-            coords[i, :n_real] = frame @ rotation_matrix.T
+            random_vectors = torch.randn(batch_size, 3, device=device, dtype=coords.dtype)
+            random_vectors = random_vectors / torch.linalg.norm(random_vectors, dim=1, keepdim=True).clamp_min(1e-8)
 
-        random_point = (torch.rand(3, device=device, dtype=coords.dtype) * 2.0 - 1.0) * radius
-        com = coords[i, :n_real].mean(dim=0)
-        coords[i, :n_real] = coords[i, :n_real] + (random_point - com)
+            v = torch.cross(vectors, random_vectors, dim=1)
+            c = (vectors * random_vectors).sum(dim=1)
+            s = torch.linalg.norm(v, dim=1)
+
+            valid_rotation = has_two_atoms & (s >= 1e-8)
+            axis = torch.zeros_like(v)
+            axis[valid_rotation] = v[valid_rotation] / s[valid_rotation].unsqueeze(1)
+
+            kmat = torch.zeros(batch_size, 3, 3, dtype=coords.dtype, device=device)
+            kmat[:, 0, 1] = -axis[:, 2]
+            kmat[:, 0, 2] = axis[:, 1]
+            kmat[:, 1, 0] = axis[:, 2]
+            kmat[:, 1, 2] = -axis[:, 0]
+            kmat[:, 2, 0] = -axis[:, 1]
+            kmat[:, 2, 1] = axis[:, 0]
+
+            kmat_sq = torch.bmm(kmat, kmat)
+            eye = torch.eye(3, dtype=coords.dtype, device=device).unsqueeze(0).expand(batch_size, -1, -1)
+            factor = ((1.0 - c) / (s * s + 1e-12)).unsqueeze(1).unsqueeze(2)
+            rotation = eye + kmat + kmat_sq * factor
+            rotation = torch.where(valid_rotation.view(-1, 1, 1), rotation, eye)
+
+            rotated = torch.bmm(coords, rotation.transpose(1, 2))
+            rotated = torch.where(valid_mask_3d, rotated, coords)
+
+    random_points = (torch.rand(batch_size, 3, device=device, dtype=coords.dtype) * 2.0 - 1.0) * radius
+    denom = n_real.to(dtype=coords.dtype).unsqueeze(1)
+    com = (rotated * valid_mask_3d.to(dtype=coords.dtype)).sum(dim=1) / denom
+    shifts = random_points - com
+    translated = rotated + shifts.unsqueeze(1)
+
+    coords.copy_(torch.where(valid_mask_3d, translated, coords))
 
 
 def _coords_to_rgb(coords, num_atoms):
@@ -94,16 +125,20 @@ def _coords_to_rgb(coords, num_atoms):
     copy_len = min(current_len, TARGET_PIXELS)
     out[:, :copy_len, :] = coords[:, :copy_len, :]
 
-    for i in range(batch_size):
-        n_real = int(num_atoms[i].item())
-        n_real = max(1, min(n_real, copy_len))
-        real_coords = out[i, :n_real, :]
-        coords_min = real_coords.min(dim=0).values
-        coords_max = real_coords.max(dim=0).values
-        coords_range = (coords_max - coords_min).clamp_min(1e-8)
-        out[i] = (out[i] - coords_min) / coords_range
-        if n_real < TARGET_PIXELS:
-            out[i, n_real:, :] = 0.0
+    n_real = num_atoms.to(device=device, dtype=torch.long).clamp(min=1, max=copy_len)
+    pixel_idx = torch.arange(TARGET_PIXELS, device=device).unsqueeze(0)
+    valid_mask = pixel_idx < n_real.unsqueeze(1)
+    valid_mask_3d = valid_mask.unsqueeze(-1)
+
+    finfo = torch.finfo(out.dtype)
+    masked_min = torch.where(valid_mask_3d, out, torch.full_like(out, finfo.max))
+    masked_max = torch.where(valid_mask_3d, out, torch.full_like(out, finfo.min))
+    coords_min = masked_min.min(dim=1).values
+    coords_max = masked_max.max(dim=1).values
+    coords_range = (coords_max - coords_min).clamp_min(1e-8)
+
+    out = (out - coords_min.unsqueeze(1)) / coords_range.unsqueeze(1)
+    out = torch.where(valid_mask_3d, out, torch.zeros_like(out))
 
     out = out.view(batch_size, TARGET_SIZE, TARGET_SIZE, 3).permute(0, 3, 1, 2).contiguous()
     return out
