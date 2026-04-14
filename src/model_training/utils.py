@@ -1,5 +1,6 @@
 import os
 import time
+import threading
 import datasets
 
 import torch
@@ -124,15 +125,23 @@ class CUDABatchPrefetcher:
         self.loader_iter = None
         self.next_inputs = None
         self.next_labels = None
+        self._prefetch_thread = None
+        self._thread_error = None
 
     def reset(self):
         self.loader_iter = iter(self.dataloader)
-        self._preload()
+        self._thread_error = None
+        self._prefetch_async()
 
-    def _preload(self):
+    def _prefetch_worker(self):
         try:
             batch = next(self.loader_iter)
         except StopIteration:
+            self.next_inputs = None
+            self.next_labels = None
+            return
+        except Exception as exc:
+            self._thread_error = exc
             self.next_inputs = None
             self.next_labels = None
             return
@@ -142,7 +151,22 @@ class CUDABatchPrefetcher:
             self.next_inputs = inputs
             self.next_labels = labels
 
+    def _prefetch_async(self):
+        self._prefetch_thread = threading.Thread(target=self._prefetch_worker, daemon=True)
+        self._prefetch_thread.start()
+
+    def _wait_prefetch(self):
+        if self._prefetch_thread is not None:
+            self._prefetch_thread.join()
+            self._prefetch_thread = None
+
+        if self._thread_error is not None:
+            err = self._thread_error
+            self._thread_error = None
+            raise err
+
     def next(self):
+        self._wait_prefetch()
         if self.next_inputs is None:
             raise StopIteration
 
@@ -157,7 +181,8 @@ class CUDABatchPrefetcher:
         if torch.is_tensor(labels) and labels.is_cuda:
             labels.record_stream(current_stream)
 
-        self._preload()
+        # Start preparing the following batch while current batch is being trained.
+        self._prefetch_async()
         return inputs, labels
 
 
