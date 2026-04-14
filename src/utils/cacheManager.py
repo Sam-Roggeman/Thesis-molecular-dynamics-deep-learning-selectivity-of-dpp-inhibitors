@@ -32,6 +32,7 @@ class cacheManager:
             return cache_path
         
     def cleanup(self):
+        print("Cleaning up cache...")
         for source, dest in self.to_move_to_cache_on_exit:
             shutil.move(source, dest)
             print(f"Moved {source} to {dest}")

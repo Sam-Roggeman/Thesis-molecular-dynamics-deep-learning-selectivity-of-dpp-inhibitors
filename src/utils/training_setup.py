@@ -206,7 +206,11 @@ def train_model(config: TrainingConfig, model_name: str, streaming: bool = False
                 )
                 config.batch_size = new_batch_size
                 _cleanup_cuda_memory()
-
+            except SystemExit as e:
+                # Catch and log unexpected SystemErrors that may occur during training (e.g., from torch.compile internals).
+                print(f"Job halted with exit code {e.code}")
+                # Re-raise to allow external handlers (e.g., job schedulers) to detect the exit condition.
+                raise
             finally:
                 if model is not None:
                     del model

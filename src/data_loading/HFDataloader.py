@@ -152,14 +152,25 @@ def initialize_dataloaders(config: TrainingConfig, cache_manager: cacheManager, 
     dataset_dict = dataset_dict.rename_columns({'coordinates': 'data', 'binding_type': 'labels'})
     print("\tPre-encoding labels and packing coordinates into fixed-size tensors in dataset artifacts...")
     for split in splits:
-        dataset_dict[split] = dataset_dict[split].map(
-            _encode_and_pack_batch,
-            batched=True,
-            batch_size=max(1, int(config.transform_batch_size)),
-            num_proc=max(1, int(config.num_cpus)),
-            desc=f"Encoding labels and packing coords for {split}",
-            cache_file_name=cache_manager.get_file_path(construct_file_name(config.dataset_location, split, "labels_and_coords_packed", config.dataset_size))
-        )
+        batch_size = max(1, int(config.transform_batch_size))
+        num_workers = max(0, int(config.num_cpus))
+        print(f"\t\tPreparing map for {split} split with batch size {batch_size} and num_workers {num_workers}...")
+        while True:
+            try: 
+                dataset_dict[split] = dataset_dict[split].map(
+                    _encode_and_pack_batch,
+                    batched=True,
+                    batch_size=max(1, int(config.transform_batch_size)),
+                    num_proc=max(1, int(config.num_cpus)),
+                    desc=f"Encoding labels and packing coords for {split}",
+                    cache_file_name=cache_manager.get_file_path(construct_file_name(config.dataset_location, split, "labels_and_coords_packed", config.dataset_size))
+                )
+            except Exception as e:
+                # If an oom error occurs during map, reduce batch size and retry
+                if "out of memory" in str(e).lower() and batch_size > 1:
+                    print(f"Out of memory error during map for {split} split with batch size {batch_size}. Reducing batch size and retrying...")
+                    batch_size = max(1, (3*batch_size) // 4)
+                    print(f"\tNew batch size: {batch_size}")
     print("\tDataset map preprocessing done; using fast fixed-shape batch path.")
     if not keep_all_columns:
         drop_cols = [
