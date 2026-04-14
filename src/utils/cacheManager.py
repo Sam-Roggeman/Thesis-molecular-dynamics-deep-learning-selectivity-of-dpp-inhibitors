@@ -23,7 +23,7 @@ class cacheManager:
             if os.path.exists(cache_dir):
                 # copy to fast cache dir
                 print(f"Copying {cache_dir} to {fast_cache_dir} for faster access...")
-                shutil.copy(cache_dir, fast_cache_dir)
+                shutil.copytree(cache_dir, fast_cache_dir, dirs_exist_ok=True)
             else:
                 self.to_move_to_cache_on_exit.append((fast_cache_dir, cache_dir))
                 print(f"File {cache_dir} does not exist. Will move {fast_cache_dir} to {cache_dir} on exit.")
@@ -50,9 +50,9 @@ class cacheManager:
 
     def move_to_permanent_cache(self):
         for source, dest in self.to_move_to_cache_on_exit:
+            print(f"Moving {source} to permanent cache location {dest}...")
             if os.path.exists(source):
                 shutil.move(source, dest)
                 print(f"Moved {source} to {dest}")
             else:
                 print(f"Warning: Expected file {source} not found during move to permanent cache.")
-                
