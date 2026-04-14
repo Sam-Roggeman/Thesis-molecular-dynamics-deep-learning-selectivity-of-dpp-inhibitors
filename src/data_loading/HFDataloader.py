@@ -45,6 +45,26 @@ def _is_host_oom_error(exc: BaseException) -> bool:
     return False
 
 
+def _is_map_worker_crash_error(exc: BaseException) -> bool:
+    """Return True when Hugging Face map multiprocessing workers crash."""
+    markers = (
+        "one of the subprocesses has abruptly died during map operation",
+        "a worker process managed by the executor was unexpectedly terminated",
+        "brokenprocesspool",
+    )
+
+    seen = set()
+    current = exc
+    while current is not None and id(current) not in seen:
+        seen.add(id(current))
+        msg = f"{type(current).__name__}: {current}".lower()
+        if any(marker in msg for marker in markers):
+            return True
+        current = current.__cause__ or current.__context__
+
+    return False
+
+
 def _encode_and_pack_batch(batch):
     labels = batch.get("labels")
     data = batch.get("data")
@@ -198,7 +218,7 @@ def initialize_dataloaders(config: TrainingConfig, cache_manager: cacheManager, 
             except Exception as e:
                 print(f"Error during map for {split} split with batch size {batch_size}: {e}")
                 # If a host-memory OOM occurs during map, reduce batch size and retry.
-                if _is_host_oom_error(e) and batch_size > 1:
+                if( _is_host_oom_error(e) or _is_map_worker_crash_error(e) ) and batch_size > 1:
                     print(f"Host-memory OOM during map for {split} split with batch size {batch_size}. Reducing batch size and retrying...")
                     batch_size = max(1, (3*batch_size) // 4)
                     print(f"\tNew batch size: {batch_size}")

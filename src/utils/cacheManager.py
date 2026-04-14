@@ -32,12 +32,16 @@ class cacheManager:
             return cache_path
         
     def cleanup(self):
-        print("Cleaning up cache...")
-        for source, dest in self.to_move_to_cache_on_exit:
-            shutil.move(source, dest)
-            print(f"Moved {source} to {dest}")
-        for file in self.to_cleanup_on_exit:
-            if os.path.exists(file):
-                shutil.rmtree(file) if os.path.isdir(file) else os.remove(file)  
-                print(f"Removed {file}")
-        
+        try:
+            print("Cleaning up cache...")
+            for source, dest in self.to_move_to_cache_on_exit:
+                if os.path.exists(source):
+                    shutil.move(source, dest)
+                    print(f"Moved {source} to {dest}")
+            for file in self.to_cleanup_on_exit:
+                if os.path.exists(file):
+                    shutil.rmtree(file) if os.path.isdir(file) else os.remove(file)  
+                    print(f"Removed {file}")
+        except Exception as e:
+            print(f"Error during cache cleanup: {e}")
+            
