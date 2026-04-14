@@ -252,6 +252,7 @@ def training_loop(
     interval_loss = 0.0
     interval_batches = 0
     interval_data_wait = 0.0
+    interval_prep_time = 0.0
     interval_compute_time = 0.0
     interval_start = time.time()
     print("Starting training loop...")
@@ -282,8 +283,11 @@ def training_loop(
 
         interval_data_wait += time.time() - data_wait_start
 
-        compute_start = time.time()
+        prep_start = time.time()
         if prefetcher is not None:
+            # In prefetch mode, prep reflects stream sync + handoff cost.
+            interval_prep_time += time.time() - prep_start
+            compute_start = time.time()
             batch_correct, batch_total, batch_loss = _train_single_batch_prepared(
                 model,
                 inputs,
@@ -292,7 +296,19 @@ def training_loop(
                 criterion,
             )
         else:
-            batch_correct, batch_total, batch_loss = _train_single_batch(model, batch, optimizer, criterion, device)
+            prepared_inputs, prepared_labels = prepare_model_batch(batch, device, scramble=True)
+            interval_prep_time += time.time() - prep_start
+
+            compute_start = time.time()
+            batch_correct, batch_total, batch_loss = _train_single_batch_prepared(
+                model,
+                prepared_inputs,
+                prepared_labels,
+                optimizer,
+                criterion,
+            )
+            prepared_inputs = None
+            prepared_labels = None
         interval_compute_time += time.time() - compute_start
         global_step += 1
 
@@ -305,18 +321,25 @@ def training_loop(
             running_acc = interval_correct / max(interval_total, 1)
             running_loss = interval_loss / max(interval_batches, 1)
             avg_data_wait_ms = (interval_data_wait / max(interval_batches, 1)) * 1000
+            avg_prep_ms = (interval_prep_time / max(interval_batches, 1)) * 1000
             avg_compute_ms = (interval_compute_time / max(interval_batches, 1)) * 1000
-            total_interval_time = max(interval_data_wait + interval_compute_time, 1e-9)
+            total_interval_time = max(interval_data_wait + interval_prep_time + interval_compute_time, 1e-9)
             samples_per_sec = interval_total / total_interval_time
             data_wait_fraction = interval_data_wait / total_interval_time
+            prep_fraction = interval_prep_time / total_interval_time
+            compute_fraction = interval_compute_time / total_interval_time
             print(
                 f"Step {global_step}/{max_train_steps} | "
                 f"Train Acc: {running_acc * 100:.4f}% | "
                 f"Train Loss: {running_loss:.4f} | "
                 f"Avg Data Wait: {avg_data_wait_ms:.1f}ms | "
+                f"Avg Prep: {avg_prep_ms:.1f}ms | "
                 f"Avg Compute: {avg_compute_ms:.1f}ms | "
                 f"Samples/s: {samples_per_sec:.1f} | "
-                f"Data Wait Share: {data_wait_fraction * 100:.1f}%"
+                f"Shares(wait/prep/compute): "
+                f"{data_wait_fraction * 100:.1f}%/"
+                f"{prep_fraction * 100:.1f}%/"
+                f"{compute_fraction * 100:.1f}%"
             )
         if prefetcher is not None:
             inputs = None
@@ -379,8 +402,9 @@ def training_loop(
             )
             print(
                 f'\tPipeline profile: data_wait={interval_data_wait:.2f}s, '
+                f'prep={interval_prep_time:.2f}s, '
                 f'compute={interval_compute_time:.2f}s, '
-                f'data_wait_share={100 * interval_data_wait / max(interval_data_wait + interval_compute_time, 1e-9):.1f}%'
+                f'data_wait_share={100 * interval_data_wait / max(interval_data_wait + interval_prep_time + interval_compute_time, 1e-9):.1f}%'
             )
             if scheduler:
                 print(f'\tLearning Rate: {optimizer.param_groups[0]["lr"]:.2e}')
@@ -391,6 +415,7 @@ def training_loop(
             interval_loss = 0.0
             interval_batches = 0
             interval_data_wait = 0.0
+            interval_prep_time = 0.0
             interval_compute_time = 0.0
             interval_start = time.time()
 
