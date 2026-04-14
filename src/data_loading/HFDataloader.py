@@ -104,32 +104,12 @@ def _encode_and_pack_batch(batch):
     return result
 
 
-def _collate_raw_batch(batch):
-    """Keep variable-length fields as python lists for on-the-fly preprocessing."""
-    if not batch:
-        return {}
-    keys = batch[0].keys()
-    return {key: [sample.get(key) for sample in batch] for key in keys}
-
-
 def _set_torch_format_for_packed_dataset(ds, keep_all_columns: bool):
     """Enable torch formatting so DataLoader can stack packed arrays efficiently."""
     tensor_columns = [c for c in ["data", "labels", "num_atoms"] if c in ds.column_names]
     if not tensor_columns:
         return ds
     return ds.with_format("torch", columns=tensor_columns, output_all_columns=keep_all_columns)
-
-
-def _recommended_workers_for_packed_batches(config: TrainingConfig) -> int:
-    """Heuristic worker cap for large packed tensors to avoid IPC bottlenecks."""
-    requested = max(0, int(config.num_cpus))
-    batch_size = max(1, int(config.batch_size))
-
-    if batch_size >= 256:
-        return min(requested, 2)
-    if batch_size >= 128:
-        return min(requested, 4)
-    return min(requested, 6)
 
 def _download_dataset(config: TrainingConfig, splits=None) -> datasets.DatasetDict:
     print("Downloading dataset...")
@@ -261,7 +241,7 @@ def initialize_dataloaders(config: TrainingConfig, cache_manager: cacheManager, 
             keep_all_columns=keep_all_columns,
         )
 
-    dataloader_workers = _recommended_workers_for_packed_batches(config)
+    dataloader_workers = config.num_cpus // 2
     if dataloader_workers != max(0, int(config.num_cpus)):
         print(
             f"\tUsing {dataloader_workers} DataLoader workers instead of requested {int(config.num_cpus)} "
@@ -272,6 +252,7 @@ def initialize_dataloaders(config: TrainingConfig, cache_manager: cacheManager, 
         "num_workers": dataloader_workers,
         "pin_memory": torch.cuda.is_available(),
         "persistent_workers": dataloader_workers > 0,
+        "prefetch_factor": 4
     }
     if dataloader_workers > 0:
         dataloader_args["prefetch_factor"] = 1
@@ -340,7 +321,7 @@ def initialize_streaming_dataloader(config: TrainingConfig, keep_all_columns: bo
     dataloader_dict = {}
     for split in splits:
         print(f"\t\tPreparing dataloader for {split} split (on-the-fly preprocessing)...")
-        dataloader_workers = _recommended_workers_for_packed_batches(config)
+        dataloader_workers = config.num_cpus // 2
         if dataloader_workers != max(0, int(config.num_cpus)):
             print(
                 f"\tUsing {dataloader_workers} DataLoader workers instead of requested {int(config.num_cpus)} "
@@ -353,7 +334,7 @@ def initialize_streaming_dataloader(config: TrainingConfig, keep_all_columns: bo
             "persistent_workers": dataloader_workers > 0,
         }
         if dataloader_workers > 0:
-            dataloader_args["prefetch_factor"] = 1
+            dataloader_args["prefetch_factor"] = 4
         dataloader = torch.utils.data.DataLoader(dataset_dict[split], **dataloader_args)
         dataloader_dict[split] = dataloader
     print("\t...streaming dataloaders ready")
