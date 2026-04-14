@@ -200,11 +200,29 @@ def initialize_streaming_dataloader(config: TrainingConfig, keep_all_columns: bo
     print("\tEncoding labels and packing coordinates in streaming pipeline...")
     for split in splits:
         if split in dataset_dict:
-            dataset_dict[split] = dataset_dict[split].map(
-                _encode_and_pack_batch,
-                batched=True,
-                batch_size=max(1, int(config.transform_batch_size)),
-            )
+            batch_size = max(1, int(config.transform_batch_size))
+            num_workers = max(0, int(config.num_cpus))
+            print(f"\t\tPreparing streaming map for {split} split with batch size {batch_size} and num_workers {num_workers}...")
+            while True:
+
+                try:
+
+                    dataset_dict[split] = dataset_dict[split].map(
+                        _encode_and_pack_batch,
+                        batched=True,
+                        batch_size=batch_size,
+                        num_proc=num_workers,
+                        desc=f"Encoding labels and packing coords for {split} (streaming)",
+                    )
+                # if out of memory error occurs during map, reduce batch size
+                except RuntimeError as e:
+                    if "out of memory" in str(e).lower() and batch_size > 1:
+                        print(f"Out of memory error during streaming map for {split} split with batch size {batch_size}. Reducing batch size and retrying...")
+                        batch_size = max(1, (3*batch_size) // 4)
+                        print(f"\tNew batch size: {batch_size}")
+                        continue
+                    else:
+                        raise e
     if not keep_all_columns:
         drop_cols = ['pdb_id', 'ligand_name']
         for split in splits:
