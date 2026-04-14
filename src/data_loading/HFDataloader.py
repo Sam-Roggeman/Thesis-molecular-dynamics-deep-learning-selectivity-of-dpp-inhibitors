@@ -166,11 +166,15 @@ def initialize_dataloaders(config: TrainingConfig, cache_manager: cacheManager, 
                     cache_file_name=cache_manager.get_file_path(construct_file_name(config.dataset_location, split, "labels_and_coords_packed", config.dataset_size))
                 )
             except Exception as e:
+                print(f"Error during map for {split} split with batch size {batch_size}: {e}")
                 # If an oom error occurs during map, reduce batch size and retry
                 if "out of memory" in str(e).lower() and batch_size > 1:
                     print(f"Out of memory error during map for {split} split with batch size {batch_size}. Reducing batch size and retrying...")
                     batch_size = max(1, (3*batch_size) // 4)
                     print(f"\tNew batch size: {batch_size}")
+                    continue
+                else:
+                    raise e
     print("\tDataset map preprocessing done; using fast fixed-shape batch path.")
     if not keep_all_columns:
         drop_cols = [
