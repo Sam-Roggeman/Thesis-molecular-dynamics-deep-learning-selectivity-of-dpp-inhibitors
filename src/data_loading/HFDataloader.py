@@ -206,13 +206,14 @@ def initialize_dataloaders(config: TrainingConfig, cache_manager: cacheManager, 
         print(f"\t\tPreparing map for {split} split with batch size {batch_size} and num_workers {num_workers}...")
         while True:
             try: 
+                used_percentage_str = f"{int(config.dataset_size * 100)}pct" 
                 dataset_dict[split] = dataset_dict[split].map(
                     _encode_and_pack_batch,
                     batched=True,
                     batch_size=batch_size,
                     num_proc=max(1, num_workers),
                     desc=f"Encoding labels and packing coords for {split}",
-                    cache_file_name=cache_manager.get_file_path(construct_file_name(config.dataset_location, split, "labels_and_coords_packed", config.dataset_size))
+                    cache_file_name=cache_manager.get_file_path(construct_file_name(used_percentage=used_percentage_str, splitname=split, prefix="labels_and_coords_packed", size=config.dataset_size, extension="arrow"))
                 )
                 break
             except Exception as e:

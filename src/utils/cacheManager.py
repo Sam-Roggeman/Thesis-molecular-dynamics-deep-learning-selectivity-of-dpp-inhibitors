@@ -12,24 +12,27 @@ class cacheManager:
         self.fast_cache_dir = fast_cache_dir
 
     def get_file_path(self, filename):
-        cache_path = os.path.join(self.cache_dir, filename)
-        fast_cache_path = os.path.join(self.fast_cache_dir, filename)
+        # use filename as directory 
+        filename_without_ext = os.path.splitext(filename)[0]
+        cache_dir = os.path.join(self.cache_dir, filename_without_ext)
+        fast_cache_dir = os.path.join(self.fast_cache_dir, filename_without_ext)
+        fast_cache_path = os.path.join(fast_cache_dir, filename)
         if self.fast_cache_dir is not None:
             # check if file exists in cache dir
-            os.makedirs(self.fast_cache_dir, exist_ok=True)
-            if os.path.exists(cache_path):
+            os.makedirs(fast_cache_dir, exist_ok=True)
+            if os.path.exists(cache_dir):
                 # copy to fast cache dir
-                print(f"Copying {cache_path} to {fast_cache_path} for faster access...")
-                shutil.copy(cache_path, fast_cache_path)
+                print(f"Copying {cache_dir} to {fast_cache_dir} for faster access...")
+                shutil.copy(cache_dir, fast_cache_dir)
             else:
-                self.to_move_to_cache_on_exit.append((fast_cache_path, cache_path))
-                print(f"File {cache_path} does not exist. Will move {fast_cache_path} to {cache_path} on exit.")
-            self.to_cleanup_on_exit.append(fast_cache_path)
-            print(f"Using {fast_cache_path} for caching during this run.")
+                self.to_move_to_cache_on_exit.append((fast_cache_dir, cache_dir))
+                print(f"File {cache_dir} does not exist. Will move {fast_cache_dir} to {cache_dir} on exit.")
+            self.to_cleanup_on_exit.append(fast_cache_dir)
+            print(f"Using {fast_cache_dir} for caching during this run.")
             return fast_cache_path
         else:
-            print(f"Using {cache_path} for caching during this run.")
-            return cache_path
+            print(f"Using {self.cache_dir} for caching during this run.")
+            return self.cache_dir
         
     def cleanup(self):
         try:
@@ -44,4 +47,3 @@ class cacheManager:
                     print(f"Removed {file}")
         except Exception as e:
             print(f"Error during cache cleanup: {e}")
-            

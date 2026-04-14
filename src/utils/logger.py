@@ -67,6 +67,8 @@ class LoggerWriter:
     def write(self, message):
         """Write to terminal immediately and log complete lines."""
         self.original_stream.write(message)
+        # Force line visibility in buffered/non-interactive environments.
+        self.original_stream.flush()
 
         if not message:
             return
