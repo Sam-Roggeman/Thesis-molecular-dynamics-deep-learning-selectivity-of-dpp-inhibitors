@@ -16,6 +16,35 @@ import resource
 label_encoder = LabelEncoder()
 
 
+def _is_host_oom_error(exc: BaseException) -> bool:
+    """Return True for common CPU/host-memory OOM failures."""
+    if isinstance(exc, MemoryError):
+        return True
+
+    oom_markers = (
+        "out of memory",
+        "cannot allocate memory",
+        "can't allocate memory",
+        "unable to allocate",
+        "defaultcpuallocator",
+        "std::bad_alloc",
+        "bad allocation",
+    )
+
+    seen = set()
+    current = exc
+    while current is not None and id(current) not in seen:
+        seen.add(id(current))
+        if isinstance(current, MemoryError):
+            return True
+        msg = f"{type(current).__name__}: {current}".lower()
+        if any(marker in msg for marker in oom_markers):
+            return True
+        current = current.__cause__ or current.__context__
+
+    return False
+
+
 def _encode_and_pack_batch(batch):
     labels = batch.get("labels")
     data = batch.get("data")
@@ -160,21 +189,22 @@ def initialize_dataloaders(config: TrainingConfig, cache_manager: cacheManager, 
                 dataset_dict[split] = dataset_dict[split].map(
                     _encode_and_pack_batch,
                     batched=True,
-                    batch_size=max(1, int(config.transform_batch_size)),
-                    num_proc=max(1, int(config.num_cpus)),
+                    batch_size=batch_size,
+                    num_proc=max(1, num_workers),
                     desc=f"Encoding labels and packing coords for {split}",
                     cache_file_name=cache_manager.get_file_path(construct_file_name(config.dataset_location, split, "labels_and_coords_packed", config.dataset_size))
                 )
+                break
             except Exception as e:
                 print(f"Error during map for {split} split with batch size {batch_size}: {e}")
-                # If an oom error occurs during map, reduce batch size and retry
-                if "out of memory" in str(e).lower() and batch_size > 1:
-                    print(f"Out of memory error during map for {split} split with batch size {batch_size}. Reducing batch size and retrying...")
+                # If a host-memory OOM occurs during map, reduce batch size and retry.
+                if _is_host_oom_error(e) and batch_size > 1:
+                    print(f"Host-memory OOM during map for {split} split with batch size {batch_size}. Reducing batch size and retrying...")
                     batch_size = max(1, (3*batch_size) // 4)
                     print(f"\tNew batch size: {batch_size}")
                     continue
                 else:
-                    raise e
+                    raise
     print("\tDataset map preprocessing done; using fast fixed-shape batch path.")
     if not keep_all_columns:
         drop_cols = [
@@ -226,18 +256,19 @@ def initialize_streaming_dataloader(config: TrainingConfig, keep_all_columns: bo
                         _encode_and_pack_batch,
                         batched=True,
                         batch_size=batch_size,
-                        num_proc=num_workers,
+                        num_proc=max(1, num_workers),
                         desc=f"Encoding labels and packing coords for {split} (streaming)",
                     )
+                    break
                 # if out of memory error occurs during map, reduce batch size
-                except RuntimeError as e:
-                    if "out of memory" in str(e).lower() and batch_size > 1:
-                        print(f"Out of memory error during streaming map for {split} split with batch size {batch_size}. Reducing batch size and retrying...")
+                except Exception as e:
+                    if _is_host_oom_error(e) and batch_size > 1:
+                        print(f"Host-memory OOM during streaming map for {split} split with batch size {batch_size}. Reducing batch size and retrying...")
                         batch_size = max(1, (3*batch_size) // 4)
                         print(f"\tNew batch size: {batch_size}")
                         continue
                     else:
-                        raise e
+                        raise
     if not keep_all_columns:
         drop_cols = ['pdb_id', 'ligand_name']
         for split in splits:
