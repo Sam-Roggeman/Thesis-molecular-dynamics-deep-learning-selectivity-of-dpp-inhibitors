@@ -241,7 +241,7 @@ def initialize_dataloaders(config: TrainingConfig, cache_manager: cacheManager, 
             keep_all_columns=keep_all_columns,
         )
 
-    dataloader_workers = config.num_cpus // 2
+    dataloader_workers = max(1, min(int(config.num_cpus), 8))
     if dataloader_workers != max(0, int(config.num_cpus)):
         print(
             f"\tUsing {dataloader_workers} DataLoader workers instead of requested {int(config.num_cpus)} "
@@ -252,10 +252,9 @@ def initialize_dataloaders(config: TrainingConfig, cache_manager: cacheManager, 
         "num_workers": dataloader_workers,
         "pin_memory": torch.cuda.is_available(),
         "persistent_workers": dataloader_workers > 0,
-        "prefetch_factor": 4
     }
     if dataloader_workers > 0:
-        dataloader_args["prefetch_factor"] = 1
+        dataloader_args["prefetch_factor"] = 4
     resource.setrlimit(resource.RLIMIT_NOFILE, (10810, 10810))
     
     dataloader_dict = {}
@@ -263,7 +262,7 @@ def initialize_dataloaders(config: TrainingConfig, cache_manager: cacheManager, 
         print(f"\t\tCreating dataloader for {split} split with batch size {config.batch_size} and num_workers {dataloader_workers}...")
         dataloader = torch.utils.data.DataLoader(dataset_dict[split], **dataloader_args)
         dataloader_dict[split] = dataloader
-    cacheManager.move_to_permanent_cache(cache_manager)
+    cache_manager.move_to_permanent_cache()
     return dataloader_dict
 
 def initialize_streaming_dataloader(config: TrainingConfig, keep_all_columns: bool = False, splits: list = ["train", "validation", "test"], shuffle: bool = False) -> DataLoaderDict:
@@ -321,7 +320,7 @@ def initialize_streaming_dataloader(config: TrainingConfig, keep_all_columns: bo
     dataloader_dict = {}
     for split in splits:
         print(f"\t\tPreparing dataloader for {split} split (on-the-fly preprocessing)...")
-        dataloader_workers = config.num_cpus // 2
+        dataloader_workers = max(1, min(int(config.num_cpus), 8))
         if dataloader_workers != max(0, int(config.num_cpus)):
             print(
                 f"\tUsing {dataloader_workers} DataLoader workers instead of requested {int(config.num_cpus)} "
