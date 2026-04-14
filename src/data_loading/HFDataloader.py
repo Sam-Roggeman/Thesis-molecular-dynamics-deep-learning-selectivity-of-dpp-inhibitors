@@ -111,6 +111,14 @@ def _collate_raw_batch(batch):
     keys = batch[0].keys()
     return {key: [sample.get(key) for sample in batch] for key in keys}
 
+
+def _set_torch_format_for_packed_dataset(ds, keep_all_columns: bool):
+    """Enable torch formatting so DataLoader can stack packed arrays efficiently."""
+    tensor_columns = [c for c in ["data", "labels", "num_atoms"] if c in ds.column_names]
+    if not tensor_columns:
+        return ds
+    return ds.with_format("torch", columns=tensor_columns, output_all_columns=keep_all_columns)
+
 def _download_dataset(config: TrainingConfig, splits=None) -> datasets.DatasetDict:
     print("Downloading dataset...")
     dataset_size = config.dataset_size
@@ -235,13 +243,18 @@ def initialize_dataloaders(config: TrainingConfig, cache_manager: cacheManager, 
         for split in splits:
             dataset_dict[split] = dataset_dict[split].remove_columns(drop_cols)
 
+    for split in splits:
+        dataset_dict[split] = _set_torch_format_for_packed_dataset(
+            dataset_dict[split],
+            keep_all_columns=keep_all_columns,
+        )
+
     dataloader_workers = max(0, config.num_cpus)
     dataloader_args = {
         "batch_size": config.batch_size,
         "num_workers": dataloader_workers,
         "pin_memory": torch.cuda.is_available(),
         "persistent_workers": dataloader_workers > 0,
-        "collate_fn": _collate_raw_batch,
     }
     if dataloader_workers > 0:
         dataloader_args["prefetch_factor"] = 2
@@ -298,6 +311,13 @@ def initialize_streaming_dataloader(config: TrainingConfig, keep_all_columns: bo
                 if existing:
                     dataset_dict[split] = dataset_dict[split].remove_columns(existing)
 
+    for split in splits:
+        if split in dataset_dict:
+            dataset_dict[split] = _set_torch_format_for_packed_dataset(
+                dataset_dict[split],
+                keep_all_columns=keep_all_columns,
+            )
+
     dataloader_dict = {}
     for split in splits:
         print(f"\t\tPreparing dataloader for {split} split (on-the-fly preprocessing)...")
@@ -307,7 +327,6 @@ def initialize_streaming_dataloader(config: TrainingConfig, keep_all_columns: bo
             "num_workers": dataloader_workers,
             "pin_memory": True,
             "persistent_workers": dataloader_workers > 0,
-            "collate_fn": _collate_raw_batch,
         }
         if dataloader_workers > 0:
             dataloader_args["prefetch_factor"] = 2
