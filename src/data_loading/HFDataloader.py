@@ -213,7 +213,7 @@ def initialize_dataloaders(config: TrainingConfig, cache_manager: cacheManager, 
                     batch_size=batch_size,
                     num_proc=max(1, num_workers),
                     desc=f"Encoding labels and packing coords for {split}",
-                    cache_file_name=cache_manager.get_file_path(construct_file_name(used_percentage=used_percentage_str, splitname=split, prefix="labels_and_coords_packed", size=config.dataset_size, extension="arrow"))
+                    cache_file_name=cache_manager.get_file_path(construct_file_name(used_percentage=used_percentage_str, splitname=split, prefix="labels_and_coords_packed",  extension="arrow"))
                 )
                 break
             except Exception as e:
