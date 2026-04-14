@@ -47,3 +47,12 @@ class cacheManager:
                     print(f"Removed {file}")
         except Exception as e:
             print(f"Error during cache cleanup: {e}")
+
+    def move_to_permanent_cache(self):
+        for source, dest in self.to_move_to_cache_on_exit:
+            if os.path.exists(source):
+                shutil.move(source, dest)
+                print(f"Moved {source} to {dest}")
+            else:
+                print(f"Warning: Expected file {source} not found during move to permanent cache.")
+                

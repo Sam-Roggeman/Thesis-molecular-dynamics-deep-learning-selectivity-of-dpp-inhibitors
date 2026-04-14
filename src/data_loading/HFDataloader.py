@@ -265,6 +265,7 @@ def initialize_dataloaders(config: TrainingConfig, cache_manager: cacheManager, 
         print(f"\t\tCreating dataloader for {split} split with batch size {config.batch_size} and num_workers {config.num_cpus}...")
         dataloader = torch.utils.data.DataLoader(dataset_dict[split], **dataloader_args)
         dataloader_dict[split] = dataloader
+    cacheManager.move_to_permanent_cache(cache_manager)
     return dataloader_dict
 
 def initialize_streaming_dataloader(config: TrainingConfig, keep_all_columns: bool = False, splits: list = ["train", "validation", "test"], shuffle: bool = False) -> DataLoaderDict:
@@ -293,6 +294,7 @@ def initialize_streaming_dataloader(config: TrainingConfig, keep_all_columns: bo
                         num_proc=max(1, num_workers),
                         desc=f"Encoding labels and packing coords for {split} (streaming)",
                     )
+                    
                     break
                 # if out of memory error occurs during map, reduce batch size
                 except Exception as e:
