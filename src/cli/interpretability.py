@@ -233,15 +233,21 @@ def _initilize_classification_model(checkpoint_path: str, device: torch.device) 
     _load_weights(model, state_dict)
     model.eval()
     return model
-def write_coloring_script(colored_pdb_paths: list[str], script_path: str) -> None:
+def write_coloring_script(colored_pdb_paths: list[str], script_path: str, threshold: float) -> None:
     """Write a PyMOL script to load and visualize the colored PDBs."""
+    bfactor_threshold = threshold * 100.0
     with open(script_path, "w") as f:
         for pdb_path in colored_pdb_paths:
-            object_name = Path(pdb_path).stem
-            f.write(f"load {object_name}, {object_name}\n")
-            f.write(f"color gray, {object_name}\n")
-            f.write(f"spectrum b, red_white_blue, {object_name}\n")
-            f.write(f"show cartoon, {object_name}\n")
+            object_name = Path(pdb_path).name
+            stem_name = Path(pdb_path).stem
+            f.write(f"load {object_name}, {stem_name}\n")
+            f.write(f"color gray, {stem_name}\n")
+            f.write(f"spectrum b, gray70 yellow orange red, {stem_name}\n")
+            f.write(f"show cartoon, {stem_name}\n")
+            f.write(f"select {stem_name}_high_atoms, ({stem_name} and polymer.protein and b > {bfactor_threshold:.2f})\n")
+            f.write(f"select {stem_name}_high_chains, bychain {stem_name}_high_atoms\n")
+            f.write(f"hide cartoon, {stem_name}_high_chains\n")
+            f.write(f"show sticks, {stem_name}_high_chains\n")
     print(f"PyMOL coloring script written to: {script_path}")
 def main():
     """
@@ -257,7 +263,11 @@ def main():
     parser.add_argument("--methods", nargs="+", default=["integrated_gradients"], help="List of interpretability methods to apply (e.g., 'integrated_gradients', 'saliency', 'gradient_shap').")
     parser.add_argument("--binding_type", type=str, default=None, required=True, help="Binding type of the sample. Required for proper sample construction.", choices=["apo", "dpp8selective", "dpp9selective", "aselective", 'nonbinder'])
     parser.add_argument("--open-in-pymol", action="store_true", help="Whether to automatically open the generated colored PDBs in PyMOL after processing.")
+    parser.add_argument("--threshold", type=float, default=0.2, help="Low-impact cutoff in [0, 1]. Atoms below this normalized attribution threshold are shown as sticks.")
     args = parser.parse_args()
+
+    if not 0.0 <= args.threshold <= 1.0:
+        parser.error("--threshold must be between 0 and 1.")
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     class_labels= LabelEncoder().get_classes()
@@ -299,7 +309,7 @@ def main():
 
     for colored_pdb in colored_pdb_paths:
         script_path = Path.joinpath(colored_pdb.parent, f"{Path(colored_pdb).stem}.pml")
-        write_coloring_script([colored_pdb], script_path)
+        write_coloring_script([colored_pdb], script_path, threshold=args.threshold)
         # Open the script in PyMOL using the command line
         if args.open_in_pymol:
             os.system(f"pymol -c {script_path}")

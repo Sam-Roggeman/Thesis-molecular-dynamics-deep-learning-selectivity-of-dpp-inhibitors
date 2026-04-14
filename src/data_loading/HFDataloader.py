@@ -119,6 +119,18 @@ def _set_torch_format_for_packed_dataset(ds, keep_all_columns: bool):
         return ds
     return ds.with_format("torch", columns=tensor_columns, output_all_columns=keep_all_columns)
 
+
+def _recommended_workers_for_packed_batches(config: TrainingConfig) -> int:
+    """Heuristic worker cap for large packed tensors to avoid IPC bottlenecks."""
+    requested = max(0, int(config.num_cpus))
+    batch_size = max(1, int(config.batch_size))
+
+    if batch_size >= 256:
+        return min(requested, 2)
+    if batch_size >= 128:
+        return min(requested, 4)
+    return min(requested, 6)
+
 def _download_dataset(config: TrainingConfig, splits=None) -> datasets.DatasetDict:
     print("Downloading dataset...")
     dataset_size = config.dataset_size
@@ -249,7 +261,12 @@ def initialize_dataloaders(config: TrainingConfig, cache_manager: cacheManager, 
             keep_all_columns=keep_all_columns,
         )
 
-    dataloader_workers = max(0, config.num_cpus)
+    dataloader_workers = _recommended_workers_for_packed_batches(config)
+    if dataloader_workers != max(0, int(config.num_cpus)):
+        print(
+            f"\tUsing {dataloader_workers} DataLoader workers instead of requested {int(config.num_cpus)} "
+            "for packed large-tensor batches to reduce IPC overhead."
+        )
     dataloader_args = {
         "batch_size": config.batch_size,
         "num_workers": dataloader_workers,
@@ -257,12 +274,12 @@ def initialize_dataloaders(config: TrainingConfig, cache_manager: cacheManager, 
         "persistent_workers": dataloader_workers > 0,
     }
     if dataloader_workers > 0:
-        dataloader_args["prefetch_factor"] = 2
+        dataloader_args["prefetch_factor"] = 1
     resource.setrlimit(resource.RLIMIT_NOFILE, (10810, 10810))
     
     dataloader_dict = {}
     for split in splits:
-        print(f"\t\tCreating dataloader for {split} split with batch size {config.batch_size} and num_workers {config.num_cpus}...")
+        print(f"\t\tCreating dataloader for {split} split with batch size {config.batch_size} and num_workers {dataloader_workers}...")
         dataloader = torch.utils.data.DataLoader(dataset_dict[split], **dataloader_args)
         dataloader_dict[split] = dataloader
     cacheManager.move_to_permanent_cache(cache_manager)
@@ -323,7 +340,12 @@ def initialize_streaming_dataloader(config: TrainingConfig, keep_all_columns: bo
     dataloader_dict = {}
     for split in splits:
         print(f"\t\tPreparing dataloader for {split} split (on-the-fly preprocessing)...")
-        dataloader_workers = max(0, config.num_cpus)
+        dataloader_workers = _recommended_workers_for_packed_batches(config)
+        if dataloader_workers != max(0, int(config.num_cpus)):
+            print(
+                f"\tUsing {dataloader_workers} DataLoader workers instead of requested {int(config.num_cpus)} "
+                "for packed large-tensor batches to reduce IPC overhead."
+            )
         dataloader_args = {
             "batch_size": config.batch_size,
             "num_workers": dataloader_workers,
@@ -331,7 +353,7 @@ def initialize_streaming_dataloader(config: TrainingConfig, keep_all_columns: bo
             "persistent_workers": dataloader_workers > 0,
         }
         if dataloader_workers > 0:
-            dataloader_args["prefetch_factor"] = 2
+            dataloader_args["prefetch_factor"] = 1
         dataloader = torch.utils.data.DataLoader(dataset_dict[split], **dataloader_args)
         dataloader_dict[split] = dataloader
     print("\t...streaming dataloaders ready")
