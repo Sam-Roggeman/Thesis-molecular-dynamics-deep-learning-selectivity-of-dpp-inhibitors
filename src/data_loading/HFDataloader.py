@@ -260,7 +260,7 @@ def initialize_dataloaders(config: TrainingConfig, cache_manager: cacheManager, 
     )
     dataloader_args = {
         "batch_size": config.batch_size,
-        "num_workers": dataloader_workers,
+        "num_workers": 0,
         "pin_memory": torch.cuda.is_available(),
         "persistent_workers": dataloader_workers > 0,
     }
