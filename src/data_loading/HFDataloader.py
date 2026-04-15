@@ -21,12 +21,10 @@ def calculate_sample_size(sample, prefix="sample"):
     """Recursively estimate sample size in bytes and print per-field breakdown."""
     if isinstance(sample, np.ndarray):
         size = sample.nbytes
-        print(f"\tKey: {prefix}, Size: {size / 1024:.2f} KB")
         return size
 
     if isinstance(sample, torch.Tensor):
         size = sample.element_size() * sample.nelement()
-        print(f"\tKey: {prefix}, Size: {size / 1024:.2f} KB")
         return size
 
     if isinstance(sample, dict):
@@ -296,37 +294,27 @@ def initialize_dataloaders(config: TrainingConfig, cache_manager: cacheManager, 
     print("\t...initializing_dataloader complete")
     dataset_dict = dataset_dict.rename_columns({'coordinates': 'data', 'binding_type': 'labels'})
     print("\tPre-encoding labels and packing coordinates into fixed-size tensors in dataset artifacts...")
-
+    used_percentage_str = f"{int(config.dataset_size * 100)}pct" 
+    dir_name = construct_cache_identifier(used_percentage=used_percentage_str, prefix="labels_and_coords_packed")
+    batch_size = max(1, int(config.transform_batch_size))
+    requested_workers = max(1, int(config.num_cpus))
+    num_workers = _effective_worker_count(requested_workers)
+    fast_cache_prefix = cache_manager.get_fast_cache_dir() 
+    safetensor_postfix = f"safetensors"
+    cache_prefix = cache_manager.get_cache_dir()
+    slow_cache_dir = os.path.join(cache_prefix, dir_name)
+    slow_safetensors_cache_filepath = os.path.join(cache_prefix, dir_name, safetensor_postfix)
+    fast_safetensors_filepath_cache = os.path.join(fast_cache_prefix, dir_name, safetensor_postfix)
+    using_fast_cache = fast_cache_prefix is not None
+    safetensors_cache_folder = fast_safetensors_filepath_cache if using_fast_cache else slow_safetensors_cache_filepath
+        
     for split in splits:
-        used_percentage_str = f"{int(config.dataset_size * 100)}pct" 
-        dir_name = construct_cache_identifier(used_percentage=used_percentage_str, prefix="labels_and_coords_packed")
-        batch_size = max(1, int(config.transform_batch_size))
-        requested_workers = max(1, int(config.num_cpus))
-        num_workers = _effective_worker_count(requested_workers)
-        fast_cache_prefix = cache_manager.get_fast_cache_dir() 
-        safetensor_postfix = f"safetensors"
-        cache_prefix = cache_manager.get_cache_dir()
-        slow_cache_dir = os.path.join(cache_prefix, dir_name)
-        slow_safetensors_cache_filepath = os.path.join(cache_prefix, dir_name, safetensor_postfix)
-        fast_safetensors_filepath_cache = os.path.join(fast_cache_prefix, dir_name, safetensor_postfix)
-        using_fast_cache = fast_cache_prefix is not None
-        safetensors_cache_folder = fast_safetensors_filepath_cache if using_fast_cache else slow_safetensors_cache_filepath
+        if os.path.exists(os.path.join(slow_safetensors_cache_filepath, f"{split}_metadata.pt")):
+            print(f"\t\tFound existing cached safetensors for {split} split in {slow_safetensors_cache_filepath}.")
+            continue  # Skip if already cached (metadata presence indicates completed cache)
 
-
-
-        if os.path.exists(slow_safetensors_cache_filepath):
-            print(f"\t\tFound existing safetensors cache for {split} split at {slow_safetensors_cache_filepath}. Loading from cache...")
-            if using_fast_cache:
-                print(f"\t\tCopying cached dataset in {slow_safetensors_cache_filepath} for {split} split to {fast_safetensors_filepath_cache} directory for faster access during this run...")
-                shutil.copytree(slow_safetensors_cache_filepath, fast_safetensors_filepath_cache)
-                safetensors_cache_folder = fast_safetensors_filepath_cache
-                print(f"\t\tCopy complete. Using {fast_safetensors_filepath_cache} for {split} split during this run.")
-            print(f"\t\tLoading cached safetensors for {split} split from {safetensors_cache_folder}...")
-            dataset_dict[split] = ShardedSafetensorsDataset(safetensors_cache_folder, split)
-            continue
         while True:
             try: 
-
                 dataset_dict[split] = dataset_dict[split].map(
                     _encode_and_pack_batch,
                     batched=True,
@@ -339,19 +327,9 @@ def initialize_dataloaders(config: TrainingConfig, cache_manager: cacheManager, 
                 _save_split_as_safetensors_memory_efficient(
                     dataset_dict, 
                     split, 
-                    cache_path=filepath_cache,
+                    cache_path=safetensors_cache_folder,
                     shard_size=5000  # Adjust based on your memory
                 )
-                # copy to fast cache if applicable
-                if cache_manager.get_fast_cache_dir() is not None:
-                    print(f"\t\tCopying cached dataset in {slow_safetensors_cache_filepath} for {split} split to {fast_safetensors_filepath_cache} directory for faster access during this run...")
-                    shutil.copytree(slow_safetensors_cache_filepath, fast_safetensors_filepath_cache)
-                    print(f"\t\tCopy complete. Using {fast_safetensors_filepath_cache} for {split} split during this run.")
-                    filepath_cache = fast_safetensors_filepath_cache
-                dataset_dict[split] = ShardedSafetensorsDataset(filepath_cache, split)
-                print(f"\t\tLoaded cached safetensors for {split} split from {filepath_cache}.")
-
-                
                 break
             except Exception as e:
                 print(f"Error during map for {split} split with batch size {batch_size}: {e}")
@@ -363,6 +341,15 @@ def initialize_dataloaders(config: TrainingConfig, cache_manager: cacheManager, 
                     continue
                 else:
                     raise
+        
+    if using_fast_cache:
+        print(f"\t\tCopying cached dataset in {slow_safetensors_cache_filepath} for to {fast_safetensors_filepath_cache} directory for faster access during this run...")
+        shutil.copytree(slow_safetensors_cache_filepath, fast_safetensors_filepath_cache, dirs_exist_ok=True)
+        safetensors_cache_folder = fast_safetensors_filepath_cache
+        print(f"\t\tCopy complete. Using {fast_safetensors_filepath_cache} for {split} split during this run.")
+    print(f"\t\tLoading cached safetensors for {split} split from {safetensors_cache_folder}...")
+    for split in splits:
+        dataset_dict[split] = ShardedSafetensorsDataset(safetensors_cache_folder, split)
     print("\tDataset map preprocessing done; using fast fixed-shape batch path.")
     if not keep_all_columns:
         drop_cols = [
