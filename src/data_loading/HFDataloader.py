@@ -16,6 +16,12 @@ import resource
 label_encoder = LabelEncoder()
 
 
+def _effective_worker_count(requested_cpus: int) -> int:
+    """Use physical-core-like worker count on hyperthreaded systems."""
+    requested = max(1, int(requested_cpus))
+    return max(1, requested // 2)
+
+
 def _is_host_oom_error(exc: BaseException) -> bool:
     """Return True for common CPU/host-memory OOM failures."""
     if isinstance(exc, MemoryError):
@@ -202,8 +208,12 @@ def initialize_dataloaders(config: TrainingConfig, cache_manager: cacheManager, 
     print("\tPre-encoding labels and packing coordinates into fixed-size tensors in dataset artifacts...")
     for split in splits:
         batch_size = max(1, int(config.transform_batch_size))
-        num_workers = max(0, int(config.num_cpus))
-        print(f"\t\tPreparing map for {split} split with batch size {batch_size} and num_workers {num_workers}...")
+        requested_workers = max(1, int(config.num_cpus))
+        num_workers = _effective_worker_count(requested_workers)
+        print(
+            f"\t\tPreparing map for {split} split with batch size {batch_size} and num_workers {num_workers} "
+            f"(requested {requested_workers}, hyperthread-aware)..."
+        )
         while True:
             try: 
                 used_percentage_str = f"{int(config.dataset_size * 100)}pct" 
@@ -211,7 +221,7 @@ def initialize_dataloaders(config: TrainingConfig, cache_manager: cacheManager, 
                     _encode_and_pack_batch,
                     batched=True,
                     batch_size=batch_size,
-                    num_proc=max(1, num_workers),
+                    num_proc=num_workers,
                     desc=f"Encoding labels and packing coords for {split}",
                     cache_file_name=cache_manager.get_file_path(construct_file_name(used_percentage=used_percentage_str, splitname=split, prefix="labels_and_coords_packed",  extension="arrow"))
                 )
@@ -241,12 +251,12 @@ def initialize_dataloaders(config: TrainingConfig, cache_manager: cacheManager, 
             keep_all_columns=keep_all_columns,
         )
 
-    dataloader_workers = max(1, min(int(config.num_cpus), 8))
-    if dataloader_workers != max(0, int(config.num_cpus)):
-        print(
-            f"\tUsing {dataloader_workers} DataLoader workers instead of requested {int(config.num_cpus)} "
-            "for packed large-tensor batches to reduce IPC overhead."
-        )
+    requested_workers = max(1, int(config.num_cpus))
+    dataloader_workers = _effective_worker_count(requested_workers)
+    print(
+        f"\tUsing {dataloader_workers} DataLoader workers for packed large-tensor batches "
+        f"(requested {requested_workers}, hyperthread-aware)."
+    )
     dataloader_args = {
         "batch_size": config.batch_size,
         "num_workers": dataloader_workers,
@@ -254,7 +264,7 @@ def initialize_dataloaders(config: TrainingConfig, cache_manager: cacheManager, 
         "persistent_workers": dataloader_workers > 0,
     }
     if dataloader_workers > 0:
-        dataloader_args["prefetch_factor"] = 4
+        dataloader_args["prefetch_factor"] = 8
     resource.setrlimit(resource.RLIMIT_NOFILE, (10810, 10810))
     
     dataloader_dict = {}
@@ -278,8 +288,12 @@ def initialize_streaming_dataloader(config: TrainingConfig, keep_all_columns: bo
     for split in splits:
         if split in dataset_dict:
             batch_size = max(1, int(config.transform_batch_size))
-            num_workers = max(0, int(config.num_cpus))
-            print(f"\t\tPreparing streaming map for {split} split with batch size {batch_size} and num_workers {num_workers}...")
+            requested_workers = max(1, int(config.num_cpus))
+            num_workers = _effective_worker_count(requested_workers)
+            print(
+                f"\t\tPreparing streaming map for {split} split with batch size {batch_size} and num_workers {num_workers} "
+                f"(requested {requested_workers}, hyperthread-aware)..."
+            )
             while True:
 
                 try:
@@ -288,7 +302,7 @@ def initialize_streaming_dataloader(config: TrainingConfig, keep_all_columns: bo
                         _encode_and_pack_batch,
                         batched=True,
                         batch_size=batch_size,
-                        num_proc=max(1, num_workers),
+                        num_proc=num_workers,
                         desc=f"Encoding labels and packing coords for {split} (streaming)",
                     )
                     
@@ -320,12 +334,12 @@ def initialize_streaming_dataloader(config: TrainingConfig, keep_all_columns: bo
     dataloader_dict = {}
     for split in splits:
         print(f"\t\tPreparing dataloader for {split} split (on-the-fly preprocessing)...")
-        dataloader_workers = max(1, min(int(config.num_cpus), 8))
-        if dataloader_workers != max(0, int(config.num_cpus)):
-            print(
-                f"\tUsing {dataloader_workers} DataLoader workers instead of requested {int(config.num_cpus)} "
-                "for packed large-tensor batches to reduce IPC overhead."
-            )
+        requested_workers = max(1, int(config.num_cpus))
+        dataloader_workers = _effective_worker_count(requested_workers)
+        print(
+            f"\tUsing {dataloader_workers} DataLoader workers for packed large-tensor batches "
+            f"(requested {requested_workers}, hyperthread-aware)."
+        )
         dataloader_args = {
             "batch_size": config.batch_size,
             "num_workers": dataloader_workers,
@@ -333,7 +347,7 @@ def initialize_streaming_dataloader(config: TrainingConfig, keep_all_columns: bo
             "persistent_workers": dataloader_workers > 0,
         }
         if dataloader_workers > 0:
-            dataloader_args["prefetch_factor"] = 4
+            dataloader_args["prefetch_factor"] = 8
         dataloader = torch.utils.data.DataLoader(dataset_dict[split], **dataloader_args)
         dataloader_dict[split] = dataloader
     print("\t...streaming dataloaders ready")

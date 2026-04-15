@@ -10,7 +10,8 @@ TARGET_PIXELS = TARGET_SIZE * TARGET_SIZE
 def _labels_to_tensor(labels, device):
     if torch.is_tensor(labels):
         return labels.to(device=device, dtype=torch.long, non_blocking=True)
-
+    else:
+        raise ValueError(f"Unsupported label type: {type(labels)}. Expected tensor, list, tuple, or string.")
     if isinstance(labels, (list, tuple)):
         if len(labels) == 0:
             return torch.empty(0, dtype=torch.long, device=device)
@@ -41,7 +42,7 @@ def _coords_to_tensor(batch_data, device):
                 return packed.to(device=device, non_blocking=True)
         except Exception:
             pass
-
+    raise ValueError(f"Unsupported batch data format: {type(batch_data)} with element type {type(batch_data[0]) if isinstance(batch_data, (list, tuple)) and len(batch_data) > 0 else 'N/A'}. Expected tensor or list/tuple of tensors.")
     if isinstance(batch_data, (list, tuple)):
         tensor_list = [torch.as_tensor(item, dtype=torch.float32) for item in batch_data]
         max_len = max(t.shape[0] for t in tensor_list)
