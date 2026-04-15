@@ -5,10 +5,10 @@ import shutil
 import datasets
 import os
 import numpy as np
-
+from safetensors.torch import save_file
+from src.data_loading.SafetensorsDataset import SafetensorsDataset
 import torch
 torch.multiprocessing.set_sharing_strategy('file_system')
-
 from src.model_training.LabelEncoder import LabelEncoder
 from src.model_training.batch_preprocessing import TARGET_PIXELS
 from src.utils.cacheManager import cacheManager, construct_file_name
@@ -19,6 +19,25 @@ import resource
 
 label_encoder = LabelEncoder()
 
+def _save_split_as_safetensors(dataset_dict, split, cache_path):
+    """Save a dataset split as safetensors for fast loading"""
+    
+    # Extract your fixed-shape data (already packed to TARGET_PIXELS, 3)
+    data_np = np.array(dataset_dict[split]['data'])      # Shape: (n, 168, 3)
+    labels_np = np.array(dataset_dict[split]['labels'])  # Shape: (n,)
+    num_atoms_np = np.array(dataset_dict[split]['num_atoms'])  # Shape: (n,)
+    
+    # Convert to torch tensors
+    tensors = {
+        'data': torch.from_numpy(data_np),
+        'labels': torch.from_numpy(labels_np),
+        'num_atoms': torch.from_numpy(num_atoms_np),
+    }
+    
+    # Save as safetensors (single file, efficient)
+    save_file(tensors, f"{cache_path}/{split}_data.safetensors")
+    
+    return SafetensorsDataset(f"{cache_path}/{split}_data.safetensors")
 
 def _effective_worker_count(requested_cpus: int) -> int:
     """Use physical-core-like worker count on hyperthreaded systems."""
@@ -210,25 +229,44 @@ def initialize_dataloaders(config: TrainingConfig, cache_manager: cacheManager, 
     print("\t...initializing_dataloader complete")
     dataset_dict = dataset_dict.rename_columns({'coordinates': 'data', 'binding_type': 'labels'})
     print("\tPre-encoding labels and packing coordinates into fixed-size tensors in dataset artifacts...")
+
     for split in splits:
+        filename = construct_file_name(used_percentage=used_percentage_str, splitname=split, prefix="labels_and_coords_packed",  extension="arrow")
+        filepath_cache = os.path.join(cache_manager.get_cache_dir(), filename)
+        used_percentage_str = f"{int(config.dataset_size * 100)}pct" 
         batch_size = max(1, int(config.transform_batch_size))
         requested_workers = max(1, int(config.num_cpus))
         num_workers = _effective_worker_count(requested_workers)
-        print(
-            f"\t\tPreparing map for {split} split with batch size {batch_size} and num_workers {num_workers} "
-            f"(requested {requested_workers}, hyperthread-aware)..."
-        )
+        if os.path.exists(filepath_cache):
+            print(f"\t\tFound existing cache for {split} split at {filepath_cache}. Loading from cache...")
+            if cache_manager.get_fast_cache_dir() is not None:
+                print(f"\t\tCopying cached dataset for {split} split to fast cache directory for faster access during this run...")
+                shutil.copy(filepath_cache, os.path.join(cache_manager.get_fast_cache_dir(), filename))
+                filepath_cache = os.path.join(cache_manager.get_fast_cache_dir(), filename)
+            dataset_dict[split] = SafetensorsDataset(filepath_cache)
+            print(f"\t\tLoaded cached dataset for {split} split from {filepath_cache}.")
+            continue
         while True:
             try: 
-                used_percentage_str = f"{int(config.dataset_size * 100)}pct" 
+
                 dataset_dict[split] = dataset_dict[split].map(
                     _encode_and_pack_batch,
                     batched=True,
                     batch_size=batch_size,
                     num_proc=num_workers,
                     desc=f"Encoding labels and packing coords for {split}",
-                    cache_file_name=cache_manager.get_file_path(construct_file_name(used_percentage=used_percentage_str, splitname=split, prefix="labels_and_coords_packed",  extension="arrow"))
+                    cache_file_name=filepath_cache
                 )
+                _save_split_as_safetensors(dataset_dict, split, filepath_cache)
+                # copy to fast cache if applicable
+                if cache_manager.get_fast_cache_dir() is not None:
+                    print(f"\t\tCopying cached dataset for {split} split to fast cache directory for faster access during this run...")
+                    shutil.copy(filepath_cache, os.path.join(cache_manager.get_fast_cache_dir(), filename))
+                    filepath_cache = os.path.join(cache_manager.get_fast_cache_dir(), filename)
+                dataset_dict[split] = SafetensorsDataset(filepath_cache)
+                
+
+                
                 break
             except Exception as e:
                 print(f"Error during map for {split} split with batch size {batch_size}: {e}")

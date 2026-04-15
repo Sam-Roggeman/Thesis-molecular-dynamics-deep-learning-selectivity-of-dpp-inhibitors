@@ -10,7 +10,10 @@ class cacheManager:
     def __init__(self, cache_dir, fast_cache_dir=None):
         self.cache_dir = cache_dir
         self.fast_cache_dir = fast_cache_dir
-
+    def get_cache_dir(self):
+        return self.cache_dir
+    def get_fast_cache_dir(self):
+        return self.fast_cache_dir
     def get_file_path(self, filename):
         # use filename as directory 
         filename_without_ext = os.path.splitext(filename)[0]
