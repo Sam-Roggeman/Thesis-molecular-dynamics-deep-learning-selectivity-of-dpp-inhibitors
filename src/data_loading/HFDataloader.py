@@ -18,7 +18,7 @@ import resource
 
 
 label_encoder = LabelEncoder()
-def _save_split_as_safetensors_memory_efficient(dataset_dict, split, cache_path, shard_size=5000):
+def _save_split_as_safetensors_memory_efficient(dataset_dict, split, cache_path, shard_size=50000):
     """
     Memory-efficient saving with sharding.
     
@@ -46,7 +46,7 @@ def _save_split_as_safetensors_memory_efficient(dataset_dict, split, cache_path,
         print(f"Processing shard {shard_idx+1}/{n_shards} (samples {start}-{end})")
         
         # Extract slice - Hugging Face datasets supports this efficiently
-        data_slice = da['data'][start:end]
+        data_slice = dataset_dict[split]['data'][start:end]
         labels_slice = dataset_dict[split]['labels'][start:end]
         num_atoms_slice = dataset_dict[split]['num_atoms'][start:end]
         
