@@ -272,7 +272,12 @@ def initialize_dataloaders(config: TrainingConfig, cache_manager: cacheManager, 
         print(f"\t\tCreating dataloader for {split} split with batch size {config.batch_size} and num_workers {dataloader_workers}...")
         dataloader = torch.utils.data.DataLoader(dataset_dict[split], **dataloader_args)
         dataloader_dict[split] = dataloader
-    cache_manager.move_to_permanent_cache()
+    cache_manager.copy_to_permanent_cache()
+    # print the location of the dataloader on disk for debugging
+    for split_name, dataset in dataset_dict.items():
+        if hasattr(dataset, 'cache_files'):
+            print(dataset.cache_files)    
+            
     return dataloader_dict
 
 def initialize_streaming_dataloader(config: TrainingConfig, keep_all_columns: bool = False, splits: list = ["train", "validation", "test"], shuffle: bool = False) -> DataLoaderDict:
