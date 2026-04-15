@@ -46,7 +46,7 @@ def _save_split_as_safetensors_memory_efficient(dataset_dict, split, cache_path,
         print(f"Processing shard {shard_idx+1}/{n_shards} (samples {start}-{end})")
         
         # Extract slice - Hugging Face datasets supports this efficiently
-        data_slice = dataset_dict[split]['data'][start:end]
+        data_slice = da['data'][start:end]
         labels_slice = dataset_dict[split]['labels'][start:end]
         num_atoms_slice = dataset_dict[split]['num_atoms'][start:end]
         
@@ -297,7 +297,7 @@ def initialize_dataloaders(config: TrainingConfig, cache_manager: cacheManager, 
                 )
                 print(f"\t\tEncoding and packing complete for {split} split. Saving to safetensors cache...")
                 _save_split_as_safetensors_memory_efficient(
-                    dataset_dict[split], 
+                    dataset_dict, 
                     split, 
                     cache_path=filepath_cache,
                     shard_size=5000  # Adjust based on your memory
