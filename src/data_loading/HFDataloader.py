@@ -327,7 +327,7 @@ def initialize_dataloaders(config: TrainingConfig, cache_manager: cacheManager, 
                 _save_split_as_safetensors_memory_efficient(
                     dataset_dict, 
                     split, 
-                    cache_path=safetensors_cache_folder,
+                    cache_path=slow_safetensors_cache_filepath,
                     shard_size=5000  # Adjust based on your memory
                 )
                 break
@@ -344,8 +344,8 @@ def initialize_dataloaders(config: TrainingConfig, cache_manager: cacheManager, 
         
     if using_fast_cache:
         print(f"\t\tCopying cached dataset in {slow_safetensors_cache_filepath} for to {fast_safetensors_filepath_cache} directory for faster access during this run...")
+        os.makedirs(os.path.dirname(fast_safetensors_filepath_cache), exist_ok=True)
         shutil.copytree(slow_safetensors_cache_filepath, fast_safetensors_filepath_cache, dirs_exist_ok=True)
-        safetensors_cache_folder = fast_safetensors_filepath_cache
         print(f"\t\tCopy complete. Using {fast_safetensors_filepath_cache} for {split} split during this run.")
     print(f"\t\tLoading cached safetensors for {split} split from {safetensors_cache_folder}...")
     for split in splits:
