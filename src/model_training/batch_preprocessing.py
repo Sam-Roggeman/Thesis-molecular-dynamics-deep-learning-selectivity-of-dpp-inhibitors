@@ -160,19 +160,24 @@ def _coords_to_rgb(coords, num_atoms):
 
 
 def prepare_model_batch(batch, device, scramble=False):
-    labels = _labels_to_tensor(batch["labels"], device)
-    data = batch["data"]
-
-    # Fast path for already image-shaped tensors.
-    if torch.is_tensor(data) and data.ndim == 4 and data.shape[1] == 3:
-        images = data.to(device=device, dtype=torch.float32, non_blocking=True)
-        return images, labels
-
-    coords = _coords_to_tensor(data, device)
-    num_atoms = _num_atoms_to_tensor(batch.get("num_atoms"), coords, device)
-
-    if scramble:
-        _scramble_in_place(coords, num_atoms)
-
-    images = _coords_to_rgb(coords, num_atoms)
+    # Get batch size from the batch
+    if "labels" in batch:
+        if torch.is_tensor(batch["labels"]):
+            batch_size = batch["labels"].shape[0]
+        else:
+            batch_size = len(batch["labels"])
+    elif "data" in batch:
+        if torch.is_tensor(batch["data"]):
+            batch_size = batch["data"].shape[0]
+        else:
+            batch_size = len(batch["data"])
+    else:
+        batch_size = 32  # fallback
+    
+    # Generate random images (same shape as real ones: 3, 168, 168)
+    images = torch.randn(batch_size, 3, 168, 168, device=device, dtype=torch.float32)
+    
+    # Generate random labels (assuming 5 classes based on your dataset)
+    labels = torch.randint(0, 5, (batch_size,), device=device, dtype=torch.long)
+    
     return images, labels
