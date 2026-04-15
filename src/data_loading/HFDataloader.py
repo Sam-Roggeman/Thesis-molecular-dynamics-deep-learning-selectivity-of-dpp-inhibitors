@@ -1,3 +1,5 @@
+import multiprocessing as mp
+mp.set_start_method('spawn', force=True)
 import shutil
 
 import datasets
@@ -253,7 +255,7 @@ def initialize_dataloaders(config: TrainingConfig, cache_manager: cacheManager, 
         )
 
     requested_workers = max(1, int(config.num_cpus))
-    dataloader_workers = 0
+    dataloader_workers = _effective_worker_count(requested_workers)
     print(
         f"\tUsing {dataloader_workers} DataLoader workers for packed large-tensor batches "
         f"(requested {requested_workers}, hyperthread-aware)."
@@ -262,9 +264,10 @@ def initialize_dataloaders(config: TrainingConfig, cache_manager: cacheManager, 
         "batch_size": config.batch_size,
         "num_workers": dataloader_workers,
         "persistent_workers": dataloader_workers > 0,
+        "pin_memory": True,
     }
     if dataloader_workers > 0:
-        dataloader_args["prefetch_factor"] = 8
+        dataloader_args["prefetch_factor"] = 4
     resource.setrlimit(resource.RLIMIT_NOFILE, (10810, 10810))
     
     dataloader_dict = {}
