@@ -110,12 +110,13 @@ def _encode_and_pack_batch(batch):
     return result
 
 
-def _set_torch_format_for_packed_dataset(ds, keep_all_columns: bool):
+def _set_torch_format_for_packed_dataset(ds: datasets.Dataset, keep_all_columns: bool):
     """Enable torch formatting so DataLoader can stack packed arrays efficiently."""
+    device = "cuda" if torch.cuda.is_available() else "cpu"
     tensor_columns = [c for c in ["data", "labels", "num_atoms"] if c in ds.column_names]
     if not tensor_columns:
         return ds
-    return ds.with_format("torch", columns=tensor_columns, output_all_columns=keep_all_columns)
+    return ds.with_format("torch", columns=tensor_columns, output_all_columns=keep_all_columns, device=device)
 
 def _download_dataset(config: TrainingConfig, splits=None) -> datasets.DatasetDict:
     print("Downloading dataset...")
@@ -277,7 +278,7 @@ def initialize_dataloaders(config: TrainingConfig, cache_manager: cacheManager, 
     for split_name, dataset in dataset_dict.items():
         if hasattr(dataset, 'cache_files'):
             print(dataset.cache_files)    
-            
+
     return dataloader_dict
 
 def initialize_streaming_dataloader(config: TrainingConfig, keep_all_columns: bool = False, splits: list = ["train", "validation", "test"], shuffle: bool = False) -> DataLoaderDict:
