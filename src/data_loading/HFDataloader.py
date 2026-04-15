@@ -18,13 +18,13 @@ import resource
 
 
 label_encoder = LabelEncoder()
-def _save_split_as_safetensors_memory_efficient(dataset_dict, split, cache_path, shard_size=50000):
+def _save_split_as_safetensors_memory_efficient(dataset_dict, split, cache_path, shard_size=5000):
     """
     Memory-efficient saving with sharding.
     
     shard_size: Adjust based on available RAM.
     - Each shard uses ~shard_size * 168 * 3 * 4 bytes for data
-    - Example: 5000 samples * 168 * 3 * 4 = ~10MB per shard (very safe)
+    - Example: 5000 samples * 168 * 168 * 3 * 32 bits / 8 bits/byte /  = 1.69344 GB per shard
     """
     from safetensors.torch import save_file
     import torch
@@ -38,7 +38,23 @@ def _save_split_as_safetensors_memory_efficient(dataset_dict, split, cache_path,
     # Create shards
     n_shards = (total_samples + shard_size - 1) // shard_size
     print(f"Creating {n_shards} shards of ~{shard_size} samples each")
-    
+    # calculate the size of one sample for debugging
+    sample = dataset_dict[split][0] # Get the first sample to estimate size
+    total_size = 0
+    for key, value in sample.items():
+        if isinstance(value, np.ndarray):
+            size = value.nbytes
+        elif isinstance(value, torch.Tensor):
+            size = value.element_size() * value.nelement()
+        else:
+            size = len(str(value).encode('utf-8'))  # Rough estimate for non-array data
+        print(f"\tKey: {key}, Size: {size / 1024:.2f} KB")
+        total_size += size
+
+
+    print(f"Size per sample: {total_size / 1024:.2f} KB")
+    print(f"Estimated size per shard: {(total_size * shard_size) / 1024 / 1024/1024:.2f} GB")
+
     for shard_idx in range(n_shards):
         start = shard_idx * shard_size
         end = min((shard_idx + 1) * shard_size, total_samples)
