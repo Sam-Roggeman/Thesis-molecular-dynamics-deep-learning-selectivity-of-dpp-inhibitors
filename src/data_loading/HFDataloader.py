@@ -253,15 +253,14 @@ def initialize_dataloaders(config: TrainingConfig, cache_manager: cacheManager, 
         )
 
     requested_workers = max(1, int(config.num_cpus))
-    dataloader_workers = _effective_worker_count(requested_workers)
+    dataloader_workers = 0
     print(
         f"\tUsing {dataloader_workers} DataLoader workers for packed large-tensor batches "
         f"(requested {requested_workers}, hyperthread-aware)."
     )
     dataloader_args = {
         "batch_size": config.batch_size,
-        "num_workers": 0,
-        "pin_memory": torch.cuda.is_available(),
+        "num_workers": dataloader_workers,
         "persistent_workers": dataloader_workers > 0,
     }
     if dataloader_workers > 0:
