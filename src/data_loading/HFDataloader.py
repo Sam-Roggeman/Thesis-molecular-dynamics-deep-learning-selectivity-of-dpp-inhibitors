@@ -80,22 +80,21 @@ def _save_split_as_safetensors_memory_efficient(dataset_dict, split, cache_path,
         
         print(f"Processing shard {shard_idx+1}/{n_shards} (samples {start}-{end})")
         
-        # Extract slice - Hugging Face datasets supports this efficiently
-        data_slice = dataset_dict[split]['data'][start:end]
-        labels_slice = dataset_dict[split]['labels'][start:end]
-        num_atoms_slice = dataset_dict[split]['num_atoms'][start:end]
-        
         # Convert to tensors
         tensors = {
-            'data': torch.from_numpy(np.array(data_slice)),
-            'labels': torch.from_numpy(np.array(labels_slice)),
-            'num_atoms': torch.from_numpy(np.array(num_atoms_slice)),
+            'data': torch.from_numpy(np.array(dataset_dict[split]['data'][start:end])),
+            'labels': torch.from_numpy(np.array(dataset_dict[split]['labels'][start:end])),
+            'num_atoms': torch.from_numpy(np.array(dataset_dict[split]['num_atoms'][start:end])),
         }
         
         # Save shard
         shard_path = f"{cache_path}/{split}_shard_{shard_idx:04d}_of_{n_shards:04d}.safetensors"
         save_file(tensors, shard_path)
-        print(f"  Saved to {shard_path} ({os.path.getsize(shard_path) / 1024 / 1024:.1f} MB)")
+        print(f"  Saved to {shard_path} ({os.path.getsize(shard_path) / 1024 / 1024 / 1024:.1f} GB)")
+
+        # Free memory
+        del tensors
+        
     
     # Save metadata file for easy loading
     metadata = {
@@ -106,7 +105,7 @@ def _save_split_as_safetensors_memory_efficient(dataset_dict, split, cache_path,
     }
     torch.save(metadata, f"{cache_path}/{split}_metadata.pt")
     
-    return ShardedSafetensorsDataset(cache_path, split, n_shards)
+    return ShardedSafetensorsDataset(cache_path, split)
 def _effective_worker_count(requested_cpus: int) -> int:
     """Use physical-core-like worker count on hyperthreaded systems."""
     requested = max(1, int(requested_cpus))
@@ -304,24 +303,25 @@ def initialize_dataloaders(config: TrainingConfig, cache_manager: cacheManager, 
         batch_size = max(1, int(config.transform_batch_size))
         requested_workers = max(1, int(config.num_cpus))
         num_workers = _effective_worker_count(requested_workers)
-        safetensors_cache = os.path.join("safetensors", f"{split}_data.safetensors")
         fast_cache_prefix = cache_manager.get_fast_cache_dir() 
+        safetensor_postfix = f"safetensors"
         cache_prefix = cache_manager.get_cache_dir()
-        if os.path.exists(safetensors_cache):
-            filepath_cache = os.path.join(cache_prefix, dir_name, safetensors_cache)
-            print(f"\t\tFound existing safetensors cache for {split} split at {filepath_cache}. Loading from cache...")
+        safetensors_filepath_cache = os.path.join(cache_prefix, dir_name, "safetensors")
+
+        if os.path.exists(safetensors_filepath_cache):
+            print(f"\t\tFound existing safetensors cache for {split} split at {safetensors_filepath_cache}. Loading from cache...")
             if cache_manager.get_fast_cache_dir() is not None:
-                filepath_fast_cache = os.path.join(fast_cache_prefix, dir_name, safetensors_cache)
-                print(f"\t\tCopying cached dataset in {filepath_cache} for {split} split to {filepath_fast_cache} directory for faster access during this run...")
-                new_filepath = os.path.join(fast_cache_prefix, dir_name, safetensors_cache)
+                filepath_fast_cache = os.path.join(fast_cache_prefix, dir_name, safetensor_postfix)
+                print(f"\t\tCopying cached dataset in {safetensors_filepath_cache} for {split} split to {filepath_fast_cache} directory for faster access during this run...")
+                new_filepath = os.path.join(fast_cache_prefix, dir_name, safetensor_postfix)
                 shutil.copytree(filepath_cache, new_filepath)
-                filepath_cache = new_filepath
+                filepath_cache = safetensors_filepath_cache
             print(f"\t\tLoading cached safetensors for {split} split from {filepath_cache}...")
-            dataset_dict[split] = ShardedSafetensorsDataset(filepath_cache, split)
+            dataset_dict[split] = ShardedSafetensorsDataset(safetensors_filepath_cache, split)
             continue
         while True:
             try: 
-                filepath_cache = os.path.join(cache_prefix, dir_name)
+
                 dataset_dict[split] = dataset_dict[split].map(
                     _encode_and_pack_batch,
                     batched=True,
@@ -339,11 +339,10 @@ def initialize_dataloaders(config: TrainingConfig, cache_manager: cacheManager, 
                 )
                 # copy to fast cache if applicable
                 if cache_manager.get_fast_cache_dir() is not None:
-                    new_filepath = os.path.join(cache_manager.get_fast_cache_dir(), dir_name, safetensors_cache)
-                    print(f"\t\tCopying cached dataset in {filepath_cache} for {split} split to {new_filepath} directory for faster access during this run...")
-                    shutil.copytree(filepath_cache, new_filepath)
-                    print(f"\t\tCopy complete. Using {new_filepath} for {split} split during this run.")
-                    filepath_cache = new_filepath
+                    print(f"\t\tCopying cached dataset in {filepath_cache} for {split} split to {safetensors_filepath_cache} directory for faster access during this run...")
+                    shutil.copytree(filepath_cache, safetensors_filepath_cache)
+                    print(f"\t\tCopy complete. Using {safetensors_filepath_cache} for {split} split during this run.")
+                    filepath_cache = safetensors_filepath_cache
                 dataset_dict[split] = ShardedSafetensorsDataset(filepath_cache, split)
                 print(f"\t\tLoaded cached safetensors for {split} split from {filepath_cache}.")
 
