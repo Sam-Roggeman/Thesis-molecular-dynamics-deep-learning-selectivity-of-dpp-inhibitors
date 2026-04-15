@@ -17,6 +17,34 @@ from src.utils.training_config import TrainingConfig
 import resource
 
 
+def calculate_sample_size(sample, prefix="sample"):
+    """Recursively estimate sample size in bytes and print per-field breakdown."""
+    if isinstance(sample, np.ndarray):
+        size = sample.nbytes
+        print(f"\tKey: {prefix}, Size: {size / 1024:.2f} KB")
+        return size
+
+    if isinstance(sample, torch.Tensor):
+        size = sample.element_size() * sample.nelement()
+        print(f"\tKey: {prefix}, Size: {size / 1024:.2f} KB")
+        return size
+
+    if isinstance(sample, dict):
+        total_size = 0
+        for key, value in sample.items():
+            total_size += calculate_sample_size(value, prefix=f"{prefix}.{key}")
+        return total_size
+
+    if isinstance(sample, (list, tuple)):
+        total_size = 0
+        for idx, value in enumerate(sample):
+            total_size += calculate_sample_size(value, prefix=f"{prefix}[{idx}]")
+        return total_size
+
+    size = len(str(sample).encode("utf-8"))  # Rough estimate for scalar/object data.
+    print(f"\tKey: {prefix}, Size: {size / 1024:.2f} KB")
+    return size
+
 label_encoder = LabelEncoder()
 def _save_split_as_safetensors_memory_efficient(dataset_dict, split, cache_path, shard_size=5000):
     """
@@ -24,7 +52,7 @@ def _save_split_as_safetensors_memory_efficient(dataset_dict, split, cache_path,
     
     shard_size: Adjust based on available RAM.
     - Each shard uses ~shard_size * 168 * 3 * 4 bytes for data
-    - Example: 5000 samples * 168 * 168 * 3 * 32 bits / 8 bits/byte /  = 1.69344 GB per shard
+    - Example: 5000 samples * 168 * 168 * 3 * 32 bits / 8 bits/byte  = 1.69344 GB per shard
     """
     from safetensors.torch import save_file
     import torch
@@ -40,16 +68,8 @@ def _save_split_as_safetensors_memory_efficient(dataset_dict, split, cache_path,
     print(f"Creating {n_shards} shards of ~{shard_size} samples each")
     # calculate the size of one sample for debugging
     sample = dataset_dict[split][0] # Get the first sample to estimate size
-    total_size = 0
-    for key, value in sample.items():
-        if isinstance(value, np.ndarray):
-            size = value.nbytes
-        elif isinstance(value, torch.Tensor):
-            size = value.element_size() * value.nelement()
-        else:
-            size = len(str(value).encode('utf-8'))  # Rough estimate for non-array data
-        print(f"\tKey: {key}, Size: {size / 1024:.2f} KB")
-        total_size += size
+    total_size = calculate_sample_size(sample)
+
 
 
     print(f"Size per sample: {total_size / 1024:.2f} KB")
