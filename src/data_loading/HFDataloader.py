@@ -7,6 +7,8 @@ import os
 import numpy as np
 
 import torch
+torch.multiprocessing.set_sharing_strategy('file_system')
+
 from src.model_training.LabelEncoder import LabelEncoder
 from src.model_training.batch_preprocessing import TARGET_PIXELS
 from src.utils.cacheManager import cacheManager, construct_file_name
@@ -264,7 +266,6 @@ def initialize_dataloaders(config: TrainingConfig, cache_manager: cacheManager, 
         "batch_size": config.batch_size,
         "num_workers": dataloader_workers,
         "persistent_workers": dataloader_workers > 0,
-        "pin_memory": True,
     }
     if dataloader_workers > 0:
         dataloader_args["prefetch_factor"] = 4
