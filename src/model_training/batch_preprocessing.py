@@ -1,3 +1,5 @@
+import time
+
 import torch
 from src.model_training.LabelEncoder import LabelEncoder
 
@@ -160,24 +162,50 @@ def _coords_to_rgb(coords, num_atoms):
 
 
 def prepare_model_batch(batch, device, scramble=False):
-    # Get batch size from the batch
-    if "labels" in batch:
-        if torch.is_tensor(batch["labels"]):
-            batch_size = batch["labels"].shape[0]
-        else:
-            batch_size = len(batch["labels"])
-    elif "data" in batch:
-        if torch.is_tensor(batch["data"]):
-            batch_size = batch["data"].shape[0]
-        else:
-            batch_size = len(batch["data"])
-    else:
-        batch_size = 32  # fallback
+    """WITH TIMING: Measure each step"""
     
-    # Generate random images (same shape as real ones: 3, 168, 168)
-    images = torch.randn(batch_size, 3, 168, 168, device=device, dtype=torch.float32)
+    timings = {}
     
-    # Generate random labels (assuming 5 classes based on your dataset)
-    labels = torch.randint(0, 5, (batch_size,), device=device, dtype=torch.long)
+    # Step 1: Get labels
+    t0 = time.time()
+    labels = _labels_to_tensor(batch["labels"], device)
+    timings['labels'] = time.time() - t0
+    
+    # Step 2: Get data
+    t0 = time.time()
+    data = batch["data"]
+    timings['get_data'] = time.time() - t0
+    
+    # Step 3: Convert coords to tensor
+    t0 = time.time()
+    coords = _coords_to_tensor(data, device)
+    timings['coords_to_tensor'] = time.time() - t0
+    
+    # Step 4: Get num_atoms
+    t0 = time.time()
+    num_atoms = _num_atoms_to_tensor(batch.get("num_atoms"), coords, device)
+    timings['num_atoms'] = time.time() - t0
+    
+    # Step 5: Scramble (if enabled)
+    t0 = time.time()
+    if scramble:
+        _scramble_in_place(coords, num_atoms)
+    timings['scramble'] = time.time() - t0
+    
+    # Step 6: Convert to RGB images (THIS IS LIKELY THE BOTTLENECK)
+    t0 = time.time()
+    images = _coords_to_rgb(coords, num_atoms)
+    timings['coords_to_rgb'] = time.time() - t0
+    
+    # Print timing every N calls (e.g., every 10 batches)
+    if not hasattr(prepare_model_batch, 'call_count'):
+        prepare_model_batch.call_count = 0
+    prepare_model_batch.call_count += 1
+    
+    if prepare_model_batch.call_count % 10 == 0:
+        print(f"\n[Prepare Model Batch Timing - Call {prepare_model_batch.call_count}]:")
+        for step, duration in timings.items():
+            print(f"  {step}: {duration*1000:.2f}ms")
+        print(f"  TOTAL: {sum(timings.values())*1000:.2f}ms")
     
     return images, labels

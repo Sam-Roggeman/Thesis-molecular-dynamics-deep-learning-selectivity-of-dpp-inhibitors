@@ -116,11 +116,10 @@ def _encode_and_pack_batch(batch):
 
 def _set_torch_format_for_packed_dataset(ds: datasets.Dataset, keep_all_columns: bool):
     """Enable torch formatting so DataLoader can stack packed arrays efficiently."""
-    device = "cuda" if torch.cuda.is_available() else "cpu"
     tensor_columns = [c for c in ["data", "labels", "num_atoms"] if c in ds.column_names]
     if not tensor_columns:
         return ds
-    return ds.with_format("torch", columns=tensor_columns, output_all_columns=keep_all_columns, device=device)
+    return ds.with_format("torch", columns=tensor_columns, output_all_columns=keep_all_columns)
 
 def _download_dataset(config: TrainingConfig, splits=None) -> datasets.DatasetDict:
     print("Downloading dataset...")
@@ -257,7 +256,7 @@ def initialize_dataloaders(config: TrainingConfig, cache_manager: cacheManager, 
         )
 
     requested_workers = max(1, int(config.num_cpus))
-    dataloader_workers = 0
+    dataloader_workers = _effective_worker_count(requested_workers)
     print(
         f"\tUsing {dataloader_workers} DataLoader workers for packed large-tensor batches "
         f"(requested {requested_workers}, hyperthread-aware)."
@@ -265,11 +264,10 @@ def initialize_dataloaders(config: TrainingConfig, cache_manager: cacheManager, 
     dataloader_args = {
         "batch_size": config.batch_size,
         "num_workers": dataloader_workers,
-        "pin_memory": False,
         "persistent_workers": dataloader_workers > 0,
+        "pin_memory": True,  # ← Enable for faster CPU→GPU transfer
+        "prefetch_factor": 4 if dataloader_workers > 0 else None,
     }
-    if dataloader_workers > 0:
-        dataloader_args["prefetch_factor"] = 4
     resource.setrlimit(resource.RLIMIT_NOFILE, (10810, 10810))
     
     dataloader_dict = {}
