@@ -231,9 +231,9 @@ def initialize_dataloaders(config: TrainingConfig, cache_manager: cacheManager, 
     print("\tPre-encoding labels and packing coordinates into fixed-size tensors in dataset artifacts...")
 
     for split in splits:
+        used_percentage_str = f"{int(config.dataset_size * 100)}pct" 
         filename = construct_file_name(used_percentage=used_percentage_str, splitname=split, prefix="labels_and_coords_packed",  extension="arrow")
         filepath_cache = os.path.join(cache_manager.get_cache_dir(), filename)
-        used_percentage_str = f"{int(config.dataset_size * 100)}pct" 
         batch_size = max(1, int(config.transform_batch_size))
         requested_workers = max(1, int(config.num_cpus))
         num_workers = _effective_worker_count(requested_workers)
