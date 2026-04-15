@@ -11,7 +11,7 @@ import torch
 torch.multiprocessing.set_sharing_strategy('file_system')
 from src.model_training.LabelEncoder import LabelEncoder
 from src.model_training.batch_preprocessing import TARGET_PIXELS
-from src.utils.cacheManager import cacheManager, construct_file_name
+from src.utils.cacheManager import cacheManager, construct_cache_identifier
 from src.utils.training_config import TrainingConfig
 
 import resource
@@ -232,18 +232,21 @@ def initialize_dataloaders(config: TrainingConfig, cache_manager: cacheManager, 
 
     for split in splits:
         used_percentage_str = f"{int(config.dataset_size * 100)}pct" 
-        filename = construct_file_name(used_percentage=used_percentage_str, splitname=split, prefix="labels_and_coords_packed",  extension="arrow")
-        filepath_cache = os.path.join(cache_manager.get_cache_dir(), filename)
+        dir_name = construct_cache_identifier(used_percentage=used_percentage_str, prefix="labels_and_coords_packed")
+        filepath_cache = os.path.join(cache_manager.get_cache_dir(), dir_name)
         batch_size = max(1, int(config.transform_batch_size))
         requested_workers = max(1, int(config.num_cpus))
         num_workers = _effective_worker_count(requested_workers)
+        print(f"\t\tCache file for {split} split: {filepath_cache}")
         if os.path.exists(filepath_cache):
             print(f"\t\tFound existing cache for {split} split at {filepath_cache}. Loading from cache...")
             if cache_manager.get_fast_cache_dir() is not None:
+                new_filepath = os.path.join(cache_manager.get_fast_cache_dir(), dir_name, split)
                 print(f"\t\tCopying cached dataset for {split} split to fast cache directory for faster access during this run...")
-                shutil.copy(filepath_cache, os.path.join(cache_manager.get_fast_cache_dir(), filename))
-                filepath_cache = os.path.join(cache_manager.get_fast_cache_dir(), filename)
+                shutil.copy(filepath_cache, new_filepath)
+                filepath_cache = new_filepath
             dataset_dict[split] = SafetensorsDataset(filepath_cache)
+
             print(f"\t\tLoaded cached dataset for {split} split from {filepath_cache}.")
             continue
         while True:
@@ -255,14 +258,15 @@ def initialize_dataloaders(config: TrainingConfig, cache_manager: cacheManager, 
                     batch_size=batch_size,
                     num_proc=num_workers,
                     desc=f"Encoding labels and packing coords for {split}",
-                    cache_file_name=filepath_cache
+                    cache_file_name=os.path.join(filepath_cache, f"{split}_data.arrow"),
                 )
                 _save_split_as_safetensors(dataset_dict, split, filepath_cache)
                 # copy to fast cache if applicable
                 if cache_manager.get_fast_cache_dir() is not None:
+                    new_filepath = os.path.join(cache_manager.get_fast_cache_dir(), dir_name, split)
                     print(f"\t\tCopying cached dataset for {split} split to fast cache directory for faster access during this run...")
-                    shutil.copy(filepath_cache, os.path.join(cache_manager.get_fast_cache_dir(), filename))
-                    filepath_cache = os.path.join(cache_manager.get_fast_cache_dir(), filename)
+                    shutil.copy(filepath_cache, new_filepath)
+                    filepath_cache = new_filepath
                 dataset_dict[split] = SafetensorsDataset(filepath_cache)
                 
 
