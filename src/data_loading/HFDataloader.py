@@ -6,7 +6,7 @@ import datasets
 import os
 import numpy as np
 from safetensors.torch import save_file
-from src.data_loading.SafetensorsDataset import SafetensorsDataset
+from src.data_loading.SafetensorsDataset import ShardedSafetensorsDataset
 import torch
 torch.multiprocessing.set_sharing_strategy('file_system')
 from src.model_training.LabelEncoder import LabelEncoder
@@ -18,27 +18,60 @@ import resource
 
 
 label_encoder = LabelEncoder()
-
-def _save_split_as_safetensors(dataset_dict, split, cache_path):
-    """Save a dataset split as safetensors for fast loading"""
+def _save_split_as_safetensors_memory_efficient(dataset_dict, split, cache_path, shard_size=5000):
+    """
+    Memory-efficient saving with sharding.
     
-    # Extract your fixed-shape data (already packed to TARGET_PIXELS, 3)
-    data_np = np.array(dataset_dict[split]['data'])      # Shape: (n, 168, 3)
-    labels_np = np.array(dataset_dict[split]['labels'])  # Shape: (n,)
-    num_atoms_np = np.array(dataset_dict[split]['num_atoms'])  # Shape: (n,)
+    shard_size: Adjust based on available RAM.
+    - Each shard uses ~shard_size * 168 * 3 * 4 bytes for data
+    - Example: 5000 samples * 168 * 3 * 4 = ~10MB per shard (very safe)
+    """
+    from safetensors.torch import save_file
+    import torch
+    import numpy as np
+    import os
     
-    # Convert to torch tensors
-    tensors = {
-        'data': torch.from_numpy(data_np),
-        'labels': torch.from_numpy(labels_np),
-        'num_atoms': torch.from_numpy(num_atoms_np),
+    # Get total size
+    total_samples = len(dataset_dict[split])
+    print(f"Saving {total_samples} samples for {split} split")
+    
+    # Create shards
+    n_shards = (total_samples + shard_size - 1) // shard_size
+    print(f"Creating {n_shards} shards of ~{shard_size} samples each")
+    
+    for shard_idx in range(n_shards):
+        start = shard_idx * shard_size
+        end = min((shard_idx + 1) * shard_size, total_samples)
+        
+        print(f"Processing shard {shard_idx+1}/{n_shards} (samples {start}-{end})")
+        
+        # Extract slice - Hugging Face datasets supports this efficiently
+        data_slice = dataset_dict[split]['data'][start:end]
+        labels_slice = dataset_dict[split]['labels'][start:end]
+        num_atoms_slice = dataset_dict[split]['num_atoms'][start:end]
+        
+        # Convert to tensors
+        tensors = {
+            'data': torch.from_numpy(np.array(data_slice)),
+            'labels': torch.from_numpy(np.array(labels_slice)),
+            'num_atoms': torch.from_numpy(np.array(num_atoms_slice)),
+        }
+        
+        # Save shard
+        shard_path = f"{cache_path}/{split}_shard_{shard_idx:04d}_of_{n_shards:04d}.safetensors"
+        save_file(tensors, shard_path)
+        print(f"  Saved to {shard_path} ({os.path.getsize(shard_path) / 1024 / 1024:.1f} MB)")
+    
+    # Save metadata file for easy loading
+    metadata = {
+        'total_samples': total_samples,
+        'n_shards': n_shards,
+        'shard_size': shard_size,
+        'split': split
     }
+    torch.save(metadata, f"{cache_path}/{split}_metadata.pt")
     
-    # Save as safetensors (single file, efficient)
-    save_file(tensors, f"{cache_path}/{split}_data.safetensors")
-    
-    return SafetensorsDataset(f"{cache_path}/{split}_data.safetensors")
-
+    return ShardedSafetensorsDataset(cache_path, split, n_shards)
 def _effective_worker_count(requested_cpus: int) -> int:
     """Use physical-core-like worker count on hyperthreaded systems."""
     requested = max(1, int(requested_cpus))
@@ -241,13 +274,12 @@ def initialize_dataloaders(config: TrainingConfig, cache_manager: cacheManager, 
         if os.path.exists(filepath_cache):
             print(f"\t\tFound existing cache for {split} split at {filepath_cache}. Loading from cache...")
             if cache_manager.get_fast_cache_dir() is not None:
-                new_filepath = os.path.join(cache_manager.get_fast_cache_dir(), dir_name, split)
                 print(f"\t\tCopying cached dataset for {split} split to fast cache directory for faster access during this run...")
+                new_filepath = os.path.join(cache_manager.get_fast_cache_dir(), dir_name, split)
                 shutil.copy(filepath_cache, new_filepath)
                 filepath_cache = new_filepath
-            dataset_dict[split] = SafetensorsDataset(filepath_cache)
-
-            print(f"\t\tLoaded cached dataset for {split} split from {filepath_cache}.")
+            print(f"\t\tLoading cached safetensors for {split} split from {filepath_cache}...")
+            dataset_dict[split] = ShardedSafetensorsDataset(filepath_cache, split)
             continue
         while True:
             try: 
@@ -260,15 +292,22 @@ def initialize_dataloaders(config: TrainingConfig, cache_manager: cacheManager, 
                     desc=f"Encoding labels and packing coords for {split}",
                     cache_file_name=os.path.join(filepath_cache, f"{split}_data.arrow"),
                 )
-                _save_split_as_safetensors(dataset_dict, split, filepath_cache)
+                print(f"\t\tEncoding and packing complete for {split} split. Saving to safetensors cache...")
+                _save_split_as_safetensors_memory_efficient(
+                    dataset_dict[split], 
+                    split, 
+                    cache_path=filepath_cache,
+                    shard_size=5000  # Adjust based on your memory
+                )
                 # copy to fast cache if applicable
                 if cache_manager.get_fast_cache_dir() is not None:
                     new_filepath = os.path.join(cache_manager.get_fast_cache_dir(), dir_name, split)
                     print(f"\t\tCopying cached dataset for {split} split to fast cache directory for faster access during this run...")
                     shutil.copy(filepath_cache, new_filepath)
+                    print(f"\t\tCopy complete. Using {new_filepath} for {split} split during this run.")
                     filepath_cache = new_filepath
-                dataset_dict[split] = SafetensorsDataset(filepath_cache)
-                
+                dataset_dict[split] = ShardedSafetensorsDataset(filepath_cache, split)
+                print(f"\t\tLoaded cached safetensors for {split} split from {filepath_cache}.")
 
                 
                 break
