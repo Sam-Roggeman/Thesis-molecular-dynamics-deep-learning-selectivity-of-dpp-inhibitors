@@ -42,7 +42,6 @@ def calculate_sample_size(sample, prefix="sample"):
         return total_size
 
     size = len(str(sample).encode("utf-8"))  # Rough estimate for scalar/object data.
-    print(f"\tKey: {prefix}, Size: {size / 1024:.2f} KB")
     return size
 
 label_encoder = LabelEncoder()
