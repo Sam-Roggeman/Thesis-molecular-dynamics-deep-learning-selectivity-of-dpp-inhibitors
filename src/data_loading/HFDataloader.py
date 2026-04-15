@@ -286,7 +286,7 @@ def initialize_dataloaders(config: TrainingConfig, cache_manager: cacheManager, 
             continue
         while True:
             try: 
-
+                filepath_cache = os.path.join(cache_prefix, dir_name)
                 dataset_dict[split] = dataset_dict[split].map(
                     _encode_and_pack_batch,
                     batched=True,
