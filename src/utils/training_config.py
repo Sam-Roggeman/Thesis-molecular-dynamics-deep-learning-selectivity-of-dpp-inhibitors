@@ -26,7 +26,7 @@ def calculate_num_cpus():
     else: 
         cpu_count = os.cpu_count()
     cpu_count = max(0, cpu_count)
-    print (f"Using {cpu_count} CPUs for data loading and processing (GPULAB_CPUS_RESERVED={os.environ.get('GPULAB_CPUS_RESERVED', 'N/A')}, total_cpus={os.cpu_count()}).")
+    print (f"Using {cpu_count} CPUs for data loading and processing (GPULAB_CPUS_RESERVED={os.environ.get('GPULAB_CPUS_RESERVED', 'N/A')}, total_cpus={cpu_count}).")
     return cpu_count
 @dataclass
 class TrainingConfig:

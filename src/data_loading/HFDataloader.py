@@ -351,19 +351,6 @@ def initialize_dataloaders(config: TrainingConfig, cache_manager: cacheManager, 
     for split in splits:
         dataset_dict[split] = ShardedSafetensorsDataset(safetensors_cache_folder, split)
     print("\tDataset map preprocessing done; using fast fixed-shape batch path.")
-    if not keep_all_columns:
-        drop_cols = [
-            c for c in ['pdb_id', 'ligand_name', 'replica_id']
-            if c in dataset_dict[splits[0]].column_names
-        ]
-        for split in splits:
-            dataset_dict[split] = dataset_dict[split].remove_columns(drop_cols)
-
-    for split in splits:
-        dataset_dict[split] = _set_torch_format_for_packed_dataset(
-            dataset_dict[split],
-            keep_all_columns=keep_all_columns,
-        )
 
     requested_workers = max(1, int(config.num_cpus))
     dataloader_workers = _effective_worker_count(requested_workers)
