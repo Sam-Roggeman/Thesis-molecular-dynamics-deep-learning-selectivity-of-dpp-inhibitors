@@ -56,7 +56,7 @@ class TrainingConfig:
     # Log training metrics every N train steps.
     log_every_steps: int = 100
     # Overlap next-batch GPU prep with current step compute using a CUDA stream.
-    use_cuda_prefetcher: bool = True
+    use_cuda_prefetcher: bool = False
     compile_model: bool = True
     # Number of explicit warmup train steps after torch.compile. Set to 0 to disable.
     compile_warmup_steps: int = 5

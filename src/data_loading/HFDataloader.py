@@ -257,7 +257,7 @@ def initialize_dataloaders(config: TrainingConfig, cache_manager: cacheManager, 
         )
 
     requested_workers = max(1, int(config.num_cpus))
-    dataloader_workers = _effective_worker_count(requested_workers)
+    dataloader_workers = 0
     print(
         f"\tUsing {dataloader_workers} DataLoader workers for packed large-tensor batches "
         f"(requested {requested_workers}, hyperthread-aware)."
@@ -265,6 +265,7 @@ def initialize_dataloaders(config: TrainingConfig, cache_manager: cacheManager, 
     dataloader_args = {
         "batch_size": config.batch_size,
         "num_workers": dataloader_workers,
+        "pin_memory": False,
         "persistent_workers": dataloader_workers > 0,
     }
     if dataloader_workers > 0:
@@ -352,7 +353,7 @@ def initialize_streaming_dataloader(config: TrainingConfig, keep_all_columns: bo
         dataloader_args = {
             "batch_size": config.batch_size,
             "num_workers": dataloader_workers,
-            "pin_memory": True,
+            "pin_memory": False,
             "persistent_workers": dataloader_workers > 0,
         }
         if dataloader_workers > 0:
