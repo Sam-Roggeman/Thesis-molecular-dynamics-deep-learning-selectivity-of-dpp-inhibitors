@@ -7,7 +7,8 @@ label_encoder = LabelEncoder()
 TARGET_SIZE = 168
 TARGET_PIXELS = TARGET_SIZE * TARGET_SIZE
 
-
+from src.utils.logger import get_logger
+logging = get_logger() 
 
 def _labels_to_tensor(labels, device):
     if torch.is_tensor(labels):
@@ -203,9 +204,9 @@ def prepare_model_batch(batch, device, scramble=False):
     prepare_model_batch.call_count += 1
     
     if prepare_model_batch.call_count % 10 == 0:
-        print(f"\n[Prepare Model Batch Timing - Call {prepare_model_batch.call_count}]:")
+        logging.debug(f"\n[Prepare Model Batch Timing - Call {prepare_model_batch.call_count}]:")
         for step, duration in timings.items():
-            print(f"  {step}: {duration*1000:.2f}ms")
-        print(f"  TOTAL: {sum(timings.values())*1000:.2f}ms")
+            logging.debug(f"  {step}: {duration*1000:.2f}ms")
+        logging.debug(f"  TOTAL: {sum(timings.values())*1000:.2f}ms")
     
     return images, labels

@@ -20,7 +20,8 @@ from src.utils.logger import setup_logger, replace_output
 import datasets
 import torch.nn as nn
 import os
-
+from src.utils.logger import init_logger
+import src.utils.logger as logging
 
 def _is_cuda_oom_error(exc: BaseException) -> bool:
     """Return True when exception indicates a CUDA OOM condition."""
@@ -41,22 +42,7 @@ def _cleanup_cuda_memory():
             pass
 
 
-def setup_directories_and_logging(config: TrainingConfig, model_name: str) -> Tuple[str, object]:
-    """Create model directory and setup logging"""
-    time_string = datetime.now().strftime("%Y%m%d-%H%M%S")
-    output_dir = os.getenv("OUTPUT_DIR")
-    model_dir = os.path.join(output_dir, "models", f"{model_name}", time_string)
-    os.makedirs(model_dir, exist_ok=True)
 
-    logger = setup_logger(
-        log_file="outputlog.txt",
-        log_dir=model_dir,
-        logging_enabled=True,
-        console_enabled=False
-    )
-    replace_output(logger)
-
-    return model_dir, logger
 
 
 def save_results(model_state_dict, model_dir: str, model_name: str, metrics):
@@ -95,17 +81,28 @@ def _warmup(model, dataloader, optimizer, criterion, device, steps=5):
     if torch.cuda.is_available():
         torch.cuda.synchronize()
 
+def initialize_run_directory(model_name):
+    """Create model directory and setup logging"""
+    time_string = datetime.now().strftime("%Y%m%d-%H%M%S")
+    output_dir = os.getenv("OUTPUT_DIR")
+    model_dir = os.path.join(output_dir, "models", f"{model_name}", time_string)
+    os.makedirs(model_dir, exist_ok=True)
+    return model_dir
+    
+
 def train_model(config: TrainingConfig, model_name: str, streaming: bool = False):
     """Main training function - single entry point for all models"""
     load_dotenv() # Load environment variables from .env file
-
+    
     # Setup
-    run_dir, logger = setup_directories_and_logging(config, model_name)
-    print(f"Training {config.model_class.__name__}. Model will be saved to: {run_dir}")
-    print(f"Weight Decay: {config.weight_decay}, Learning Rate: {config.learning_rate}")
-    print(f"Max Num Epochs: {config.max_nr_epochs}")
+    run_dir = initialize_run_directory(model_name)
+    logger = init_logger(run_dir, log_mode=logging.DEBUG, log_file="debug.log")
+    logger.info(f"Starting training for {model_name} with, saving to {run_dir}")
+    logger.info(f"Training configuration: {config}")
+    logger.info(f"Weight Decay: {config.weight_decay}, Learning Rate: {config.learning_rate}")
+    logger.info(f"Max Num Epochs: {config.max_nr_epochs}")
     if config.max_train_steps is not None:
-        print(f"Max Train Steps: {config.max_train_steps}")
+        logger.info(f"Max Train Steps: {config.max_train_steps}")
     cache_dir = os.getenv("HF_CACHE_DIR")
     fast_cache_dir = os.getenv("FAST_CACHE_DIR")
     cache_manager = cacheManager(cache_dir, fast_cache_dir)
@@ -138,14 +135,14 @@ def train_model(config: TrainingConfig, model_name: str, streaming: bool = False
 
                 model.to(device)
                 if config.compile_model:
-                    print("Compiling model with torch.compile() for potentially faster training.")
+                    logger.info("Compiling model with torch.compile() for potentially faster training.")
                     model = torch.compile(model)
                     warmup_steps = max(0, int(getattr(config, "compile_warmup_steps", 1)))
                     if warmup_steps > 0:
-                        print(f"Warming up compiled model for {warmup_steps} step(s)...")
+                        logger.info(f"Warming up compiled model for {warmup_steps} step(s)...")
                         _warmup(model, dataloaders["train"], optimizer, criterion, device, steps=warmup_steps)
                     else:
-                        print("Skipping explicit compile warmup (compile_warmup_steps=0).")
+                        logger.info("Skipping explicit compile warmup (compile_warmup_steps=0).")
 
                 # Train
                 model_state_dict, nr_epochs, metrics = training_loop(
@@ -177,7 +174,7 @@ def train_model(config: TrainingConfig, model_name: str, streaming: bool = False
                     max_batches=config.test_max_batches,
                 )
                 save_results(model_state_dict, run_dir, model_name, metrics)
-                print("Training complete.")
+                logger.info("Training complete.")
                 break
 
             except Exception as exc:
@@ -200,7 +197,7 @@ def train_model(config: TrainingConfig, model_name: str, streaming: bool = False
                     raise
 
                 attempt += 1
-                print(
+                logger.info(
                     f"CUDA OOM detected (attempt {attempt}/{max_retries}). "
                     f"Reducing batch size from {old_batch_size} to {new_batch_size} and retrying..."
                 )
@@ -208,7 +205,7 @@ def train_model(config: TrainingConfig, model_name: str, streaming: bool = False
                 _cleanup_cuda_memory()
             except SystemExit as e:
                 # Catch and log unexpected SystemErrors that may occur during training (e.g., from torch.compile internals).
-                print(f"Job halted with exit code {e.code}")
+                logger.info(f"Job halted with exit code {e.code}")
                 # Re-raise to allow external handlers (e.g., job schedulers) to detect the exit condition.
                 raise
             finally:
@@ -218,7 +215,7 @@ def train_model(config: TrainingConfig, model_name: str, streaming: bool = False
                     del dataloaders
                 _cleanup_cuda_memory()
     except Exception as final_exc:
-        print(f"Training failed after {attempt} attempt(s) with batch size {config.batch_size}.")
+        logger.info(f"Training failed after {attempt} attempt(s) with batch size {config.batch_size}.")
         raise final_exc
     finally:
         cache_manager.cleanup()

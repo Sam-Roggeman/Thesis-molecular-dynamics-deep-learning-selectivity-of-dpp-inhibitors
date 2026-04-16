@@ -4,11 +4,14 @@ import threading
 import datasets
 
 import torch
-
 from src.model_training.Metrics import Metrics
 from src.model_training.batch_preprocessing import prepare_model_batch
 from src.model_training.metric_functions import calculate_accuracy_and_loss
 from sklearn.metrics import confusion_matrix
+
+from src.utils.logger import get_logger
+logging = get_logger() 
+
 def model_name(model_name_prefix):
     # current date and time
     date = time.strftime("%Y%m%d-%H%M%S")
@@ -216,21 +219,21 @@ def training_loop(
 
     metric_path =os.path.join(model_folder, f'metrics_training_loop.pt')
     plot_path = os.path.join(model_folder, f'plots_training_loop.png')
-    print(f"Using device: {device}")
-    print(f"Using metrics path: {metric_path}")
-    print(f"Using patience: {patience}")
+    logging.debug(f"Using device: {device}")
+    logging.debug(f"Using metrics path: {metric_path}")
+    logging.debug(f"Using patience: {patience}")
 
     trainloader_len = _safe_len(trainloader)
     validationloader_len = _safe_len(validationloader)
     if trainloader_len is not None:
-        print(f"Training batches per pass: {trainloader_len}")
+        logging.info(f"Training batches per pass: {trainloader_len}")
     else:
-        print("Training loader is streaming/iterable (unknown length per pass).")
+        logging.info("Training loader is streaming/iterable (unknown length per pass).")
 
     if validationloader_len is not None:
-        print(f"Validation batches per pass: {validationloader_len}")
+        logging.info(f"Validation batches per pass: {validationloader_len}")
     else:
-        print("Validation loader length is unknown.")
+        logging.info("Validation loader length is unknown.")
 
     if max_train_steps is None:
         if trainloader_len is not None and max_epochs is not None:
@@ -244,19 +247,19 @@ def training_loop(
     log_every_steps = max(1, log_every_steps)
     steps_per_epoch = max(1, steps_per_epoch)
 
-    print(f"Using max_train_steps: {max_train_steps}")
-    print(f"Using steps_per_epoch: {steps_per_epoch}")
-    print(f"Using eval_every_steps: {eval_every_steps}")
-    print(f"Using log_every_steps: {log_every_steps}")
+    logging.info(f"Using max_train_steps: {max_train_steps}")
+    logging.info(f"Using steps_per_epoch: {steps_per_epoch}")
+    logging.info(f"Using eval_every_steps: {eval_every_steps}")
+    logging.info(f"Using log_every_steps: {log_every_steps}")
 
     # time limit in readable format for logging
     if time_limit:
         time_limit_str = f"{time_limit // 3600}h {(time_limit % 3600) // 60}m {time_limit % 60}s"
-        print(f"Using time limit: {time_limit_str}.")
-    print(f"Using plot path: {plot_path}")
+        logging.info(f"Using time limit: {time_limit_str}.")
+    logging.info(f"Using plot path: {plot_path}")
 
     if device == torch.device("cpu"):
-        print("WARNING: Training on CPU, this may be slow. Consider using a GPU for faster training.")
+        logging.warning("Training on CPU, this may be slow. Consider using a GPU for faster training.")
 
 
     best_model_state_dict = None
@@ -269,7 +272,7 @@ def training_loop(
     train_iter = iter(trainloader)
     prefetcher = None
     if device.type == "cuda" and use_cuda_prefetcher:
-        print("CUDA prefetcher enabled: overlapping next-batch preprocessing with current compute.")
+        logging.info("CUDA prefetcher enabled: overlapping next-batch preprocessing with current compute.")
         prefetcher = CUDABatchPrefetcher(trainloader, device=device, scramble=True)
         prefetcher.reset()
     interval_correct = 0
@@ -280,7 +283,7 @@ def training_loop(
     interval_prep_time = 0.0
     interval_compute_time = 0.0
     interval_start = time.time()
-    print("Starting training loop...")
+    logging.info("Starting training loop...")
     while global_step < max_train_steps:
         model.train()
         data_wait_start = time.time()
@@ -353,7 +356,7 @@ def training_loop(
             data_wait_fraction = interval_data_wait / total_interval_time
             prep_fraction = interval_prep_time / total_interval_time
             compute_fraction = interval_compute_time / total_interval_time
-            print(
+            logging.info(
                 f"Step {global_step}/{max_train_steps} | "
                 f"Train Acc: {running_acc * 100:.4f}% | "
                 f"Train Loss: {running_loss:.4f} | "
@@ -404,36 +407,36 @@ def training_loop(
             average_time_per_eval = (time.time() - start_time) / len(metrics.training_accuracy)
             interval_time = time.time() - interval_start
 
-            print(f'Eval checkpoint at step {global_step} (pseudo-epoch {pseudo_epoch}):')
-            print(f'\tTraining  \tAccuracy: {metrics.training_accuracy[-1]:.4f}%\tLoss: {metrics.train_loss[-1]:.4f}')
-            print(f'\tValidation\tAccuracy: {metrics.validation_accuracy[-1]:.4f}%\tLoss: {metrics.validation_loss[-1]:.4f}')
-            print('-' * 100)
+            logging.info(f'Eval checkpoint at step {global_step} (pseudo-epoch {pseudo_epoch}):')
+            logging.info(f'\tTraining  \tAccuracy: {metrics.training_accuracy[-1]:.4f}%\tLoss: {metrics.train_loss[-1]:.4f}')
+            logging.info(f'\tValidation\tAccuracy: {metrics.validation_accuracy[-1]:.4f}%\tLoss: {metrics.validation_loss[-1]:.4f}')
+            logging.info('-' * 100)
 
             improved = metrics.model_improved()
             if improved:
                 best_model_state_dict = model.state_dict()
                 path = os.path.join(model_folder, f'current_best_model.pth')
                 torch.save(best_model_state_dict, path)
-                print(f"\tSaved best model at step {global_step} to {path}")
+                logging.info(f"\tSaved best model at step {global_step} to {path}")
                 epochs_best_model = pseudo_epoch
             else:
                 metrics.patience_counter += 1
 
-            print(f'\tPatience Counter: {metrics.patience_counter}/{patience}')
-            print(
+            logging.info(f'\tPatience Counter: {metrics.patience_counter}/{patience}')
+            logging.info(
                 f'\tTime for eval interval: {interval_time // 60:.2f}m {interval_time % 60:.0f}s\t'
                 f'(avg: {average_time_per_eval // 60}m {average_time_per_eval % 60:.0f}s/check)\t'
                 f'Time elapsed since start: {(time.time() - start_time) // 60:.0f}m'
             )
-            print(
+            logging.info(
                 f'\tPipeline profile: data_wait={interval_data_wait:.2f}s, '
                 f'prep={interval_prep_time:.2f}s, '
                 f'compute={interval_compute_time:.2f}s, '
                 f'data_wait_share={100 * interval_data_wait / max(interval_data_wait + interval_prep_time + interval_compute_time, 1e-9):.1f}%'
             )
             if scheduler:
-                print(f'\tLearning Rate: {optimizer.param_groups[0]["lr"]:.2e}')
-            print('=' * 100)
+                logging.info(f'\tLearning Rate: {optimizer.param_groups[0]["lr"]:.2e}')
+            logging.info('=' * 100)
 
             interval_correct = 0
             interval_total = 0
@@ -445,18 +448,18 @@ def training_loop(
             interval_start = time.time()
 
             if metrics.patience_counter >= patience:
-                print("Early stopping due to overfitting.")
+                logging.info("Early stopping due to overfitting.")
                 break
 
         if time_limit and (time.time() - start_time) > time_limit:
-            print("Time limit reached, stopping training.")
+            logging.info("Time limit reached, stopping training.")
             break
 
     if best_model_state_dict is None:
         best_model_state_dict = model.state_dict()
         epochs_best_model = (global_step - 1) // steps_per_epoch + 1 if global_step > 0 else 0
 
-    print('Finished Training')
+    logging.info('Finished Training')
     return best_model_state_dict, epochs_best_model,metrics
 
 

@@ -36,7 +36,8 @@ class cacheManager:
         else:
             print(f"Using {self.cache_dir} for caching during this run.")
             return self.cache_dir
-        
+    def add_directory_to_cleanup(self, dir_path):
+        self.to_cleanup_on_exit.append(dir_path)
     def cleanup(self):
         try:
             print("Cleaning up cache...")

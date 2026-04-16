@@ -11,6 +11,8 @@ import os
 from dotenv import load_dotenv
 
 if __name__ == "__main__":
+    load_dotenv()
+
     config_dcnn = TrainingConfig(
         model_class=CustomDenseNet,
         model_args={
@@ -27,6 +29,6 @@ if __name__ == "__main__":
         training_transform=apply_image_transform,
         validation_transform=apply_image_transform_noscramble,
         batch_size=32,
-        dataset_size=0.01,
+        dataset_size=0.25,
     )
     train_model(config_dcnn, "CustomDenseNet_Randomsplit_Dataset")
