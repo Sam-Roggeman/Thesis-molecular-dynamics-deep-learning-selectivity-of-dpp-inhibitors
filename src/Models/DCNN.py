@@ -19,7 +19,6 @@ import torch.nn as nn
 import torch.nn.functional as F
 from src.Transform.tranformators import apply_image_transform, apply_image_transform_noscramble
 from src.utils.configParser import ConfigParser
-from src.utils.logger import replace_output, setup_logger
 from src.utils.training_config import TrainingConfig
 from src.utils.training_setup import train_model
 

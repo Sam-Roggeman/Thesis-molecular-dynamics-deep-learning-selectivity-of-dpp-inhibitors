@@ -16,7 +16,6 @@ from src.model_training.metric_functions import all_statistics
 from src.model_training.utils import _train_single_batch, get_device, get_subset, training_loop
 from src.utils.cacheManager import cacheManager
 from src.utils.training_config import TrainingConfig, TestConfig
-from src.utils.logger import setup_logger, replace_output
 import datasets
 import torch.nn as nn
 import os

@@ -13,7 +13,6 @@ import torch.nn.functional as F
 
 from src.model_training.DataLoader import DataLoader, save_as_safetensor
 from src.utils.configParser import ConfigParserWrapper
-from src.utils.logger import setup_logger, replace_output
 from src.model_training.train_test_split import train_val_test_split, create_splits_randomsplit, \
     create_ligand_splits_1_train_1_valtest
 
@@ -235,10 +234,6 @@ if __name__ == "__main__":
     logs_parent_dir, logging_enabled, console_enabled = configparser.get_logging()
     log_subdir = "data_preprocessing"
     log_dir = os.path.join(logs_parent_dir, log_subdir)
-    logger = setup_logger(log_file="", log_dir=log_dir, logging_enabled=logging_enabled,
-                          console_enabled=console_enabled)
-    replace_output(logger)
-    print(f"✓ Logger set up. Logs will be saved to {log_dir}")
     print("Starting data preprocessing...")
     # parallel processing
     trajectory_tensors,filenames = process_parallel(raw_data_path, max_workers=6) # [Shape: (10.001, nr_atoms, 3)]
