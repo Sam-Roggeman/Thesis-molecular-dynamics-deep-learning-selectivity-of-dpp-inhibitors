@@ -307,6 +307,7 @@ def initialize_dataloaders(config: TrainingConfig, cache_manager: cacheManager, 
     fast_safetensors_filepath_cache = os.path.join(fast_cache_prefix, dir_name, safetensor_postfix)
     using_fast_cache = fast_cache_prefix is not None
     safetensors_cache_folder = fast_safetensors_filepath_cache if using_fast_cache else slow_safetensors_cache_filepath
+    os.makedirs(slow_safetensors_cache_filepath, exist_ok=True)
         
     for split in splits:
         if os.path.exists(os.path.join(slow_safetensors_cache_filepath, f"{split}_metadata.pt")):
