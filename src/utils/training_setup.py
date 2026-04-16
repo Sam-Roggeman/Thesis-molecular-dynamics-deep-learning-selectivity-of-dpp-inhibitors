@@ -95,7 +95,7 @@ def train_model(config: TrainingConfig, model_name: str, streaming: bool = False
     
     # Setup
     run_dir = initialize_run_directory(model_name)
-    logger = init_logger(run_dir, log_mode=logging.DEBUG, log_file="debug.log")
+    logger = init_logger(model_dir=run_dir, log_mode=logging.DEBUG, log_file="debug.log")
     logger.info(f"Starting training for {model_name} with, saving to {run_dir}")
     logger.info(f"Training configuration: {config}")
     logger.info(f"Weight Decay: {config.weight_decay}, Learning Rate: {config.learning_rate}")
