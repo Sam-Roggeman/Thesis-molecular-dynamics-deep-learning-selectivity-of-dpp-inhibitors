@@ -16,6 +16,7 @@ from src.utils.training_config import calculate_num_cpus
 import numpy as np
 from safetensors.torch import save_file
 import torch
+import shutil
 
 
 def _write_safetensor_shard(shard_path, data_np, labels_np, num_atoms_np):
@@ -263,7 +264,7 @@ def _is_map_worker_crash_error(exc: BaseException) -> bool:
     return False
 
 
-def prepare_safetensors(splits=["train", "validation", "test", "unseen_trajects"], initial_batch_size=1024, skip_existing_cache=True,repo_id="Sam-Roggeman/SamRoggeman_Thesis_Dataset_full"):
+def prepare_safetensors(splits=["train", "validation", "test", "unseen_trajects"], initial_batch_size=1024, skip_existing_cache=True,repo_id="Sam-Roggeman/SamRoggeman_Thesis_Dataset_full", redo_cache=False):
     cache_prefix = os.environ.get("HF_DOWNLOADED_DATASET_DIR", "./hf_cache")
     dataset_dict = _download_dataset(dataset_location=repo_id, splits=splits)
     batch_size = initial_batch_size  # Start with a larger batch size for the map operation.
@@ -278,14 +279,18 @@ def prepare_safetensors(splits=["train", "validation", "test", "unseen_trajects"
     for split in splits:
         cache_metadata_path = os.path.join(safetensors_cache_filepath, f"{split}_metadata.pt")
         logging.debug(f"Checking for existing cache metadata at {cache_metadata_path} for {split} split...")
-        if skip_existing_cache and os.path.exists(cache_metadata_path):
+        if skip_existing_cache and os.path.exists(cache_metadata_path) and not redo_cache:
             logging.info(f"\t\tFound existing cached safetensors for {split} split in {safetensors_cache_filepath}.")
             continue  # Skip if already cached (metadata presence indicates completed cache)
 
+        arrow_cache_path = os.path.join(arrow_cache_filepath, f"{split}_data.arrow")
+        logging.info(f"\t\tProcessing {split} split with batch size {batch_size} and {num_workers} workers to cache {arrow_cache_path}...")
+        if redo_cache and os.path.exists(arrow_cache_path):
+            shutil.rmtree(arrow_cache_path)
+            logging.warning(f"\t\tRedo cache enabled. Removed existing arrow cache at {arrow_cache_filepath} for {split} split.")
+        
         while True:
             try: 
-                arrow_cache_path = os.path.join(arrow_cache_filepath, f"{split}_data.arrow")
-                logging.info(f"\t\tProcessing {split} split with batch size {batch_size} and {num_workers} workers to cache {arrow_cache_path}...")
                 dataset_dict[split] = dataset_dict[split].map(
                     _encode_and_pack_batch,
                     batched=True,
@@ -306,6 +311,9 @@ def prepare_safetensors(splits=["train", "validation", "test", "unseen_trajects"
                 else:
                     raise 
             save_num_workers = num_workers
+            if redo_cache:
+                logging.warning(f"\t\tRedo cache enabled. Will overwrite existing safetensors cache for {split} split at {safetensors_cache_filepath}.")
+                shutil.rmtree(safetensors_cache_filepath)
             while True:
                 try:
                     _save_split_as_safetensors_memory_efficient(
@@ -329,5 +337,5 @@ def prepare_safetensors(splits=["train", "validation", "test", "unseen_trajects"
     logging.info("All splits processed and cached as safetensors.")
 if __name__ == "__main__":
     repo_id = "Sam-Roggeman/SamRoggeman_Thesis_Dataset_full"
-    prepare_safetensors(splits=["train", "validation", "test", "unseen_trajects"], initial_batch_size=2048, skip_existing_cache=True, repo_id=repo_id)
+    prepare_safetensors(splits=["train", "validation", "test", "unseen_trajects"], initial_batch_size=2048, skip_existing_cache=True, repo_id=repo_id, redo_cache=True)
     
