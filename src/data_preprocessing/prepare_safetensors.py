@@ -187,6 +187,7 @@ def _save_split_as_safetensors_memory_efficient(dataset_dict, split, cache_path,
 
         # workers per shard
         workers_per_shard = max(1, (total_nr_workers - safe_num_workers) // safe_num_workers)
+        logging.debug(f"Total available workers: {total_nr_workers}, requested safe workers: {safe_num_workers}, calculated workers per shard: {workers_per_shard}") 
 
         # Linux fork context lets workers reuse the mapped split without serializing full shard arrays.
         global _WORKER_DATASET_SPLIT
