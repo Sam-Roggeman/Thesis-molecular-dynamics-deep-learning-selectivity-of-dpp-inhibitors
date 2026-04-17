@@ -142,7 +142,7 @@ def calculate_sample_size(sample, prefix="sample"):
     size = len(str(sample).encode("utf-8"))  # Rough estimate for scalar/object data.
     return size
 
-def _save_split_as_safetensors_memory_efficient(dataset_dict, split, cache_path, shard_size=5000, safe_num_workers=1, total_nr_workers=1):
+def _save_split_as_safetensors_memory_efficient(dataset_dict, split, cache_path, shard_size=5000, total_nr_workers=1):
     """
     Memory-efficient saving with sharding.
     
@@ -150,7 +150,7 @@ def _save_split_as_safetensors_memory_efficient(dataset_dict, split, cache_path,
     - Each shard uses ~shard_size * 168 * 3 * 4 bytes for data
     - Example: 5000 samples * 168 * 168 * 3 * 32 bits / 8 bits/byte  = 1.69344 GB per shard
     """
-    logging.info(f"Saving {split} split to safetensors with shard size {shard_size} and {safe_num_workers} workers to cache path {cache_path}...")
+    logging.info(f"Saving {split} split to safetensors with shard size {shard_size} and {total_nr_workers} workers to cache path {cache_path}...")
     # Get total size
     total_samples = len(dataset_dict[split])
     logging.info(f"Saving {total_samples} samples for {split} split")
@@ -165,53 +165,33 @@ def _save_split_as_safetensors_memory_efficient(dataset_dict, split, cache_path,
     logging.info(f"Size per sample: {total_size / 1024:.2f} KB")
     logging.info(f"Estimated size per shard: {(total_size * shard_size) / 1024 / 1024/1024:.2f} GB")
 
-    safe_num_workers = max(1, int(safe_num_workers))
-    if safe_num_workers == 1:
-        for shard_idx in range(n_shards):
-            start = shard_idx * shard_size
-            end = min((shard_idx + 1) * shard_size, total_samples)
-            logging.info(f"Processing shard {shard_idx+1}/{n_shards} (samples {start}-{end})")
+    logging.info(
+        f"Saving shards with {total_nr_workers} processes. "
+        "Each worker materializes and writes its own shard, so tune workers conservatively."
+    )
 
-            data_np, labels_np, num_atoms_np = _materialize_shard_arrays(dataset_dict[split], start, end)
+    logging.debug(f"Total available workers: {total_nr_workers}") 
 
-            tensors = {
-                'data': torch.from_numpy(data_np),
-                'labels': torch.from_numpy(labels_np),
-                'num_atoms': torch.from_numpy(num_atoms_np),
-            }
+    # Linux fork context lets workers reuse the mapped split without serializing full shard arrays.
+    global _WORKER_DATASET_SPLIT
+    _WORKER_DATASET_SPLIT = dataset_dict[split]
+    for shard_idx in range(n_shards):
+        start = shard_idx * shard_size
+        end = min((shard_idx + 1) * shard_size, total_samples)
+        logging.info(f"Processing shard {shard_idx+1}/{n_shards} (samples {start}-{end}) for saving)")
 
-            shard_path = f"{cache_path}/{split}_shard_{shard_idx:04d}_of_{n_shards:04d}.safetensors"
-            save_file(tensors, shard_path)
-            logging.info(f"  Saved to {shard_path} ({os.path.getsize(shard_path) / 1024 / 1024 / 1024:.1f} GB)")
-            del tensors
-    else:
-        logging.info(
-            f"Saving shards with {safe_num_workers} processes. "
-            "Each worker materializes and writes its own shard, so tune workers conservatively."
+        shard_path = f"{cache_path}/{split}_shard_{shard_idx:04d}_of_{n_shards:04d}.safetensors"
+        if os.path.exists(shard_path):
+            logging.info(f"  Shard {shard_idx+1} already exists at {shard_path}, skipping...")
+            continue
+        _write_safetensor_shard_from_worker_split(
+            shard_idx,
+            n_shards,
+            start,
+            end,
+            shard_path,
+            num_workers=total_nr_workers,
         )
-
-        logging.debug(f"Total available workers: {total_nr_workers}, requested safe workers: {safe_num_workers}") 
-
-        # Linux fork context lets workers reuse the mapped split without serializing full shard arrays.
-        global _WORKER_DATASET_SPLIT
-        _WORKER_DATASET_SPLIT = dataset_dict[split]
-        for shard_idx in range(n_shards):
-            start = shard_idx * shard_size
-            end = min((shard_idx + 1) * shard_size, total_samples)
-            logging.info(f"Processing shard {shard_idx+1}/{n_shards} (samples {start}-{end}) for saving)")
-
-            shard_path = f"{cache_path}/{split}_shard_{shard_idx:04d}_of_{n_shards:04d}.safetensors"
-            if os.path.exists(shard_path):
-                logging.info(f"  Shard {shard_idx+1} already exists at {shard_path}, skipping...")
-                continue
-            _write_safetensor_shard_from_worker_split(
-                shard_idx,
-                n_shards,
-                start,
-                end,
-                shard_path,
-                num_workers=safe_num_workers,
-            )
 
         _WORKER_DATASET_SPLIT = None
         
@@ -370,19 +350,18 @@ def prepare_safetensors(splits=["train", "validation", "test", "unseen_trajects"
                     split, 
                     cache_path=safetensors_cache_filepath,
                     shard_size=5000,  # Adjust based on your memory
-                    safe_num_workers=safe_num_workers,
                     total_nr_workers=num_workers,
                 )
                 break
             except Exception as e:
                 logging.error(f"Error during saving safetensors for {split} split: {e}")
-                if (_is_host_oom_error(e) or _is_map_worker_crash_error(e)) and safe_num_workers > 1:
+                if (_is_host_oom_error(e) or _is_map_worker_crash_error(e)) and num_workers > 1:
                     logging.info(
-                        f"Worker failure during safetensors saving for {split} with {safe_num_workers} workers. "
+                        f"Worker failure during safetensors saving for {split} with {num_workers} workers. "
                         "Reducing workers and retrying..."
                     )
-                    safe_num_workers = max(1, safe_num_workers // 2)
-                    logging.info(f"\tNew number of workers: {safe_num_workers}")
+                    num_workers = max(1, num_workers // 2)
+                    logging.info(f"\tNew number of workers: {num_workers}")
                     continue
                 else:
                     raise
