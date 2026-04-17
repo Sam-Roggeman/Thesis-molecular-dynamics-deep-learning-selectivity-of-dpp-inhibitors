@@ -278,6 +278,7 @@ def _is_map_worker_crash_error(exc: BaseException) -> bool:
         "one of the subprocesses has abruptly died during map operation",
         "a worker process managed by the executor was unexpectedly terminated",
         "brokenprocesspool",
+        "A process in the process pool was terminated abruptly while the future was running or pending"
     )
 
     seen = set()
