@@ -190,52 +190,28 @@ def _save_split_as_safetensors_memory_efficient(dataset_dict, split, cache_path,
             "Each worker materializes and writes its own shard, so tune workers conservatively."
         )
 
-        # workers per shard
-        workers_per_shard = 3
         logging.debug(f"Total available workers: {total_nr_workers}, requested safe workers: {safe_num_workers}, calculated workers per shard: {workers_per_shard}") 
 
         # Linux fork context lets workers reuse the mapped split without serializing full shard arrays.
         global _WORKER_DATASET_SPLIT
         _WORKER_DATASET_SPLIT = dataset_dict[split]
-        pending = {}
-        with ProcessPoolExecutor(max_workers=safe_num_workers, mp_context=mp.get_context("fork")) as executor:
-            for shard_idx in range(n_shards):
-                start = shard_idx * shard_size
-                end = min((shard_idx + 1) * shard_size, total_samples)
-                logging.info(f"Queueing shard {shard_idx+1}/{n_shards} (samples {start}-{end}) for saving with {workers_per_shard} workers per shard)")
+        for shard_idx in range(n_shards):
+            start = shard_idx * shard_size
+            end = min((shard_idx + 1) * shard_size, total_samples)
+            logging.info(f"Processing shard {shard_idx+1}/{n_shards} (samples {start}-{end}) for saving with {workers_per_shard} workers per shard)")
 
-                shard_path = f"{cache_path}/{split}_shard_{shard_idx:04d}_of_{n_shards:04d}.safetensors"
-                if os.path.exists(shard_path):
-                    logging.info(f"  Shard {shard_idx+1} already exists at {shard_path}, skipping...")
-                    continue
-
-                future = executor.submit(
-                    _write_safetensor_shard_from_worker_split,
-                    shard_idx,
-                    n_shards,
-                    start,
-                    end,
-                    shard_path,
-                    num_workers=workers_per_shard,
-                )
-                pending[future] = shard_idx
-                if len(pending) >= safe_num_workers:
-                    done, _ = wait(set(pending.keys()), return_when=FIRST_COMPLETED)
-                    for completed in done:
-                        pending.pop(completed)
-                        completed_shard_idx, total_shards, saved_path, saved_size = completed.result()
-                        logging.info(
-                            f"  Saved shard {completed_shard_idx+1}/{total_shards} to {saved_path} "
-                            f"({saved_size / 1024 / 1024 / 1024:.1f} GB)"
-                        )
-
-            for completed in list(pending.keys()):
-                pending.pop(completed)
-                completed_shard_idx, total_shards, saved_path, saved_size = completed.result()
-                logging.info(
-                    f"  Saved shard {completed_shard_idx+1}/{total_shards} to {saved_path} "
-                    f"({saved_size / 1024 / 1024 / 1024:.1f} GB)"
-                )
+            shard_path = f"{cache_path}/{split}_shard_{shard_idx:04d}_of_{n_shards:04d}.safetensors"
+            if os.path.exists(shard_path):
+                logging.info(f"  Shard {shard_idx+1} already exists at {shard_path}, skipping...")
+                continue
+            _write_safetensor_shard_from_worker_split(
+                shard_idx,
+                n_shards,
+                start,
+                end,
+                shard_path,
+                num_workers=safe_num_workers,
+            )
 
         _WORKER_DATASET_SPLIT = None
         
@@ -352,7 +328,7 @@ def prepare_safetensors(splits=["train", "validation", "test", "unseen_trajects"
         logging.warning(f"\t\tRedo cache enabled. Will overwrite existing safetensors cache for {safetensors_cache_filepath}.")
         shutil.rmtree(safetensors_cache_filepath)
     os.makedirs(safetensors_cache_filepath, exist_ok=True)
-    safe_num_workers = 4
+    safe_num_workers = max(1, num_workers // 2)  # Start with half the workers for safetensors saving to be conservative on memory, can reduce further on OOM.
     for split in splits:
         cache_metadata_path = os.path.join(safetensors_cache_filepath, f"{split}_metadata.pt")
         logging.debug(f"Checking for existing cache metadata at {cache_metadata_path} for {split} split...")
@@ -377,6 +353,7 @@ def prepare_safetensors(splits=["train", "validation", "test", "unseen_trajects"
                     cache_file_name=arrow_cache_path,
                 )
                 logging.info(f"\t\tEncoding and packing complete for {split} split. Saving to safetensors cache...")
+                break
             except Exception as e:
                 logging.error(f"Error during map for {split} split with batch size {batch_size}: {e}")
                 # If a host-memory OOM occurs during map, reduce batch size and retry.
@@ -387,29 +364,29 @@ def prepare_safetensors(splits=["train", "validation", "test", "unseen_trajects"
                     continue
                 else:
                     raise 
-            while True:
-                try:
-                    _save_split_as_safetensors_memory_efficient(
-                        dataset_dict, 
-                        split, 
-                        cache_path=safetensors_cache_filepath,
-                        shard_size=5000,  # Adjust based on your memory
-                        safe_num_workers=safe_num_workers,
-                        total_nr_workers=num_workers,
+        while True:
+            try:
+                _save_split_as_safetensors_memory_efficient(
+                    dataset_dict, 
+                    split, 
+                    cache_path=safetensors_cache_filepath,
+                    shard_size=5000,  # Adjust based on your memory
+                    safe_num_workers=safe_num_workers,
+                    total_nr_workers=num_workers,
+                )
+                break
+            except Exception as e:
+                logging.error(f"Error during saving safetensors for {split} split: {e}")
+                if (_is_host_oom_error(e) or _is_map_worker_crash_error(e)) and safe_num_workers > 1:
+                    logging.info(
+                        f"Worker failure during safetensors saving for {split} with {safe_num_workers} workers. "
+                        "Reducing workers and retrying..."
                     )
-                    break
-                except Exception as e:
-                    logging.error(f"Error during saving safetensors for {split} split: {e}")
-                    if (_is_host_oom_error(e) or _is_map_worker_crash_error(e)) and safe_num_workers > 1:
-                        logging.info(
-                            f"Worker failure during safetensors saving for {split} with {safe_num_workers} workers. "
-                            "Reducing workers and retrying..."
-                        )
-                        safe_num_workers = max(1, safe_num_workers // 2)
-                        logging.info(f"\tNew number of workers: {safe_num_workers}")
-                        continue
-                    else:
-                        raise
+                    safe_num_workers = max(1, safe_num_workers // 2)
+                    logging.info(f"\tNew number of workers: {safe_num_workers}")
+                    continue
+                else:
+                    raise
         logging.info(f"\t\tFinished processing {split} split. Cached safetensors available at {safetensors_cache_filepath}.")
     logging.info("All splits processed and cached as safetensors.")
 if __name__ == "__main__":
