@@ -278,7 +278,7 @@ def _is_map_worker_crash_error(exc: BaseException) -> bool:
         "one of the subprocesses has abruptly died during map operation",
         "a worker process managed by the executor was unexpectedly terminated",
         "brokenprocesspool",
-        "A process in the process pool was terminated abruptly while the future was running or pending"
+        "a process in the process pool was terminated abruptly while the future was running or pending",
     )
 
     seen = set()
@@ -356,8 +356,11 @@ def prepare_safetensors(splits=["train", "validation", "test", "unseen_trajects"
                     break
                 except Exception as e:
                     logging.error(f"Error during saving safetensors for {split} split: {e}")
-                    if _is_host_oom_error(e) and save_num_workers > 1:
-                        logging.info(f"Host-memory OOM during safetensors saving for {split} split with {save_num_workers} workers. Reducing workers and retrying...")
+                    if (_is_host_oom_error(e) or _is_map_worker_crash_error(e)) and save_num_workers > 1:
+                        logging.info(
+                            f"Worker failure during safetensors saving for {split} with {save_num_workers} workers. "
+                            "Reducing workers and retrying..."
+                        )
                         save_num_workers = max(1, save_num_workers // 2)
                         logging.info(f"\tNew number of workers: {save_num_workers}")
                         continue
