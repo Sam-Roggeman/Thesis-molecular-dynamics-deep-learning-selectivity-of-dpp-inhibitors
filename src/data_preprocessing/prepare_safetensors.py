@@ -1,3 +1,5 @@
+from time import time
+
 from dotenv import load_dotenv
 from concurrent.futures import ProcessPoolExecutor, FIRST_COMPLETED, wait
 import multiprocessing as mp
@@ -22,18 +24,49 @@ import shutil
 
 _WORKER_DATASET_SPLIT = None
 
-def _write_safetensor_shard_from_worker_split(shard_idx, n_shards, start, end, shard_path):
+def _write_safetensor_shard_from_worker_split(shard_idx, n_shards, start, end, shard_path, num_workers=1):
     """Materialize and write one shard inside a subprocess worker."""
-    if _WORKER_DATASET_SPLIT is None:
-        raise RuntimeError("Worker dataset split is not initialized")
-
-    data_np, labels_np, num_atoms_np = _materialize_shard_arrays(_WORKER_DATASET_SPLIT, start, end)
+    shard_batch = _WORKER_DATASET_SPLIT[start:end]
+    
+    # Split the batch into chunks for parallel processing
+    chunk_size = max(1, (end - start) // num_workers)
+    chunks = []
+    for i in range(0, end - start, chunk_size):
+        chunk_end = min(i + chunk_size, end - start)
+        chunks.append((i, chunk_end))
+    
+    # Process chunks in parallel
+    with ProcessPoolExecutor(max_workers=num_workers) as executor:
+        futures = []
+        for chunk_start, chunk_end in chunks:
+            future = executor.submit(
+                _materialize_shard_arrays,
+                shard_batch,
+                chunk_start,
+                chunk_end
+            )
+            futures.append(future)
+        
+        # Collect results
+        chunk_results = [f.result() for f in futures]
+    
+    # Combine chunks
+    data_list = [r[0] for r in chunk_results]
+    labels_list = [r[1] for r in chunk_results]
+    atoms_list = [r[2] for r in chunk_results]
+    
+    data_np = np.concatenate(data_list, axis=0)
+    labels_np = np.concatenate(labels_list, axis=0)
+    num_atoms_np = np.concatenate(atoms_list, axis=0)
+    
+    # Save tensors
     tensors = {
-        'data': torch.from_numpy(data_np),
+        'data': torch.from_numpy(np.ascontiguousarray(data_np)),
         'labels': torch.from_numpy(labels_np),
         'num_atoms': torch.from_numpy(num_atoms_np),
     }
     save_file(tensors, shard_path)
+    
     return shard_idx, n_shards, shard_path, os.path.getsize(shard_path)
 
 
@@ -104,7 +137,7 @@ def calculate_sample_size(sample, prefix="sample"):
     size = len(str(sample).encode("utf-8"))  # Rough estimate for scalar/object data.
     return size
 
-def _save_split_as_safetensors_memory_efficient(dataset_dict, split, cache_path, shard_size=5000, save_num_workers=1):
+def _save_split_as_safetensors_memory_efficient(dataset_dict, split, cache_path, shard_size=5000, safe_num_workers=1, total_nr_workers=1):
     """
     Memory-efficient saving with sharding.
     
@@ -112,7 +145,7 @@ def _save_split_as_safetensors_memory_efficient(dataset_dict, split, cache_path,
     - Each shard uses ~shard_size * 168 * 3 * 4 bytes for data
     - Example: 5000 samples * 168 * 168 * 3 * 32 bits / 8 bits/byte  = 1.69344 GB per shard
     """
-    logging.info(f"Saving {split} split to safetensors with shard size {shard_size} and {save_num_workers} workers to cache path {cache_path}...")
+    logging.info(f"Saving {split} split to safetensors with shard size {shard_size} and {safe_num_workers} workers to cache path {cache_path}...")
     # Get total size
     total_samples = len(dataset_dict[split])
     logging.info(f"Saving {total_samples} samples for {split} split")
@@ -127,8 +160,8 @@ def _save_split_as_safetensors_memory_efficient(dataset_dict, split, cache_path,
     logging.info(f"Size per sample: {total_size / 1024:.2f} KB")
     logging.info(f"Estimated size per shard: {(total_size * shard_size) / 1024 / 1024/1024:.2f} GB")
 
-    save_num_workers = max(1, int(save_num_workers))
-    if save_num_workers == 1:
+    safe_num_workers = max(1, int(safe_num_workers))
+    if safe_num_workers == 1:
         for shard_idx in range(n_shards):
             start = shard_idx * shard_size
             end = min((shard_idx + 1) * shard_size, total_samples)
@@ -148,21 +181,27 @@ def _save_split_as_safetensors_memory_efficient(dataset_dict, split, cache_path,
             del tensors
     else:
         logging.info(
-            f"Saving shards with {save_num_workers} processes. "
+            f"Saving shards with {safe_num_workers} processes. "
             "Each worker materializes and writes its own shard, so tune workers conservatively."
         )
+
+        # workers per shard
+        workers_per_shard = max(1, (total_nr_workers - safe_num_workers) // safe_num_workers)
 
         # Linux fork context lets workers reuse the mapped split without serializing full shard arrays.
         global _WORKER_DATASET_SPLIT
         _WORKER_DATASET_SPLIT = dataset_dict[split]
         pending = {}
-        with ProcessPoolExecutor(max_workers=save_num_workers, mp_context=mp.get_context("fork")) as executor:
+        with ProcessPoolExecutor(max_workers=safe_num_workers, mp_context=mp.get_context("fork")) as executor:
             for shard_idx in range(n_shards):
                 start = shard_idx * shard_size
                 end = min((shard_idx + 1) * shard_size, total_samples)
                 logging.info(f"Queueing shard {shard_idx+1}/{n_shards} (samples {start}-{end})")
 
                 shard_path = f"{cache_path}/{split}_shard_{shard_idx:04d}_of_{n_shards:04d}.safetensors"
+                if os.path.exists(shard_path):
+                    logging.info(f"  Shard {shard_idx+1} already exists at {shard_path}, skipping...")
+                    continue
 
                 future = executor.submit(
                     _write_safetensor_shard_from_worker_split,
@@ -171,10 +210,10 @@ def _save_split_as_safetensors_memory_efficient(dataset_dict, split, cache_path,
                     start,
                     end,
                     shard_path,
+                    num_workers=workers_per_shard,
                 )
                 pending[future] = shard_idx
-
-                if len(pending) >= save_num_workers:
+                if len(pending) >= safe_num_workers:
                     done, _ = wait(set(pending.keys()), return_when=FIRST_COMPLETED)
                     for completed in done:
                         pending.pop(completed)
@@ -307,6 +346,7 @@ def prepare_safetensors(splits=["train", "validation", "test", "unseen_trajects"
         logging.warning(f"\t\tRedo cache enabled. Will overwrite existing safetensors cache for {safetensors_cache_filepath}.")
         shutil.rmtree(safetensors_cache_filepath)
     os.makedirs(safetensors_cache_filepath, exist_ok=True)
+    safe_num_workers = 6
     for split in splits:
         cache_metadata_path = os.path.join(safetensors_cache_filepath, f"{split}_metadata.pt")
         logging.debug(f"Checking for existing cache metadata at {cache_metadata_path} for {split} split...")
@@ -341,9 +381,6 @@ def prepare_safetensors(splits=["train", "validation", "test", "unseen_trajects"
                     continue
                 else:
                     raise 
-            save_num_workers = num_workers
-
-
             while True:
                 try:
                     _save_split_as_safetensors_memory_efficient(
@@ -351,18 +388,19 @@ def prepare_safetensors(splits=["train", "validation", "test", "unseen_trajects"
                         split, 
                         cache_path=safetensors_cache_filepath,
                         shard_size=5000,  # Adjust based on your memory
-                        save_num_workers=save_num_workers,
+                        safe_num_workers=safe_num_workers,
+                        total_nr_workers=num_workers,
                     )
                     break
                 except Exception as e:
                     logging.error(f"Error during saving safetensors for {split} split: {e}")
-                    if (_is_host_oom_error(e) or _is_map_worker_crash_error(e)) and save_num_workers > 1:
+                    if (_is_host_oom_error(e) or _is_map_worker_crash_error(e)) and safe_num_workers > 1:
                         logging.info(
-                            f"Worker failure during safetensors saving for {split} with {save_num_workers} workers. "
+                            f"Worker failure during safetensors saving for {split} with {safe_num_workers} workers. "
                             "Reducing workers and retrying..."
                         )
-                        save_num_workers = max(1, save_num_workers // 2)
-                        logging.info(f"\tNew number of workers: {save_num_workers}")
+                        safe_num_workers = max(1, safe_num_workers // 2)
+                        logging.info(f"\tNew number of workers: {safe_num_workers}")
                         continue
                     else:
                         raise
