@@ -223,7 +223,6 @@ def prepare_safetensors(splits=["train", "validation", "test", "unseen_trajects"
     dir_name = cacheManager.construct_cache_identifier(used_percentage="100%", prefix="mapped")
     safetensors_cache_filepath = cache_manager.get_safetensor_cache_path(fast_path=False)
     arrow_cache_filepath = os.path.join(cache_prefix, dir_name, "arrow_cache")
-    dataset_dict = dataset_dict.rename_columns({'coordinates': 'data', 'binding_type': 'labels'})
 
     os.makedirs(safetensors_cache_filepath, exist_ok=True)
     for split in splits:
@@ -244,6 +243,7 @@ def prepare_safetensors(splits=["train", "validation", "test", "unseen_trajects"
                     desc=f"Encoding labels and packing coords for {split}",
                     cache_file_name=os.path.join(arrow_cache_filepath, f"{split}_data.arrow"),
                 )
+                dataset_dict[split] = dataset_dict[split].rename_columns({'coordinates': 'data', 'binding_type': 'labels'})
                 logging.info(f"\t\tEncoding and packing complete for {split} split. Saving to safetensors cache...")
                 _save_split_as_safetensors_memory_efficient(
                     dataset_dict, 
