@@ -190,7 +190,7 @@ def _save_split_as_safetensors_memory_efficient(dataset_dict, split, cache_path,
             "Each worker materializes and writes its own shard, so tune workers conservatively."
         )
 
-        logging.debug(f"Total available workers: {total_nr_workers}, requested safe workers: {safe_num_workers}, calculated workers per shard: {workers_per_shard}") 
+        logging.debug(f"Total available workers: {total_nr_workers}, requested safe workers: {safe_num_workers}") 
 
         # Linux fork context lets workers reuse the mapped split without serializing full shard arrays.
         global _WORKER_DATASET_SPLIT
@@ -198,7 +198,7 @@ def _save_split_as_safetensors_memory_efficient(dataset_dict, split, cache_path,
         for shard_idx in range(n_shards):
             start = shard_idx * shard_size
             end = min((shard_idx + 1) * shard_size, total_samples)
-            logging.info(f"Processing shard {shard_idx+1}/{n_shards} (samples {start}-{end}) for saving with {workers_per_shard} workers per shard)")
+            logging.info(f"Processing shard {shard_idx+1}/{n_shards} (samples {start}-{end}) for saving)")
 
             shard_path = f"{cache_path}/{split}_shard_{shard_idx:04d}_of_{n_shards:04d}.safetensors"
             if os.path.exists(shard_path):
