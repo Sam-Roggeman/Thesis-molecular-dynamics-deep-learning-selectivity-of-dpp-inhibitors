@@ -118,13 +118,11 @@ def _download_dataset(dataset_location, splits=None) -> datasets.DatasetDict:
     if not cache_dir:
         logging.warning("HF_DOWNLOADED_DATASET_DIR not set. Using default cache directory.")
     logging.info(f"Only downloading splits: {splits}")
+    _split_arg = {}
     for split in splits:
         logging.info(f"\t\tDownloading of {split} split")
-        _split_arg = {
-            "train": f"train",
-            "validation": f"validation",
-            "test": f"test",
-        }    
+        _split_arg[split] = split
+    logging.info(f"Downloading dataset from {dataset_location} with splits {_split_arg}...")
     # cache dir
     logging.info(f"\tUsing cache directory: {cache_dir}")
     num_proc=calculate_num_cpus()//2
