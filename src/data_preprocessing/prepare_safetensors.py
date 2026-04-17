@@ -328,7 +328,6 @@ def prepare_safetensors(splits=["train", "validation", "test", "unseen_trajects"
         logging.warning(f"\t\tRedo cache enabled. Will overwrite existing safetensors cache for {safetensors_cache_filepath}.")
         shutil.rmtree(safetensors_cache_filepath)
     os.makedirs(safetensors_cache_filepath, exist_ok=True)
-    safe_num_workers = max(1, num_workers // 2)  # Start with half the workers for safetensors saving to be conservative on memory, can reduce further on OOM.
     for split in splits:
         cache_metadata_path = os.path.join(safetensors_cache_filepath, f"{split}_metadata.pt")
         logging.debug(f"Checking for existing cache metadata at {cache_metadata_path} for {split} split...")
