@@ -1,4 +1,5 @@
 from dotenv import load_dotenv
+from concurrent.futures import ProcessPoolExecutor, FIRST_COMPLETED, wait
 
 from src.utils import cacheManager
 load_dotenv()
@@ -15,6 +16,19 @@ from src.utils.training_config import calculate_num_cpus
 import numpy as np
 from safetensors.torch import save_file
 import torch
+
+
+def _write_safetensor_shard(shard_path, data_np, labels_np, num_atoms_np):
+    """Worker helper to write one shard to disk."""
+    tensors = {
+        'data': torch.from_numpy(data_np),
+        'labels': torch.from_numpy(labels_np),
+        'num_atoms': torch.from_numpy(num_atoms_np),
+    }
+    save_file(tensors, shard_path)
+    return shard_path, os.path.getsize(shard_path)
+
+
 def _download_dataset(dataset_location, splits=None) -> datasets.DatasetDict:
     """Download the dataset using Hugging Face's `datasets` library."""
     logging.info("Downloading dataset from Hugging Face...")
@@ -73,7 +87,7 @@ def calculate_sample_size(sample, prefix="sample"):
     size = len(str(sample).encode("utf-8"))  # Rough estimate for scalar/object data.
     return size
 
-def _save_split_as_safetensors_memory_efficient(dataset_dict, split, cache_path, shard_size=5000):
+def _save_split_as_safetensors_memory_efficient(dataset_dict, split, cache_path, shard_size=5000, save_num_workers=1):
     """
     Memory-efficient saving with sharding.
     
@@ -96,25 +110,60 @@ def _save_split_as_safetensors_memory_efficient(dataset_dict, split, cache_path,
     logging.info(f"Size per sample: {total_size / 1024:.2f} KB")
     logging.info(f"Estimated size per shard: {(total_size * shard_size) / 1024 / 1024/1024:.2f} GB")
 
-    for shard_idx in range(n_shards):
-        start = shard_idx * shard_size
-        end = min((shard_idx + 1) * shard_size, total_samples)
-        logging.info(f"Processing shard {shard_idx+1}/{n_shards} (samples {start}-{end})")
-        
-        # Convert to tensors
-        tensors = {
-            'data': torch.from_numpy(np.array(dataset_dict[split]['data'][start:end])),
-            'labels': torch.from_numpy(np.array(dataset_dict[split]['labels'][start:end])),
-            'num_atoms': torch.from_numpy(np.array(dataset_dict[split]['num_atoms'][start:end])),
-        }
-        
-        # Save shard
-        shard_path = f"{cache_path}/{split}_shard_{shard_idx:04d}_of_{n_shards:04d}.safetensors"
-        save_file(tensors, shard_path)
-        logging.info(f"  Saved to {shard_path} ({os.path.getsize(shard_path) / 1024 / 1024 / 1024:.1f} GB)")
+    save_num_workers = max(1, int(save_num_workers))
+    if save_num_workers == 1:
+        for shard_idx in range(n_shards):
+            start = shard_idx * shard_size
+            end = min((shard_idx + 1) * shard_size, total_samples)
+            logging.info(f"Processing shard {shard_idx+1}/{n_shards} (samples {start}-{end})")
 
-        # Free memory
-        del tensors
+            tensors = {
+                'data': torch.from_numpy(np.array(dataset_dict[split]['data'][start:end])),
+                'labels': torch.from_numpy(np.array(dataset_dict[split]['labels'][start:end])),
+                'num_atoms': torch.from_numpy(np.array(dataset_dict[split]['num_atoms'][start:end])),
+            }
+
+            shard_path = f"{cache_path}/{split}_shard_{shard_idx:04d}_of_{n_shards:04d}.safetensors"
+            save_file(tensors, shard_path)
+            logging.info(f"  Saved to {shard_path} ({os.path.getsize(shard_path) / 1024 / 1024 / 1024:.1f} GB)")
+            del tensors
+    else:
+        logging.info(
+            f"Saving shards with {save_num_workers} processes. "
+            "Each worker keeps one shard in memory, so tune workers conservatively."
+        )
+        pending = {}
+        with ProcessPoolExecutor(max_workers=save_num_workers) as executor:
+            for shard_idx in range(n_shards):
+                start = shard_idx * shard_size
+                end = min((shard_idx + 1) * shard_size, total_samples)
+                logging.info(f"Queueing shard {shard_idx+1}/{n_shards} (samples {start}-{end})")
+
+                data_np = np.array(dataset_dict[split]['data'][start:end])
+                labels_np = np.array(dataset_dict[split]['labels'][start:end])
+                num_atoms_np = np.array(dataset_dict[split]['num_atoms'][start:end])
+                shard_path = f"{cache_path}/{split}_shard_{shard_idx:04d}_of_{n_shards:04d}.safetensors"
+
+                future = executor.submit(_write_safetensor_shard, shard_path, data_np, labels_np, num_atoms_np)
+                pending[future] = shard_idx
+
+                if len(pending) >= save_num_workers:
+                    done, _ = wait(set(pending.keys()), return_when=FIRST_COMPLETED)
+                    for completed in done:
+                        completed_shard_idx = pending.pop(completed)
+                        saved_path, saved_size = completed.result()
+                        logging.info(
+                            f"  Saved shard {completed_shard_idx+1}/{n_shards} to {saved_path} "
+                            f"({saved_size / 1024 / 1024 / 1024:.1f} GB)"
+                        )
+
+            for completed in list(pending.keys()):
+                completed_shard_idx = pending.pop(completed)
+                saved_path, saved_size = completed.result()
+                logging.info(
+                    f"  Saved shard {completed_shard_idx+1}/{n_shards} to {saved_path} "
+                    f"({saved_size / 1024 / 1024 / 1024:.1f} GB)"
+                )
         
     
     # Save metadata file for easy loading
@@ -245,13 +294,6 @@ def prepare_safetensors(splits=["train", "validation", "test", "unseen_trajects"
                 )
                 dataset_dict[split] = dataset_dict[split].rename_columns({'coordinates': 'data', 'binding_type': 'labels'})
                 logging.info(f"\t\tEncoding and packing complete for {split} split. Saving to safetensors cache...")
-                _save_split_as_safetensors_memory_efficient(
-                    dataset_dict, 
-                    split, 
-                    cache_path=safetensors_cache_filepath,
-                    shard_size=5000  # Adjust based on your memory
-                )
-                break
             except Exception as e:
                 logging.error(f"Error during map for {split} split with batch size {batch_size}: {e}")
                 # If a host-memory OOM occurs during map, reduce batch size and retry.
@@ -261,9 +303,29 @@ def prepare_safetensors(splits=["train", "validation", "test", "unseen_trajects"
                     logging.info(f"\tNew batch size: {batch_size}")
                     continue
                 else:
-                    raise
+                    raise 
+            save_num_workers = num_workers
+            while True:
+                try:
+                    _save_split_as_safetensors_memory_efficient(
+                        dataset_dict, 
+                        split, 
+                        cache_path=safetensors_cache_filepath,
+                        shard_size=5000,  # Adjust based on your memory
+                        save_num_workers=save_num_workers,
+                    )
+                    break
+                except Exception as e:
+                    logging.error(f"Error during saving safetensors for {split} split: {e}")
+                    if _is_host_oom_error(e) and save_num_workers > 1:
+                        logging.info(f"Host-memory OOM during safetensors saving for {split} split with {save_num_workers} workers. Reducing workers and retrying...")
+                        save_num_workers = max(1, save_num_workers // 2)
+                        logging.info(f"\tNew number of workers: {save_num_workers}")
+                        continue
+                    else:
+                        raise
         logging.info(f"\t\tFinished processing {split} split. Cached safetensors available at {safetensors_cache_filepath}.")
-
+    logging.info("All splits processed and cached as safetensors.")
 if __name__ == "__main__":
     repo_id = "Sam-Roggeman/SamRoggeman_Thesis_Dataset_full"
     prepare_safetensors(splits=["train", "validation", "test", "unseen_trajects"], initial_batch_size=2048, skip_existing_cache=True, repo_id=repo_id)
