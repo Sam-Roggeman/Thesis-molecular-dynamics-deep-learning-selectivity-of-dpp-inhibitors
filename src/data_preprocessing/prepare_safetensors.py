@@ -274,7 +274,9 @@ def prepare_safetensors(splits=["train", "validation", "test", "unseen_trajects"
     safetensors_cache_filepath = cache_manager.get_safetensor_cache_path(fast_path=False)
     arrow_cache_filepath = os.path.join(cache_prefix, dir_name, "arrow_cache")
     dataset_dict = dataset_dict.rename_columns({'coordinates': 'data', 'binding_type': 'labels'})
-
+    if redo_cache:
+        logging.warning(f"\t\tRedo cache enabled. Will overwrite existing safetensors cache for {split} split at {safetensors_cache_filepath}.")
+        shutil.rmtree(safetensors_cache_filepath)
     os.makedirs(safetensors_cache_filepath, exist_ok=True)
     for split in splits:
         cache_metadata_path = os.path.join(safetensors_cache_filepath, f"{split}_metadata.pt")
@@ -285,10 +287,10 @@ def prepare_safetensors(splits=["train", "validation", "test", "unseen_trajects"
 
         arrow_cache_path = os.path.join(arrow_cache_filepath, f"{split}_data.arrow")
         logging.info(f"\t\tProcessing {split} split with batch size {batch_size} and {num_workers} workers to cache {arrow_cache_path}...")
-        if redo_cache and os.path.exists(arrow_cache_path):
+        if redo_cache and os.path.exists(arrow_cache_filepath):
             shutil.rmtree(arrow_cache_path)
             logging.warning(f"\t\tRedo cache enabled. Removed existing arrow cache at {arrow_cache_filepath} for {split} split.")
-        
+
         while True:
             try: 
                 dataset_dict[split] = dataset_dict[split].map(
@@ -311,9 +313,8 @@ def prepare_safetensors(splits=["train", "validation", "test", "unseen_trajects"
                 else:
                     raise 
             save_num_workers = num_workers
-            if redo_cache:
-                logging.warning(f"\t\tRedo cache enabled. Will overwrite existing safetensors cache for {split} split at {safetensors_cache_filepath}.")
-                shutil.rmtree(safetensors_cache_filepath)
+
+
             while True:
                 try:
                     _save_split_as_safetensors_memory_efficient(

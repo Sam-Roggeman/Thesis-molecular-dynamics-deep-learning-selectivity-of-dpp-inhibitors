@@ -31,7 +31,7 @@ class cacheManager:
         slow_cache_prefix = self.get_cache_dir()
         safetensors_postfix = "safetensors"
         safetensors_slow_cache_path = os.path.join(slow_cache_prefix, safetensors_postfix)
-        if self.using_fast_cache():
+        if self.using_fast_cache() and fast_path:
             fast_cache_prefix = self.get_fast_cache_dir()
             # copy from slow cache to fast cache if it exists
             safetensors_fast_cache_path = os.path.join(fast_cache_prefix, safetensors_postfix)
