@@ -1,5 +1,6 @@
 from dotenv import load_dotenv
 from concurrent.futures import ProcessPoolExecutor, FIRST_COMPLETED, wait
+import multiprocessing as mp
 
 from src.utils import cacheManager
 load_dotenv()
@@ -19,15 +20,30 @@ import torch
 import shutil
 
 
-def _write_safetensor_shard(shard_path, data_np, labels_np, num_atoms_np):
-    """Worker helper to write one shard to disk."""
+_WORKER_DATASET_SPLIT = None
+
+def _write_safetensor_shard_from_worker_split(shard_idx, n_shards, start, end, shard_path):
+    """Materialize and write one shard inside a subprocess worker."""
+    if _WORKER_DATASET_SPLIT is None:
+        raise RuntimeError("Worker dataset split is not initialized")
+
+    data_np, labels_np, num_atoms_np = _materialize_shard_arrays(_WORKER_DATASET_SPLIT, start, end)
     tensors = {
         'data': torch.from_numpy(data_np),
         'labels': torch.from_numpy(labels_np),
         'num_atoms': torch.from_numpy(num_atoms_np),
     }
     save_file(tensors, shard_path)
-    return shard_path, os.path.getsize(shard_path)
+    return shard_idx, n_shards, shard_path, os.path.getsize(shard_path)
+
+
+def _materialize_shard_arrays(dataset_split, start, end):
+    """Read one shard slice once, then extract arrays for all required fields."""
+    shard_batch = dataset_split[start:end]
+    data_np = np.ascontiguousarray(np.asarray(shard_batch['data']))
+    labels_np = np.asarray(shard_batch['labels'])
+    num_atoms_np = np.asarray(shard_batch['num_atoms'])
+    return data_np, labels_np, num_atoms_np
 
 
 def _download_dataset(dataset_location, splits=None) -> datasets.DatasetDict:
@@ -118,10 +134,12 @@ def _save_split_as_safetensors_memory_efficient(dataset_dict, split, cache_path,
             end = min((shard_idx + 1) * shard_size, total_samples)
             logging.info(f"Processing shard {shard_idx+1}/{n_shards} (samples {start}-{end})")
 
+            data_np, labels_np, num_atoms_np = _materialize_shard_arrays(dataset_dict[split], start, end)
+
             tensors = {
-                'data': torch.from_numpy(np.array(dataset_dict[split]['data'][start:end])),
-                'labels': torch.from_numpy(np.array(dataset_dict[split]['labels'][start:end])),
-                'num_atoms': torch.from_numpy(np.array(dataset_dict[split]['num_atoms'][start:end])),
+                'data': torch.from_numpy(data_np),
+                'labels': torch.from_numpy(labels_np),
+                'num_atoms': torch.from_numpy(num_atoms_np),
             }
 
             shard_path = f"{cache_path}/{split}_shard_{shard_idx:04d}_of_{n_shards:04d}.safetensors"
@@ -131,40 +149,50 @@ def _save_split_as_safetensors_memory_efficient(dataset_dict, split, cache_path,
     else:
         logging.info(
             f"Saving shards with {save_num_workers} processes. "
-            "Each worker keeps one shard in memory, so tune workers conservatively."
+            "Each worker materializes and writes its own shard, so tune workers conservatively."
         )
+
+        # Linux fork context lets workers reuse the mapped split without serializing full shard arrays.
+        global _WORKER_DATASET_SPLIT
+        _WORKER_DATASET_SPLIT = dataset_dict[split]
         pending = {}
-        with ProcessPoolExecutor(max_workers=save_num_workers) as executor:
+        with ProcessPoolExecutor(max_workers=save_num_workers, mp_context=mp.get_context("fork")) as executor:
             for shard_idx in range(n_shards):
                 start = shard_idx * shard_size
                 end = min((shard_idx + 1) * shard_size, total_samples)
                 logging.info(f"Queueing shard {shard_idx+1}/{n_shards} (samples {start}-{end})")
 
-                data_np = np.array(dataset_dict[split]['data'][start:end])
-                labels_np = np.array(dataset_dict[split]['labels'][start:end])
-                num_atoms_np = np.array(dataset_dict[split]['num_atoms'][start:end])
                 shard_path = f"{cache_path}/{split}_shard_{shard_idx:04d}_of_{n_shards:04d}.safetensors"
 
-                future = executor.submit(_write_safetensor_shard, shard_path, data_np, labels_np, num_atoms_np)
+                future = executor.submit(
+                    _write_safetensor_shard_from_worker_split,
+                    shard_idx,
+                    n_shards,
+                    start,
+                    end,
+                    shard_path,
+                )
                 pending[future] = shard_idx
 
                 if len(pending) >= save_num_workers:
                     done, _ = wait(set(pending.keys()), return_when=FIRST_COMPLETED)
                     for completed in done:
-                        completed_shard_idx = pending.pop(completed)
-                        saved_path, saved_size = completed.result()
+                        pending.pop(completed)
+                        completed_shard_idx, total_shards, saved_path, saved_size = completed.result()
                         logging.info(
-                            f"  Saved shard {completed_shard_idx+1}/{n_shards} to {saved_path} "
+                            f"  Saved shard {completed_shard_idx+1}/{total_shards} to {saved_path} "
                             f"({saved_size / 1024 / 1024 / 1024:.1f} GB)"
                         )
 
             for completed in list(pending.keys()):
-                completed_shard_idx = pending.pop(completed)
-                saved_path, saved_size = completed.result()
+                pending.pop(completed)
+                completed_shard_idx, total_shards, saved_path, saved_size = completed.result()
                 logging.info(
-                    f"  Saved shard {completed_shard_idx+1}/{n_shards} to {saved_path} "
+                    f"  Saved shard {completed_shard_idx+1}/{total_shards} to {saved_path} "
                     f"({saved_size / 1024 / 1024 / 1024:.1f} GB)"
                 )
+
+        _WORKER_DATASET_SPLIT = None
         
     
     # Save metadata file for easy loading
