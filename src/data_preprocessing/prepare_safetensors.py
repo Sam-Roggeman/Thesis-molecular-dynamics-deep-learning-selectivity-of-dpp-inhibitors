@@ -324,6 +324,8 @@ def _is_map_worker_crash_error(exc: BaseException) -> bool:
 def prepare_safetensors(splits=["train", "validation", "test", "unseen_trajects"], initial_batch_size=1024, skip_existing_cache=True,repo_id="Sam-Roggeman/SamRoggeman_Thesis_Dataset_full", redo_cache=False):
     cache_prefix = os.environ.get("HF_DOWNLOADED_DATASET_DIR", "./hf_cache")
     dataset_dict = _download_dataset(dataset_location=repo_id, splits=splits)
+    logging.debug(f"Downloaded dataset with splits: {list(dataset_dict.keys())}. Sample keys: {dataset_dict[splits[0]].column_names}")
+    
     batch_size = initial_batch_size  # Start with a larger batch size for the map operation.
     num_workers = calculate_num_cpus() 
     cache_manager = cacheManager.cacheManager()
