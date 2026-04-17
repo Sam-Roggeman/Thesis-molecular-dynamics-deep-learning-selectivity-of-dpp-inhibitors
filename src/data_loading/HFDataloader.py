@@ -13,7 +13,8 @@ torch.multiprocessing.set_sharing_strategy('file_system')
 from src.model_training.LabelEncoder import LabelEncoder
 from src.utils.cacheManager import cacheManager, construct_cache_identifier
 from src.utils.training_config import TrainingConfig
-import src.utils.logger as logging
+from src.utils.logger import get_logger
+logging = get_logger()
 
 
 def _effective_worker_count(requested_cpus: int) -> int:

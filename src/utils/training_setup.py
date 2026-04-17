@@ -19,8 +19,7 @@ from src.utils.training_config import TrainingConfig, TestConfig
 import datasets
 import torch.nn as nn
 import os
-from src.utils.logger import init_logger
-from src.utils.logger import get_logger
+from src.utils.logger import init_logger, get_logger
 logging = get_logger() 
 
 def _is_cuda_oom_error(exc: BaseException) -> bool:

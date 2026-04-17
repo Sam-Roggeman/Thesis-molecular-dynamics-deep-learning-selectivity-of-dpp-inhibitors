@@ -8,7 +8,8 @@ from src.model_training.LabelEncoder import LabelEncoder
 from src.data_loading.SafetensorsDataset import ShardedSafetensorsDataset
 import datasets
 label_encoder = LabelEncoder()
-import src.utils.logger as logging
+from src.utils.logger import get_logger
+logging = get_logger()
 import os 
 from src.utils.training_config import calculate_num_cpus
 import numpy as np
