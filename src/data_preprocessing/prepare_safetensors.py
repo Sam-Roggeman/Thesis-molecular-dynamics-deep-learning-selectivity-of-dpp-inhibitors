@@ -366,5 +366,5 @@ def prepare_safetensors(splits=["train", "validation", "test", "unseen_trajects"
     logging.info("All splits processed and cached as safetensors.")
 if __name__ == "__main__":
     repo_id = "Sam-Roggeman/SamRoggeman_Thesis_Dataset_full"
-    prepare_safetensors(splits=["train", "validation", "test", "unseen_trajects"], initial_batch_size=2048, skip_existing_cache=True, repo_id=repo_id, redo_cache=True)
+    prepare_safetensors(splits=["train", "validation", "test", "unseen_trajects"], initial_batch_size=2048, skip_existing_cache=True, repo_id=repo_id, redo_cache=False)
     
