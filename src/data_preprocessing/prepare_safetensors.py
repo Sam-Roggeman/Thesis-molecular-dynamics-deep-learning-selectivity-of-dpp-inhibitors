@@ -112,7 +112,7 @@ def _save_split_as_safetensors_memory_efficient(dataset_dict, split, cache_path,
     - Each shard uses ~shard_size * 168 * 3 * 4 bytes for data
     - Example: 5000 samples * 168 * 168 * 3 * 32 bits / 8 bits/byte  = 1.69344 GB per shard
     """
-    
+    logging.info(f"Saving {split} split to safetensors with shard size {shard_size} and {save_num_workers} workers to cache path {cache_path}...")
     # Get total size
     total_samples = len(dataset_dict[split])
     logging.info(f"Saving {total_samples} samples for {split} split")
