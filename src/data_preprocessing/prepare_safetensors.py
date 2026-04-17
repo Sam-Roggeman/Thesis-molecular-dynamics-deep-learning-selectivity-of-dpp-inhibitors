@@ -58,10 +58,6 @@ def _write_safetensor_shard_from_worker_split(shard_idx, n_shards, start, end, s
         'num_atoms': torch.from_numpy(num_atoms_np),
     }
     save_file(tensors, shard_path)
-    # cleanmemory
-    del tensors
-    del futures
-    del chunk_results
     return shard_idx, n_shards, shard_path, os.path.getsize(shard_path)
 def _materialize_shard_absolute(start, end):
     """Read one shard slice once, then extract arrays for all required fields."""
@@ -298,7 +294,7 @@ def prepare_safetensors(splits=["train", "validation", "test", "unseen_trajects"
     cache_prefix = os.environ.get("HF_DOWNLOADED_DATASET_DIR", "./hf_cache")
     dataset_dict = _download_dataset(dataset_location=repo_id, splits=splits)
     batch_size = initial_batch_size  # Start with a larger batch size for the map operation.
-    num_workers = calculate_num_cpus() // 2
+    num_workers = calculate_num_cpus() 
     cache_manager = cacheManager.cacheManager()
     dir_name = cacheManager.construct_cache_identifier(used_percentage="100%", prefix="mapped")
     safetensors_cache_filepath = cache_manager.get_safetensor_cache_path(fast_path=False)
