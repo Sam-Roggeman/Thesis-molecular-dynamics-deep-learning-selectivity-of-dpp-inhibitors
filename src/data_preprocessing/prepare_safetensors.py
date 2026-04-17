@@ -34,7 +34,7 @@ def _write_safetensor_shard_from_worker_split(shard_idx, n_shards, start, end, s
     for i in range(0, end - start, chunk_size):
         chunk_end = min(i + chunk_size, end - start)
         chunks.append((i, chunk_end))
-    
+    logging.info(f"Worker for shard {shard_idx+1}/{n_shards} processing samples {start}-{end} with {num_workers} workers and chunk size {chunk_size}...")
     # Process chunks in parallel
     with ProcessPoolExecutor(max_workers=num_workers) as executor:
         futures = []
@@ -196,7 +196,7 @@ def _save_split_as_safetensors_memory_efficient(dataset_dict, split, cache_path,
             for shard_idx in range(n_shards):
                 start = shard_idx * shard_size
                 end = min((shard_idx + 1) * shard_size, total_samples)
-                logging.info(f"Queueing shard {shard_idx+1}/{n_shards} (samples {start}-{end})")
+                logging.info(f"Queueing shard {shard_idx+1}/{n_shards} (samples {start}-{end}) for saving with {workers_per_shard} workers per shard)")
 
                 shard_path = f"{cache_path}/{split}_shard_{shard_idx:04d}_of_{n_shards:04d}.safetensors"
                 if os.path.exists(shard_path):
