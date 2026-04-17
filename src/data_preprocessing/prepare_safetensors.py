@@ -288,7 +288,7 @@ def prepare_safetensors(splits=["train", "validation", "test", "unseen_trajects"
         arrow_cache_path = os.path.join(arrow_cache_filepath, f"{split}_data.arrow")
         logging.info(f"\t\tProcessing {split} split with batch size {batch_size} and {num_workers} workers to cache {arrow_cache_path}...")
         if redo_cache and os.path.exists(arrow_cache_filepath):
-            shutil.rmtree(arrow_cache_path)
+            shutil.rmtree(arrow_cache_filepath)
             logging.warning(f"\t\tRedo cache enabled. Removed existing arrow cache at {arrow_cache_filepath} for {split} split.")
 
         while True:
