@@ -20,14 +20,17 @@ import numpy as np
 from safetensors.torch import save_file
 import torch
 import shutil
-
+import time
 
 _WORKER_DATASET_SPLIT = None
 
 def _write_safetensor_shard_from_worker_split(shard_idx, n_shards, start, end, shard_path, num_workers=1):
     """Materialize and write one shard inside a subprocess worker."""
+    # time the shard batch
+    time_start = time.time()
     shard_batch = _WORKER_DATASET_SPLIT[start:end]
-    
+    time_end = time.time()
+    logging.debug(f"Worker for shard {shard_idx+1}/{n_shards} loaded batch in {time_end - time_start:.2f} seconds")
     # Split the batch into chunks for parallel processing
     chunk_size = max(1, (end - start) // num_workers)
     chunks = []
