@@ -36,6 +36,6 @@ def get_logger():
     """Get the configured logger from anywhere"""
     if _logger is None:
         # Return a default logger if not initialized
-        logging_module.basicConfig(level=logging_module.INFO)
+        logging_module.basicConfig(level=logging_module.DEBUG)
         return logging_module.getLogger()
     return _logger

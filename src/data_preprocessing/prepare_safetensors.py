@@ -81,8 +81,6 @@ def _save_split_as_safetensors_memory_efficient(dataset_dict, split, cache_path,
     - Each shard uses ~shard_size * 168 * 3 * 4 bytes for data
     - Example: 5000 samples * 168 * 168 * 3 * 32 bits / 8 bits/byte  = 1.69344 GB per shard
     """
-
-
     
     # Get total size
     total_samples = len(dataset_dict[split])
@@ -95,15 +93,12 @@ def _save_split_as_safetensors_memory_efficient(dataset_dict, split, cache_path,
     sample = dataset_dict[split][0] # Get the first sample to estimate size
     total_size = calculate_sample_size(sample)
 
-
-
     logging.info(f"Size per sample: {total_size / 1024:.2f} KB")
     logging.info(f"Estimated size per shard: {(total_size * shard_size) / 1024 / 1024/1024:.2f} GB")
 
     for shard_idx in range(n_shards):
         start = shard_idx * shard_size
         end = min((shard_idx + 1) * shard_size, total_samples)
-        
         logging.info(f"Processing shard {shard_idx+1}/{n_shards} (samples {start}-{end})")
         
         # Convert to tensors
@@ -228,6 +223,7 @@ def prepare_safetensors(splits=["train", "validation", "test", "unseen_trajects"
     dir_name = cacheManager.construct_cache_identifier(used_percentage="100%", prefix="mapped")
     safetensors_cache_filepath = cache_manager.get_safetensor_cache_path(fast_path=False)
     arrow_cache_filepath = os.path.join(cache_prefix, dir_name, "arrow_cache")
+    dataset_dict = dataset_dict.rename_columns({'coordinates': 'data', 'binding_type': 'labels'})
 
     os.makedirs(safetensors_cache_filepath, exist_ok=True)
     for split in splits:
