@@ -275,7 +275,7 @@ def prepare_safetensors(splits=["train", "validation", "test", "unseen_trajects"
     arrow_cache_filepath = os.path.join(cache_prefix, dir_name, "arrow_cache")
     dataset_dict = dataset_dict.rename_columns({'coordinates': 'data', 'binding_type': 'labels'})
     if redo_cache:
-        logging.warning(f"\t\tRedo cache enabled. Will overwrite existing safetensors cache for {split} split at {safetensors_cache_filepath}.")
+        logging.warning(f"\t\tRedo cache enabled. Will overwrite existing safetensors cache for {safetensors_cache_filepath}.")
         shutil.rmtree(safetensors_cache_filepath)
     os.makedirs(safetensors_cache_filepath, exist_ok=True)
     for split in splits:
