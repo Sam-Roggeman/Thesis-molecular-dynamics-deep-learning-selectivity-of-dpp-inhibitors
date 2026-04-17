@@ -128,7 +128,7 @@ def _download_dataset(dataset_location, splits=None) -> datasets.DatasetDict:
     num_proc=calculate_num_cpus()//2
     logging.info(f"\tUsing {num_proc} CPU workers for dataset loading")
 
-
+    logging.debug(f"Dataset loading parameters: dataset_location={dataset_location}, splits={splits}, cache_dir={cache_dir}, num_proc={num_proc}")
     dataset_dict: datasets.DatasetDict = datasets.load_dataset(
         dataset_location,
         split=_split_arg,
