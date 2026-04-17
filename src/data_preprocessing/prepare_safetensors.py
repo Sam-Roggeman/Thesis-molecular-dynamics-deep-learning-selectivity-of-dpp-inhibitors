@@ -26,25 +26,19 @@ _WORKER_DATASET_SPLIT = None
 
 def _write_safetensor_shard_from_worker_split(shard_idx, n_shards, start, end, shard_path, num_workers=1):
     """Materialize and write one shard inside a subprocess worker."""
-    # time the shard batch
-    time_start = time.time()
-    shard_batch = _WORKER_DATASET_SPLIT[start:end]
-    time_end = time.time()
-    logging.debug(f"Worker for shard {shard_idx+1}/{n_shards} loaded batch in {time_end - time_start:.2f} seconds")
     # Split the batch into chunks for parallel processing
     chunk_size = max(1, (end - start) // num_workers)
     chunks = []
     for i in range(0, end - start, chunk_size):
         chunk_end = min(i + chunk_size, end - start)
-        chunks.append((i, chunk_end))
+        chunks.append((start+i, start+chunk_end))
     logging.info(f"Worker for shard {shard_idx+1}/{n_shards} processing samples {start}-{end} with {num_workers} workers and chunk size {chunk_size}...")
     # Process chunks in parallel
     with ProcessPoolExecutor(max_workers=num_workers) as executor:
         futures = []
         for chunk_start, chunk_end in chunks:
             future = executor.submit(
-                _materialize_shard_arrays,
-                shard_batch,
+                _materialize_shard_absolute,  # Use the global split for worker subprocesses to avoid serialization overhead
                 chunk_start,
                 chunk_end
             )
@@ -53,14 +47,9 @@ def _write_safetensor_shard_from_worker_split(shard_idx, n_shards, start, end, s
         # Collect results
         chunk_results = [f.result() for f in futures]
     
-    # Combine chunks
-    data_list = [r[0] for r in chunk_results]
-    labels_list = [r[1] for r in chunk_results]
-    atoms_list = [r[2] for r in chunk_results]
-    
-    data_np = np.concatenate(data_list, axis=0)
-    labels_np = np.concatenate(labels_list, axis=0)
-    num_atoms_np = np.concatenate(atoms_list, axis=0)
+    data_np = np.concatenate([r[0] for r in chunk_results], axis=0)
+    labels_np = np.concatenate([r[1] for r in chunk_results], axis=0)
+    num_atoms_np = np.concatenate([r[2] for r in chunk_results], axis=0)
     
     # Save tensors
     tensors = {
@@ -69,9 +58,23 @@ def _write_safetensor_shard_from_worker_split(shard_idx, n_shards, start, end, s
         'num_atoms': torch.from_numpy(num_atoms_np),
     }
     save_file(tensors, shard_path)
-    
+    # cleanmemory
+    del tensors
+    del futures
+    del chunk_results
     return shard_idx, n_shards, shard_path, os.path.getsize(shard_path)
-
+def _materialize_shard_absolute(start, end):
+    """Read one shard slice once, then extract arrays for all required fields."""
+    logging.debug(f"Worker for {start}-{end} starting materialization...")
+    start_time = time.time()
+    global _WORKER_DATASET_SPLIT
+    shard_batch = _WORKER_DATASET_SPLIT[start:end]
+    data_np = np.ascontiguousarray(np.asarray(shard_batch['data']))
+    labels_np = np.asarray(shard_batch['labels'])
+    num_atoms_np = np.asarray(shard_batch['num_atoms'])
+    end_time = time.time()
+    logging.debug(f"Worker for {start}-{end} materialized batch in {end_time - start_time:.2f} seconds")
+    return data_np, labels_np, num_atoms_np
 def _materialize_shard_arrays(dataset_split, start, end):
     """Read one shard slice once, then extract arrays for all required fields."""
     shard_batch = dataset_split[start:end]
