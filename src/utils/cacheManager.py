@@ -1,3 +1,4 @@
+from fileinput import filename
 import os
 import shutil
 
@@ -7,13 +8,36 @@ def construct_cache_identifier(used_percentage, prefix="mapped"):
 class cacheManager:
     to_cleanup_on_exit: list = []
     to_copy_to_cache: list = []
-    def __init__(self, cache_dir, fast_cache_dir=None):
+    def __init__(self, cache_dir=None, fast_cache_dir=None):
+        fast_cache_dir = os.getenv("FAST_CACHE_DIR")
+        if cache_dir is None:
+            if os.getenv("HF_CACHE_DIR") is not None:
+                cache_dir = os.getenv("HF_CACHE_DIR")
+            else:
+                raise ValueError("HF_CACHE_DIR environment variable must be set to specify the cache directory.")
+        if fast_cache_dir is None:
+            if os.getenv("FAST_CACHE_DIR") is not None:
+                fast_cache_dir = os.getenv("FAST_CACHE_DIR")
         self.cache_dir = cache_dir
         self.fast_cache_dir = fast_cache_dir
+    
     def get_cache_dir(self):
         return self.cache_dir
     def get_fast_cache_dir(self):
         return self.fast_cache_dir
+    def using_fast_cache(self):        
+        return self.fast_cache_dir is not None
+    def get_safetensor_cache_path(self, fast_path=False):
+        slow_cache_prefix = self.get_cache_dir()
+        safetensors_postfix = "safetensors"
+        safetensors_slow_cache_path = os.path.join(slow_cache_prefix, safetensors_postfix)
+        if self.using_fast_cache():
+            fast_cache_prefix = self.get_fast_cache_dir()
+            # copy from slow cache to fast cache if it exists
+            safetensors_fast_cache_path = os.path.join(fast_cache_prefix, safetensors_postfix)
+            return safetensors_fast_cache_path
+        return safetensors_slow_cache_path
+    
     def get_file_path(self, filename):
         # use filename as directory 
         filename_without_ext = os.path.splitext(filename)[0]
