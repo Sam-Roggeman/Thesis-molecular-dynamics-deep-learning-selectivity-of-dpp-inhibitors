@@ -1,8 +1,5 @@
-from time import time
-
 from dotenv import load_dotenv
 from concurrent.futures import ProcessPoolExecutor, FIRST_COMPLETED, wait
-import multiprocessing as mp
 
 from src.utils import cacheManager
 load_dotenv()
@@ -21,11 +18,35 @@ from safetensors.torch import save_file
 import torch
 import shutil
 import time
+import signal
+import threading
+import sys
+
+stop_requested = threading.Event()
+
+
+class GracefulStopRequested(SystemExit):
+    """Raised when GPULab requests a graceful shutdown (SIGUSR1)."""
+
+
+def handle_sigusr1(signum, frame):
+    logging.warning("Received SIGUSR1, requesting graceful stop...")
+    stop_requested.set()
+
+
+def _raise_if_stop_requested(context: str = ""):
+    if stop_requested.is_set():
+        suffix = f" during {context}" if context else ""
+        raise GracefulStopRequested(123, f"Graceful stop requested{suffix}")
+
+
+signal.signal(signal.SIGUSR1, handle_sigusr1)
 
 _WORKER_DATASET_SPLIT = None
 
 def _write_safetensor_shard_from_worker_split(shard_idx, n_shards, start, end, shard_path, num_workers=1):
     """Materialize and write one shard inside a subprocess worker."""
+    _raise_if_stop_requested(f"shard {shard_idx + 1}/{n_shards} setup")
     # Split the batch into chunks for parallel processing
     chunk_size = max(1, (end - start) // num_workers)
     chunks = []
@@ -37,15 +58,24 @@ def _write_safetensor_shard_from_worker_split(shard_idx, n_shards, start, end, s
     with ProcessPoolExecutor(max_workers=num_workers) as executor:
         futures = []
         for chunk_start, chunk_end in chunks:
+            _raise_if_stop_requested(f"shard {shard_idx + 1}/{n_shards} chunk scheduling")
             future = executor.submit(
                 _materialize_shard_absolute,  # Use the global split for worker subprocesses to avoid serialization overhead
                 chunk_start,
                 chunk_end
             )
             futures.append(future)
-        
-        # Collect results
-        chunk_results = [f.result() for f in futures]
+
+        # Collect results while periodically checking for shutdown requests.
+        chunk_results = []
+        pending = set(futures)
+        while pending:
+            _raise_if_stop_requested(f"shard {shard_idx + 1}/{n_shards} chunk execution")
+            done, pending = wait(pending, timeout=1.0, return_when=FIRST_COMPLETED)
+            for completed in done:
+                chunk_results.append(completed.result())
+
+        _raise_if_stop_requested(f"shard {shard_idx + 1}/{n_shards} post-processing")
     
     data_np = np.concatenate([r[0] for r in chunk_results], axis=0)
     labels_np = np.concatenate([r[1] for r in chunk_results], axis=0)
@@ -62,6 +92,7 @@ def _write_safetensor_shard_from_worker_split(shard_idx, n_shards, start, end, s
 def _materialize_shard_absolute(start, end):
     """Read one shard slice once, then extract arrays for all required fields."""
     logging.debug(f"Worker for {start}-{end} starting materialization...")
+    _raise_if_stop_requested(f"materialization {start}-{end}")
     start_time = time.time()
     global _WORKER_DATASET_SPLIT
     shard_batch = _WORKER_DATASET_SPLIT[start:end]
@@ -168,10 +199,12 @@ def _save_split_as_safetensors_memory_efficient(dataset_dict, split, cache_path,
 
     logging.debug(f"Total available workers: {total_nr_workers}") 
 
-    # Linux fork context lets workers reuse the mapped split without serializing full shard arrays.
+    _raise_if_stop_requested(f"split {split} pre-save")
+    # Workers reuse the mapped split without serializing full shard arrays.
     global _WORKER_DATASET_SPLIT
     _WORKER_DATASET_SPLIT = dataset_dict[split]
     for shard_idx in range(n_shards):
+        _raise_if_stop_requested(f"split {split} shard loop")
         start = shard_idx * shard_size
         end = min((shard_idx + 1) * shard_size, total_samples)
         logging.info(f"Processing shard {shard_idx+1}/{n_shards} (samples {start}-{end}) for saving)")
@@ -304,7 +337,9 @@ def prepare_safetensors(splits=["train", "validation", "test", "unseen_trajects"
         logging.warning(f"\t\tRedo cache enabled. Will overwrite existing safetensors cache for {safetensors_cache_filepath}.")
         shutil.rmtree(safetensors_cache_filepath)
     os.makedirs(safetensors_cache_filepath, exist_ok=True)
+    
     for split in splits:
+        _raise_if_stop_requested(f"split {split} start")
         cache_metadata_path = os.path.join(safetensors_cache_filepath, f"{split}_metadata.pt")
         logging.debug(f"Checking for existing cache metadata at {cache_metadata_path} for {split} split...")
         if skip_existing_cache and os.path.exists(cache_metadata_path) and not redo_cache:
@@ -318,6 +353,7 @@ def prepare_safetensors(splits=["train", "validation", "test", "unseen_trajects"
             logging.warning(f"\t\tRedo cache enabled. Removed existing arrow cache at {arrow_cache_filepath} for {split} split.")
 
         while True:
+            _raise_if_stop_requested(f"split {split} map")
             try: 
                 dataset_dict[split] = dataset_dict[split].map(
                     _encode_and_pack_batch,
@@ -340,6 +376,7 @@ def prepare_safetensors(splits=["train", "validation", "test", "unseen_trajects"
                 else:
                     raise 
         while True:
+            _raise_if_stop_requested(f"split {split} safetensor save")
             try:
                 _save_split_as_safetensors_memory_efficient(
                     dataset_dict, 
@@ -365,5 +402,16 @@ def prepare_safetensors(splits=["train", "validation", "test", "unseen_trajects"
     logging.info("All splits processed and cached as safetensors.")
 if __name__ == "__main__":
     repo_id = "Sam-Roggeman/SamRoggeman_Thesis_Dataset_full"
-    prepare_safetensors(splits=["train", "validation", "test", "unseen_trajects"], initial_batch_size=2048, skip_existing_cache=True, repo_id=repo_id, redo_cache=False)
+    try:
+        prepare_safetensors(
+            splits=["train", "validation", "test", "unseen_trajects"],
+            initial_batch_size=2048,
+            skip_existing_cache=True,
+            repo_id=repo_id,
+            redo_cache=False,
+        )
+    except GracefulStopRequested as exc:
+        exit_code = exc.code if isinstance(exc.code, int) else 123
+        logging.warning(f"Graceful stop acknowledged. Exiting with code {exit_code}.")
+        sys.exit(exit_code)
     
