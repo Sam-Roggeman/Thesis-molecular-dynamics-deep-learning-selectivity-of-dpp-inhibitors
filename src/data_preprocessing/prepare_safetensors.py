@@ -272,6 +272,7 @@ def prepare_safetensors(splits=["train", "validation", "test", "unseen_trajects"
     dir_name = cacheManager.construct_cache_identifier(used_percentage="100%", prefix="mapped")
     safetensors_cache_filepath = cache_manager.get_safetensor_cache_path(fast_path=False)
     arrow_cache_filepath = os.path.join(cache_prefix, dir_name, "arrow_cache")
+    dataset_dict = dataset_dict.rename_columns({'coordinates': 'data', 'binding_type': 'labels'})
 
     os.makedirs(safetensors_cache_filepath, exist_ok=True)
     for split in splits:
@@ -283,16 +284,16 @@ def prepare_safetensors(splits=["train", "validation", "test", "unseen_trajects"
 
         while True:
             try: 
-                logging.info(f"\t\tProcessing {split} split with batch size {batch_size} and {num_workers} workers...")
+                arrow_cache_path = os.path.join(arrow_cache_filepath, f"{split}_data.arrow")
+                logging.info(f"\t\tProcessing {split} split with batch size {batch_size} and {num_workers} workers to cache {arrow_cache_path}...")
                 dataset_dict[split] = dataset_dict[split].map(
                     _encode_and_pack_batch,
                     batched=True,
                     batch_size=batch_size,
                     num_proc=num_workers,
                     desc=f"Encoding labels and packing coords for {split}",
-                    cache_file_name=os.path.join(arrow_cache_filepath, f"{split}_data.arrow"),
+                    cache_file_name=arrow_cache_path,
                 )
-                dataset_dict[split] = dataset_dict[split].rename_columns({'coordinates': 'data', 'binding_type': 'labels'})
                 logging.info(f"\t\tEncoding and packing complete for {split} split. Saving to safetensors cache...")
             except Exception as e:
                 logging.error(f"Error during map for {split} split with batch size {batch_size}: {e}")
