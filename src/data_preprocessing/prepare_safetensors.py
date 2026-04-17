@@ -193,7 +193,7 @@ def _save_split_as_safetensors_memory_efficient(dataset_dict, split, cache_path,
             num_workers=total_nr_workers,
         )
 
-        _WORKER_DATASET_SPLIT = None
+    _WORKER_DATASET_SPLIT = None
         
     
     # Save metadata file for easy loading
