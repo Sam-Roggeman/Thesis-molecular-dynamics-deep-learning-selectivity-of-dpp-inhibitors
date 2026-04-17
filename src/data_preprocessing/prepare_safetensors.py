@@ -269,6 +269,5 @@ def prepare_safetensors(splits=["train", "validation", "test", "unseen_trajects"
 
 if __name__ == "__main__":
     repo_id = "Sam-Roggeman/SamRoggeman_Thesis_Dataset_full"
-    logging.basicConfig(level=logging.INFO)
     prepare_safetensors(splits=["train", "validation", "test", "unseen_trajects"], initial_batch_size=2048, skip_existing_cache=True, repo_id=repo_id)
     

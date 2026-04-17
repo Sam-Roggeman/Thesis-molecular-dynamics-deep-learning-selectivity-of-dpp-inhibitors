@@ -20,7 +20,8 @@ import datasets
 import torch.nn as nn
 import os
 from src.utils.logger import init_logger
-import src.utils.logger as logging
+from src.utils.logger import get_logger
+logging = get_logger() 
 
 def _is_cuda_oom_error(exc: BaseException) -> bool:
     """Return True when exception indicates a CUDA OOM condition."""
