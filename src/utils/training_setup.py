@@ -19,7 +19,7 @@ from src.utils.training_config import TrainingConfig, TestConfig
 import datasets
 import torch.nn as nn
 import os
-from src.utils.logger import init_logger, get_logger
+from src.utils.logger import init_logger, get_logger, DEBUG as LOGGING_DEBUG
 logging = get_logger() 
 
 def _is_cuda_oom_error(exc: BaseException) -> bool:
@@ -95,7 +95,7 @@ def train_model(config: TrainingConfig, model_name: str, streaming: bool = False
     
     # Setup
     run_dir = initialize_run_directory(model_name)
-    logger = init_logger(model_dir=run_dir, log_mode=logging.DEBUG, log_file="debug.log")
+    logger = init_logger(model_dir=run_dir, log_mode=LOGGING_DEBUG, log_file="debug.log")
     logger.info(f"Starting training for {model_name} with, saving to {run_dir}")
     logger.info(f"Training configuration: {config}")
     logger.info(f"Weight Decay: {config.weight_decay}, Learning Rate: {config.learning_rate}")
