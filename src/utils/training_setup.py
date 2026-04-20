@@ -48,14 +48,14 @@ def save_results(model_state_dict, model_dir: str, model_name: str, metrics):
     """Save model, metrics, and test accuracy"""
     filepath = os.path.join(model_dir, f"{model_name}.pth")
     torch.save(model_state_dict, filepath)
-    print(f"Model saved to: {filepath}")
+    logging.info(f"Model saved to: {filepath}")
 
     plot_path = filepath.replace('.pth', '.png')
     metric_path = filepath.replace('.pth', '.metrics')
     metrics.save_plot("Model Performance", plot_path)
     metrics.save_metrics(metric_path)
 
-    print(f"Plot saved to: {plot_path}")
+    logging.info(f"Plot saved to: {plot_path}")
 
 def _warmup(model, dataloader, optimizer, criterion, device, steps=5):
     train_iter = iter(dataloader)
@@ -76,7 +76,7 @@ def _warmup(model, dataloader, optimizer, criterion, device, steps=5):
         # Warmup is for graph capture/compilation only: do not update weights here.
         optimizer.zero_grad(set_to_none=True)
         step_elapsed = (datetime.now() - step_start).total_seconds()
-        print(f"Warmup step {step_idx + 1}/{steps}: fetch={fetch_elapsed:.2f}s, train_step={step_elapsed:.2f}s")
+        logging.info(f"Warmup step {step_idx + 1}/{steps}: fetch={fetch_elapsed:.2f}s, train_step={step_elapsed:.2f}s")
     if torch.cuda.is_available():
         torch.cuda.synchronize()
 
@@ -102,9 +102,7 @@ def train_model(config: TrainingConfig, model_name: str, streaming: bool = False
     logger.info(f"Max Num Epochs: {config.max_nr_epochs}")
     if config.max_train_steps is not None:
         logger.info(f"Max Train Steps: {config.max_train_steps}")
-    cache_dir = os.getenv("HF_CACHE_DIR")
-    fast_cache_dir = os.getenv("FAST_CACHE_DIR")
-    cache_manager = cacheManager(cache_dir, fast_cache_dir)
+    cache_manager = cacheManager(os.getenv("HF_CACHE_DIR"), os.getenv("FAST_CACHE_DIR"))
 
     max_retries = max(0, int(config.oom_max_retries)) if config.oom_retry_enabled else 0
     attempt = 0

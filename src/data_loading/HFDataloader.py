@@ -68,7 +68,6 @@ def initialize_dataloaders(config: TrainingConfig, cache_manager: cacheManager, 
     # if streaming:
     #     return initialize_streaming_dataloader(config, keep_all_columns=keep_all_columns, splits=splits)
     logging.info("\t...initializing_dataloader complete")
-    dataset_dict = dataset_dict.rename_columns({'coordinates': 'data', 'binding_type': 'labels'})
     logging.info("\tPre-encoding labels and packing coordinates into fixed-size tensors in dataset artifacts...")
     requested_workers = max(1, int(config.num_cpus))
     slow_safetensors_cache_filepath = cache_manager.get_safetensor_cache_path(fast_path=False)
@@ -83,6 +82,7 @@ def initialize_dataloaders(config: TrainingConfig, cache_manager: cacheManager, 
     #     cache_manager.add_directory_to_cleanup(fast_safetensors_filepath_cache)
     #     logging.info(f"\tCopy complete. Using {fast_safetensors_filepath_cache} for {split} split during this run.")
     logging.info(f"\t\tLoading cached safetensors for {split} split from {safetensors_cache_folder}...")
+    dataset_dict = {}
     for split in splits:
         dataset_dict[split] = ShardedSafetensorsDataset(safetensors_cache_folder, split)
     logging.info("\tDataset map preprocessing done; using fast fixed-shape batch path.")
