@@ -203,7 +203,7 @@ def prepare_model_batch(batch, device, scramble=False):
         prepare_model_batch.call_count = 0
     prepare_model_batch.call_count += 1
     
-    if prepare_model_batch.call_count % 10 == 0:
+    if prepare_model_batch.call_count % 100 == 0:
         logging.debug(f"\n[Prepare Model Batch Timing - Call {prepare_model_batch.call_count}]:")
         for step, duration in timings.items():
             logging.debug(f"  {step}: {duration*1000:.2f}ms")
