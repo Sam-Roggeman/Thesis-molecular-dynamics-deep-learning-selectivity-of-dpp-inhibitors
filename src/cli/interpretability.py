@@ -245,9 +245,9 @@ def write_coloring_script(colored_pdb_paths: list[str], script_path: str, thresh
             f.write(f"spectrum b, gray70 yellow orange red, {stem_name}\n")
             f.write(f"show cartoon, {stem_name}\n")
             f.write(f"select {stem_name}_high_atoms, ({stem_name} and polymer.protein and b > {bfactor_threshold:.2f})\n")
-            f.write(f"select {stem_name}_high_chains, bychain {stem_name}_high_atoms\n")
-            f.write(f"hide cartoon, {stem_name}_high_chains\n")
-            f.write(f"show sticks, {stem_name}_high_chains\n")
+            f.write(f"select {stem_name}_high_residue, byres {stem_name}_high_atoms\n")
+            f.write(f"hide cartoon, {stem_name}_high_residue\n")
+            f.write(f"show sticks, {stem_name}_high_residue\n")
     print(f"PyMOL coloring script written to: {script_path}")
 def main():
     """

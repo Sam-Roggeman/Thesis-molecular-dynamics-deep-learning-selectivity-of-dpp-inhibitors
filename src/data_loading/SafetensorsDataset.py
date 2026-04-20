@@ -31,27 +31,48 @@ class SafetensorsDataset(torch.utils.data.Dataset):
 class ShardedSafetensorsDataset(torch.utils.data.Dataset):
     """Loads sharded safetensors with memory mapping for efficiency."""
     
-    def __init__(self, cache_path, split):
+    def __init__(self, cache_path, split, fraction=1.0):
+        if not 0 < fraction <= 1.0:
+            raise ValueError(f"fraction must be in (0, 1], got {fraction}")
+
         # Load metadata
         metadata = torch.load(f"{cache_path}/{split}_metadata.pt")
-        self.total_samples = metadata['total_samples']
+        total_samples = metadata['total_samples']
+        self.total_samples = min(total_samples, max(1, int(total_samples * fraction)))
         self.n_shards = metadata['n_shards']
         self.cache_path = cache_path
         self.split = split
         
-        # Pre-compute sample to shard mapping without loading data
+        # Pre-compute sample to shard mapping without loading data.
+        # Also keep shard start indices so __getitem__ can compute local_idx in O(1).
         self.shard_for_sample = []
+        self.shard_start_idx = {}
         for shard_idx in range(self.n_shards):
+            if len(self.shard_for_sample) >= self.total_samples:
+                break
+
             shard_path = f"{cache_path}/{split}_shard_{shard_idx:04d}_of_{self.n_shards:04d}.safetensors"
             with safe_open(shard_path, framework="pt", device="cpu") as f:
                 shard_size = f.get_tensor("data").shape[0]
-                self.shard_for_sample.extend([shard_idx] * shard_size)
+
+            remaining = self.total_samples - len(self.shard_for_sample)
+            take = min(shard_size, remaining)
+            if take > 0:
+                self.shard_start_idx[shard_idx] = len(self.shard_for_sample)
+                self.shard_for_sample.extend([shard_idx] * take)
+
+        self.total_samples = len(self.shard_for_sample)
+        self._cached_shard = None
+        self._cached_shard_idx = None
     
     def __getitem__(self, idx):
+        if idx < 0 or idx >= self.total_samples:
+            raise IndexError(f"Index {idx} out of range for dataset of size {self.total_samples}")
+
         shard_idx = self.shard_for_sample[idx]
         
         # Lazy load shard (cached for repeated accesses)
-        if not hasattr(self, '_cached_shard') or self._cached_shard_idx != shard_idx:
+        if self._cached_shard is None or self._cached_shard_idx != shard_idx:
             shard_path = f"{self.cache_path}/{self.split}_shard_{shard_idx:04d}_of_{self.n_shards:04d}.safetensors"
             self._cached_shard = {}
             with safe_open(shard_path, framework="pt", device="cpu") as f:
@@ -59,14 +80,7 @@ class ShardedSafetensorsDataset(torch.utils.data.Dataset):
                     self._cached_shard[key] = f.get_tensor(key)
             self._cached_shard_idx = shard_idx
         
-        # Find local index within shard
-        # For simplicity, this recomputes - you could precompute local indices
-        offset = 0
-        for i in range(shard_idx):
-            prev_shard_path = f"{self.cache_path}/{self.split}_shard_{i:04d}_of_{self.n_shards:04d}.safetensors"
-            with safe_open(prev_shard_path, framework="pt", device="cpu") as f:
-                offset += f.get_tensor("data").shape[0]
-        local_idx = idx - offset
+        local_idx = idx - self.shard_start_idx[shard_idx]
         
         return {
             'data': self._cached_shard['data'][local_idx],

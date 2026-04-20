@@ -74,14 +74,14 @@ def initialize_dataloaders(config: TrainingConfig, cache_manager: cacheManager, 
     slow_safetensors_cache_filepath = cache_manager.get_safetensor_cache_path(fast_path=False)
     fast_safetensors_filepath_cache = cache_manager.get_safetensor_cache_path(fast_path=True)
     using_fast_cache = cache_manager.using_fast_cache()
-    safetensors_cache_folder = fast_safetensors_filepath_cache if using_fast_cache else slow_safetensors_cache_filepath
+    safetensors_cache_folder = slow_safetensors_cache_filepath
   
-    if using_fast_cache:
-        logging.info(f"Copying cached dataset in {slow_safetensors_cache_filepath} for to {fast_safetensors_filepath_cache} directory for faster access during this run...")
-        os.makedirs(os.path.dirname(fast_safetensors_filepath_cache), exist_ok=True)
-        shutil.copytree(slow_safetensors_cache_filepath, fast_safetensors_filepath_cache, dirs_exist_ok=True)
-        cache_manager.add_directory_to_cleanup(fast_safetensors_filepath_cache)
-        logging.info(f"\tCopy complete. Using {fast_safetensors_filepath_cache} for {split} split during this run.")
+    # if using_fast_cache:
+    #     logging.info(f"Copying cached dataset in {slow_safetensors_cache_filepath} for to {fast_safetensors_filepath_cache} directory for faster access during this run...")
+    #     os.makedirs(os.path.dirname(fast_safetensors_filepath_cache), exist_ok=True)
+    #     shutil.copytree(slow_safetensors_cache_filepath, fast_safetensors_filepath_cache, dirs_exist_ok=True)
+    #     cache_manager.add_directory_to_cleanup(fast_safetensors_filepath_cache)
+    #     logging.info(f"\tCopy complete. Using {fast_safetensors_filepath_cache} for {split} split during this run.")
     logging.info(f"\t\tLoading cached safetensors for {split} split from {safetensors_cache_folder}...")
     for split in splits:
         dataset_dict[split] = ShardedSafetensorsDataset(safetensors_cache_folder, split)
