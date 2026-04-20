@@ -9,7 +9,7 @@ from huggingface_hub import HfApi
 import sys
 from torch import optim, split
 from torch.utils.data import DataLoader
-from src.data_loading.HFDataloader import initialize_streaming_dataloader, initialize_dataloaders
+from src.data_loading.HFDataloader import initialize_dataloaders
 from src.data_postprocessing.model_testing import model_testing
 from src.model_training.batch_preprocessing import prepare_model_batch
 from src.model_training.metric_functions import all_statistics
