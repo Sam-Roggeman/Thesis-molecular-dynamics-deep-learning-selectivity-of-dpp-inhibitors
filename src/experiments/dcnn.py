@@ -28,7 +28,7 @@ if __name__ == "__main__":
         dataset_location="Sam-Roggeman/SamRoggeman_Thesis_Dataset_full",
         training_transform=apply_image_transform,
         validation_transform=apply_image_transform_noscramble,
-        batch_size=32,
+        batch_size=256,
         dataset_size=1.0,  # Use the full dataset
     )
     train_model(config_dcnn, "CustomDenseNet_Randomsplit_Dataset")
