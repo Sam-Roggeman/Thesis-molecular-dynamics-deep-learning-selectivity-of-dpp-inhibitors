@@ -74,19 +74,13 @@ def initialize_dataloaders(config: TrainingConfig, cache_manager: cacheManager, 
     fast_safetensors_filepath_cache = cache_manager.get_safetensor_cache_path(fast_path=True)
     using_fast_cache = cache_manager.using_fast_cache()
     safetensors_cache_folder = slow_safetensors_cache_filepath
-  
     # if using_fast_cache:
     #     logging.info(f"Copying cached dataset in {slow_safetensors_cache_filepath} for to {fast_safetensors_filepath_cache} directory for faster access during this run...")
     #     os.makedirs(os.path.dirname(fast_safetensors_filepath_cache), exist_ok=True)
     #     shutil.copytree(slow_safetensors_cache_filepath, fast_safetensors_filepath_cache, dirs_exist_ok=True)
     #     cache_manager.add_directory_to_cleanup(fast_safetensors_filepath_cache)
     #     logging.info(f"\tCopy complete. Using {fast_safetensors_filepath_cache} for {split} split during this run.")
-    logging.info(f"\t\tLoading cached safetensors for {split} split from {safetensors_cache_folder}...")
-    dataset_dict = {}
-    for split in splits:
-        dataset_dict[split] = ShardedSafetensorsDataset(safetensors_cache_folder, split)
-    logging.info("\tDataset map preprocessing done; using fast fixed-shape batch path.")
-
+    logging.info(f"\tLoading cached safetensors from {safetensors_cache_folder}...")
     requested_workers = max(1, int(config.num_cpus))
     dataloader_workers = _effective_worker_count(requested_workers)
     logging.info(
@@ -100,17 +94,14 @@ def initialize_dataloaders(config: TrainingConfig, cache_manager: cacheManager, 
         "pin_memory": True,  # ← Enable for faster CPU→GPU transfer
         "prefetch_factor": 4 if dataloader_workers > 0 else None,
     }
-    
     dataloader_dict = {}
     for split in splits:
+        logging.debug(f"\t\tLoading cached safetensors for {split} split from {safetensors_cache_folder}...")
+        ds = ShardedSafetensorsDataset(safetensors_cache_folder, split)
         logging.info(f"\t\tCreating dataloader for {split} split with batch size {config.batch_size} and num_workers {dataloader_workers}...")
-        dataloader = torch.utils.data.DataLoader(dataset_dict[split], **dataloader_args)
+        dataloader = torch.utils.data.DataLoader(dataset=ds, **dataloader_args)
         dataloader_dict[split] = dataloader
-    cache_manager.copy_to_permanent_cache()
-    # print the location of the dataloader on disk for debugging
-    for split_name, dataset in dataset_dict.items():
-        if hasattr(dataset, 'cache_files'):
-            logging.info(dataset.cache_files)    
+    cache_manager.copy_to_permanent_cache() 
 
     return dataloader_dict
 
