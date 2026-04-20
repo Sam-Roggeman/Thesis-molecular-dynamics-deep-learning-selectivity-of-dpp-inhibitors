@@ -219,9 +219,9 @@ def training_loop(
 
     metric_path =os.path.join(model_folder, f'metrics_training_loop.pt')
     plot_path = os.path.join(model_folder, f'plots_training_loop.png')
-    logging.debug(f"Using device: {device}")
-    logging.debug(f"Using metrics path: {metric_path}")
-    logging.debug(f"Using patience: {patience}")
+    logging.info(f"Using device: {device}")
+    logging.info(f"Using metrics path: {metric_path}")
+    logging.info(f"Using patience: {patience}")
 
     trainloader_len = _safe_len(trainloader)
     validationloader_len = _safe_len(validationloader)
@@ -234,6 +234,7 @@ def training_loop(
         logging.info(f"Validation batches per pass: {validationloader_len}")
     else:
         logging.info("Validation loader length is unknown.")
+
 
     if max_train_steps is None:
         if trainloader_len is not None and max_epochs is not None:

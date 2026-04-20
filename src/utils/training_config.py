@@ -80,7 +80,7 @@ class TrainingConfig:
     # Hugging Face dataset ID or local dataset path.
     dataset_location: str = "Sam-Roggeman/SamRoggeman_Thesis_Dataset"
     # Fraction of each split to use when < 1.0.
-    dataset_size: float = 0.25
+    dataset_size: float = 1.0
     # Enable streaming for the train split.
     stream_train_split: bool = True
     # Enable streaming for the validation split.

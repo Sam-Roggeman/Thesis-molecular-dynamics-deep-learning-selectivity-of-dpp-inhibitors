@@ -29,6 +29,6 @@ if __name__ == "__main__":
         training_transform=apply_image_transform,
         validation_transform=apply_image_transform_noscramble,
         batch_size=32,
-        dataset_size=0.25,
+        dataset_size=1.0,  # Use the full dataset
     )
     train_model(config_dcnn, "CustomDenseNet_Randomsplit_Dataset")
