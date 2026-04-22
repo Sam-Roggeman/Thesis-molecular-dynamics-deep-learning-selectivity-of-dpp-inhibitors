@@ -11,10 +11,10 @@ from src.Models.DCNN import CustomDenseNet
 from src.Models.LinearAttentionTransformerPP import LinearAttentionTransformerPP
 from src.Models.OneLayer import OneLayerNet
 from src.Models.SimpleCNN import SimpleCNN
-from src.data_loading.HFDataloader import initialize_dataloaders, initialize_streaming_dataloader
+from src.data_loading.HFDataloader import initialize_dataloaders
 from src.data_postprocessing.model_testing import model_testing
 from src.utils.training_config import TrainingConfig
-
+from src.model_training.utils import load_model
 
 MODEL_REGISTRY = {
 	"SimpleCNN": SimpleCNN,
@@ -177,6 +177,8 @@ def _build_parser() -> argparse.ArgumentParser:
 	return parser
 
 
+
+
 def main() -> None:
 	load_dotenv()
 	args = _build_parser().parse_args()
@@ -221,11 +223,7 @@ def main() -> None:
 		device = torch.device(args.device)
 	if device.type == "cuda" and not torch.cuda.is_available():
 		raise RuntimeError("CUDA requested but is not available.")
-	model_class = _resolve_model_class(model_name)
-	model = model_class(**config.model_args)
-	state_dict = _load_state_dict(checkpoint_path, device)
-	_load_weights(model, state_dict)
-	model.to(device)
+	model = load_model(checkpoint_path, device=device)
 	criterion = config.criterion() if config.criterion else torch.nn.CrossEntropyLoss()
 	test_loaders = _build_test_dataloader(config, splits=args.splits, streaming=args.streaming)
 	print(f"Evaluating checkpoint: {checkpoint_path}")

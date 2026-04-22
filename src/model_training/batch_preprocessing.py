@@ -162,7 +162,7 @@ def _coords_to_rgb(coords, num_atoms):
     return out
 
 
-def prepare_model_batch(batch, device, scramble=False):
+def prepare_model_batch(batch, device, scramble=False, log_every_steps=0):
     """WITH TIMING: Measure each step"""
     
     timings = {}
@@ -203,7 +203,7 @@ def prepare_model_batch(batch, device, scramble=False):
         prepare_model_batch.call_count = 0
     prepare_model_batch.call_count += 1
     
-    if prepare_model_batch.call_count % 100 == 0:
+    if log_every_steps and prepare_model_batch.call_count % log_every_steps == 0:
         logging.debug(f"\n[Prepare Model Batch Timing - Call {prepare_model_batch.call_count}]:")
         for step, duration in timings.items():
             logging.debug(f"  {step}: {duration*1000:.2f}ms")

@@ -11,6 +11,20 @@ from sklearn.metrics import confusion_matrix
 
 from src.utils.logger import get_logger
 logging = get_logger() 
+def save_model(model, model_folder, model_name):
+    os.makedirs(model_folder, exist_ok=True)
+    model_path = os.path.join(model_folder, f"{model_name}.pth")
+    torch.save(model, model_path)
+    logging.info(f"Saved full model to {model_path}")
+    return model_path
+
+
+def load_model(model_filepath, device=None):
+    if device is None:
+        device = torch.device("cpu")
+    model = torch.load(model_filepath, map_location=device)
+    model.eval()
+    return model
 
 def model_name(model_name_prefix):
     # current date and time
@@ -24,10 +38,7 @@ def get_device():
         device = torch.device("cpu")
         print("WARNING: Training on CPU, this may be slow. Consider using a GPU for faster training.")
     return device
-def load_model(model_class, model_filepath):
-    model = model_class()
-    model.load_state_dict(torch.load(model_filepath))
-    return model
+
 def get_subset(dataset, fraction, shuffle=True, seed=42):
     if 0.9999 < fraction <= 1.0:
         return dataset
@@ -285,6 +296,7 @@ def training_loop(
     interval_compute_time = 0.0
     interval_start = time.time()
     logging.info("Starting training loop...")
+    current_best_model_path = None
     while global_step < max_train_steps:
         model.train()
         data_wait_start = time.time()
@@ -415,10 +427,12 @@ def training_loop(
 
             improved = metrics.model_improved()
             if improved:
-                best_model_state_dict = model.state_dict()
-                path = os.path.join(model_folder, f'current_best_model.pth')
-                torch.save(best_model_state_dict, path)
-                logging.info(f"\tSaved best model at step {global_step} to {path}")
+                # remove old best model file if it exists
+                if current_best_model_path and os.path.exists(current_best_model_path):
+                    os.remove(current_best_model_path)
+                    logging.info(f"\tRemoved old best model at {current_best_model_path}")
+                current_best_model_path = save_model(model, model_folder, f'current_best_model_epoch_{pseudo_epoch}.pth')
+                logging.info(f"\tSaved best model at step {global_step} to {current_best_model_path}")
                 epochs_best_model = pseudo_epoch
             else:
                 metrics.patience_counter += 1
