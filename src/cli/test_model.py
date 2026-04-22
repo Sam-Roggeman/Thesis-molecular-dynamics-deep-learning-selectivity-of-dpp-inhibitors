@@ -124,7 +124,7 @@ def _build_parser() -> argparse.ArgumentParser:
 	parser.add_argument(
 		"--output-dir",
 		default=None,
-		help="Directory where confusion_matrix.png will be saved. Defaults to checkpoint directory.",
+		help="Directory where confusion_matrix.png will be saved. Defaults to 'checkpoint_dir/test_results/split'.",
 	)
 	parser.add_argument(
 		"--splits",
@@ -167,7 +167,6 @@ def _build_parser() -> argparse.ArgumentParser:
 
 
 
-
 def main() -> None:
 	load_dotenv()
 	args = _build_parser().parse_args()
@@ -207,7 +206,7 @@ def main() -> None:
 	if args.num_cpus is not None:
 		config.num_cpus = args.num_cpus
 	if args.output_dir is None:
-		args.output_dir = os.path.dirname(checkpoint_path)
+		args.output_dir = os.path.dirname(checkpoint_path) + f"/test_results/"
 	if args.device == "auto":
 		device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 	else:
@@ -217,17 +216,17 @@ def main() -> None:
 	model = load_model(checkpoint_path, device=device)
 	criterion = config.criterion() if config.criterion else torch.nn.CrossEntropyLoss()
 	test_loaders = _build_test_dataloader(config, splits=args.splits, streaming=args.streaming)
-	print(f"Evaluating checkpoint: {checkpoint_path}")
-	print(f"Model: {model_name} with args={config.model_args}")
-	print(f"Dataset: {config.dataset_location} (size={config.dataset_size})")
-	print(f"Batch size: {config.batch_size}, num_cpus: {config.num_cpus}")
-	print(f"Device: {device}")
+	logging.info(f"Evaluating checkpoint: {checkpoint_path}")
+	logging.info(f"Model: {model_name} with args={config.model_args}")
+	logging.info(f"Dataset: {config.dataset_location} (size={config.dataset_size})")
+	logging.info(f"Batch size: {config.batch_size}, num_cpus: {config.num_cpus}")
+	logging.info(f"Device: {device}")
 
-	
+
 	for split in args.splits:
+		logging.info(f"Testing on split: {split}")
 		test_loader = test_loaders[split]
-		print(f"Testing on split: {split}")
-		output_dir = os.path.join(args.output_dir, f"test_results_{split}")
+		output_dir = os.path.join(args.output_dir, split)
 		os.makedirs(output_dir, exist_ok=True)
 
 
@@ -241,7 +240,7 @@ def main() -> None:
 			split_name=split,
 		)
 
-		print(f"Testing complete. Confusion matrix saved to: {os.path.join(output_dir, 'confusion_matrix.png')}")
+		logging.info(f"Testing complete. Confusion matrix saved to: {os.path.join(output_dir, 'confusion_matrix.png')}")
 
 
 if __name__ == "__main__":
