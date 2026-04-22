@@ -11,8 +11,6 @@ from src.Transform.XYZToRGBTensor import XYZToRGBTensor
 from src.model_training.utils import training_loop, load_model, model_name, get_device, get_subset
 from src.model_training.LabelEncoder import LabelEncoder
 import torch.optim as optim
-from src.model_training.DataLoader import load_dataset_from_safetensors_multichunk, \
-    load_validation_from_safetensors_multichunk
 import torch
 import torch.nn as nn
 import torch.nn.functional as F

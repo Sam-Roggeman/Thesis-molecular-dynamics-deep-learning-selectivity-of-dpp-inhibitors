@@ -111,21 +111,8 @@ def _parse_model_args(model_args: str | None) -> dict:
 
 
 def _build_test_dataloader(config: TrainingConfig, splits=["test"], streaming=False):
-	try:
-		if streaming:
-			print("Streaming flag is set. Initializing streaming dataloader.")
-			dataloaders = initialize_streaming_dataloader(config, keep_all_columns=True, splits=splits, shuffle=True)
-			return dataloaders
-		else:
-			dataloaders = initialize_dataloaders(config, keep_all_columns=True, splits=splits)
-			return dataloaders
-	except Exception as exc:
-		print(
-			"Falling back to streaming dataloader because initialize_dataloaders failed: "
-			f"{exc}"
-		)
-		dataloaders = initialize_streaming_dataloader(config, keep_all_columns=True, splits=splits, shuffle=True)
-		return dataloaders
+	dataloaders = initialize_dataloaders(config, keep_all_columns=True, splits=splits)
+	return dataloaders
 
 
 def _build_parser() -> argparse.ArgumentParser:
