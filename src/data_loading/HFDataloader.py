@@ -59,12 +59,14 @@ def _download_streaming_dataset(config: TrainingConfig, splits: list = ["train",
 # Define a type for the dataloader dict
 DataLoaderDict = dict[str, torch.utils.data.DataLoader]
 
-def initialize_dataloaders(config: TrainingConfig, cache_manager: cacheManager, splits=None, keep_all_columns: bool = False, streaming: bool = False) -> DataLoaderDict:
+def initialize_dataloaders(config: TrainingConfig, cache_manager: cacheManager= None, splits=None, keep_all_columns: bool = False, streaming: bool = False) -> DataLoaderDict:
     """
     Initialize the dataloader for training.
     """
     if splits is None:
         splits = ['train', 'validation', 'test']
+    if cache_manager is None:
+        cache_manager = cacheManager(construct_cache_identifier(config))
     # if streaming:
     #     return initialize_streaming_dataloader(config, keep_all_columns=keep_all_columns, splits=splits)
     logging.info("\t...initializing_dataloader complete")
