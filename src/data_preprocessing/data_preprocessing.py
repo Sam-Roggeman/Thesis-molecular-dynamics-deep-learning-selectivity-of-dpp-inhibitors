@@ -7,7 +7,6 @@ from pathlib import Path
 import tempfile
 import os
 
-import torchvision
 from tqdm import tqdm
 import torch.nn.functional as F
 

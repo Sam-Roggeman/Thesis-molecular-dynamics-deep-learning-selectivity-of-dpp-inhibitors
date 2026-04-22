@@ -1,4 +1,3 @@
-import torchvision
 import torch
 import os
 

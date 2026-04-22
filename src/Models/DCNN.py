@@ -3,7 +3,6 @@ from datetime import datetime
 
 import datasets
 import numpy as np
-import torchvision
 
 from src.Models.custom_model_template import AbstractNNModel
 from src.Transform.ListScrambler import ListScrambler, ScramblingTransform
