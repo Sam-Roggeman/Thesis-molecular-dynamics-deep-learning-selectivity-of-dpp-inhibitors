@@ -15,6 +15,9 @@ from src.data_loading.HFDataloader import initialize_dataloaders
 from src.data_postprocessing.model_testing import model_testing
 from src.utils.training_config import TrainingConfig
 from src.model_training.utils import load_model
+# logging
+from src.utils.logger import init_logger, get_logger, DEBUG as LOGGING_DEBUG
+logging = init_logger(LOGGING_DEBUG)
 
 MODEL_REGISTRY = {
 	"SimpleCNN": SimpleCNN,
