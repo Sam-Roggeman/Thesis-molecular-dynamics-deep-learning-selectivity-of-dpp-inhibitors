@@ -22,7 +22,7 @@ def save_model(model, model_folder, model_name):
 def load_model(model_filepath, device=None):
     if device is None:
         device = torch.device("cpu")
-    model = torch.load(model_filepath, map_location=device)
+    model = torch.load(model_filepath, map_location=device, weights_only=False)
     model.eval()
     return model
 
