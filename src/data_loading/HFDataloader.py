@@ -66,7 +66,7 @@ def initialize_dataloaders(config: TrainingConfig, cache_manager: cacheManager= 
     if splits is None:
         splits = ['train', 'validation', 'test']
     if cache_manager is None:
-        cache_manager = cacheManager(construct_cache_identifier(config))
+        cache_manager = cacheManager()
     # if streaming:
     #     return initialize_streaming_dataloader(config, keep_all_columns=keep_all_columns, splits=splits)
     logging.info("\t...initializing_dataloader complete")
