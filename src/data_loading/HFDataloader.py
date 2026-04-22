@@ -99,6 +99,7 @@ def initialize_dataloaders(config: TrainingConfig, cache_manager: cacheManager= 
     dataloader_dict = {}
     for split in splits:
         logging.debug(f"\t\tLoading cached safetensors for {split} split from {safetensors_cache_folder}...")
+        logging.debug(f"Creating SafetensorsDataset for {split} split with batch size {config.batch_size} and num_workers {dataloader_workers}, fraction {config.dataset_size}...")
         ds = ShardedSafetensorsDataset(safetensors_cache_folder, split, fraction=config.dataset_size)
         logging.info(f"\t\tCreating dataloader for {split} split with batch size {config.batch_size} and num_workers {dataloader_workers}...")
         dataloader = torch.utils.data.DataLoader(dataset=ds, **dataloader_args)
