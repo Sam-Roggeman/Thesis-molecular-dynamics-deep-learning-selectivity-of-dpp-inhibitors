@@ -173,7 +173,8 @@ def main() -> None:
 	args = _build_parser().parse_args()
 
 	checkpoint_path = os.path.abspath(args.checkpoint)
-	logging = init_logger(model_dir=checkpoint_path, log_mode=LOGGING_DEBUG, log_file="test_debug.log")
+	checkpoint_dir = os.path.dirname(checkpoint_path)
+	logging = init_logger(model_dir=checkpoint_dir, log_mode=LOGGING_DEBUG, log_file="test_debug.log")
 	if not os.path.exists(checkpoint_path):
 		raise FileNotFoundError(f"Checkpoint not found: {checkpoint_path}")
 
