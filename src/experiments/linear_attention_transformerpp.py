@@ -24,7 +24,7 @@ if __name__ == "__main__":
             "n_heads": 4,
             "n_layers": 3,
             "ffn_multiplier": 4,
-            "dropout": 0.1,
+            "dropout": 0.3,
         },
         dataset_location="Sam-Roggeman/SamRoggeman_Thesis_Dataset_full",
         training_transform=apply_sequence_transform,
@@ -35,6 +35,8 @@ if __name__ == "__main__":
         use_mixed_precision=False,
         amp_dtype="float16",
         dataset_size=0.01,
+        learning_rate=1e-5,
+        max_nr_epochs=25,
     )
 
     train_model(config_transformerpp, "LinearAttentionTransformerPP_Randomsplit_Dataset")

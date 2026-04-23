@@ -516,7 +516,7 @@ def training_loop(
             average_time_per_eval = (time.time() - start_time) / len(metrics.training_accuracy)
             interval_time = time.time() - interval_start
 
-            logging.info(f'Eval checkpoint at step {global_step} (pseudo-epoch {pseudo_epoch}):')
+            logging.info(f'===============Eval checkpoint at step {global_step} (pseudo-epoch {pseudo_epoch})===============')
             logging.info(f'\tTraining  \tAccuracy: {metrics.training_accuracy[-1]:.4f}%\tLoss: {metrics.train_loss[-1]:.4f}')
             logging.info(f'\tValidation\tAccuracy: {metrics.validation_accuracy[-1]:.4f}%\tLoss: {metrics.validation_loss[-1]:.4f}')
             logging.info('-' * 100)
