@@ -167,6 +167,10 @@ def _train_single_batch_prepared_amp(
         outputs = model(inputs)
         loss = criterion(outputs, labels)
 
+    if not torch.isfinite(loss):
+        optimizer.zero_grad(set_to_none=True)
+        return 0, 0, float("nan")
+
     if use_amp and grad_scaler is not None:
         grad_scaler.scale(loss).backward()
         grad_scaler.step(optimizer)
@@ -363,6 +367,7 @@ def training_loop(
     interval_start = time.time()
     logging.info("Starting training loop...")
     current_best_model_path = None
+    amp_fallback_applied = False
     while global_step < max_train_steps:
         model.train()
         data_wait_start = time.time()
@@ -424,6 +429,20 @@ def training_loop(
             )
             prepared_inputs = None
             prepared_labels = None
+
+        if not torch.isfinite(torch.tensor(batch_loss)):
+            if use_amp and not amp_fallback_applied:
+                logging.warning(
+                    "Non-finite loss detected with AMP; disabling mixed precision for the rest of this run."
+                )
+                use_amp = False
+                grad_scaler = torch.amp.GradScaler("cuda", enabled=False)
+                amp_fallback_applied = True
+                continue
+
+            logging.warning("Skipping non-finite batch loss.")
+            continue
+
         interval_compute_time += time.time() - compute_start
         global_step += 1
 
