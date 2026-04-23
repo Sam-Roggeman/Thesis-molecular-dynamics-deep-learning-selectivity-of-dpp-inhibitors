@@ -80,6 +80,29 @@ def _warmup(model, dataloader, optimizer, criterion, device, steps=5):
     if torch.cuda.is_available():
         torch.cuda.synchronize()
 
+
+def _warmup_with_batch_fn(model, dataloader, optimizer, criterion, device, batch_preparation_fn, steps=5):
+    train_iter = iter(dataloader)
+    for step_idx in range(steps):
+        fetch_start = datetime.now()
+        try:
+            batch = next(train_iter)
+        except StopIteration:
+            break
+        fetch_elapsed = (datetime.now() - fetch_start).total_seconds()
+        step_start = datetime.now()
+        model.train()
+        inputs, labels = batch_preparation_fn(batch, device, scramble=True)
+        optimizer.zero_grad(set_to_none=True)
+        outputs = model(inputs)
+        loss = criterion(outputs, labels)
+        loss.backward()
+        optimizer.zero_grad(set_to_none=True)
+        step_elapsed = (datetime.now() - step_start).total_seconds()
+        logging.info(f"Warmup step {step_idx + 1}/{steps}: fetch={fetch_elapsed:.2f}s, train_step={step_elapsed:.2f}s")
+    if torch.cuda.is_available():
+        torch.cuda.synchronize()
+
 def initialize_run_directory(model_name):
     """Create model directory and setup logging"""
     time_string = datetime.now().strftime("%Y%m%d-%H%M%S")
@@ -92,6 +115,7 @@ def initialize_run_directory(model_name):
 def train_model(config: TrainingConfig, model_name: str, streaming: bool = False):
     """Main training function - single entry point for all models"""
     load_dotenv() # Load environment variables from .env file
+    batch_preparation_fn = config.batch_preparation_fn or prepare_model_batch
     
     # Setup
     run_dir = initialize_run_directory(model_name)
@@ -137,7 +161,15 @@ def train_model(config: TrainingConfig, model_name: str, streaming: bool = False
                     warmup_steps = max(0, int(getattr(config, "compile_warmup_steps", 1)))
                     if warmup_steps > 0:
                         logger.info(f"Warming up compiled model for {warmup_steps} step(s)...")
-                        _warmup(model, dataloaders["train"], optimizer, criterion, device, steps=warmup_steps)
+                        _warmup_with_batch_fn(
+                            model,
+                            dataloaders["train"],
+                            optimizer,
+                            criterion,
+                            device,
+                            batch_preparation_fn=batch_preparation_fn,
+                            steps=warmup_steps,
+                        )
                     else:
                         logger.info("Skipping explicit compile warmup (compile_warmup_steps=0).")
 
@@ -155,6 +187,7 @@ def train_model(config: TrainingConfig, model_name: str, streaming: bool = False
                     eval_every_steps=config.eval_every_steps,
                     log_every_steps=config.log_every_steps,
                     use_cuda_prefetcher=config.use_cuda_prefetcher,
+                    batch_preparation_fn=batch_preparation_fn,
                     validation_max_batches=config.validation_max_batches,
                     patience=config.patience,
                     time_limit=config.time_limit
@@ -167,6 +200,7 @@ def train_model(config: TrainingConfig, model_name: str, streaming: bool = False
                     dataloaders["test"],
                     criterion,
                     device,
+                    batch_preparation_fn=batch_preparation_fn,
                     output_dir=run_dir,
                     max_batches=config.test_max_batches,
                 )

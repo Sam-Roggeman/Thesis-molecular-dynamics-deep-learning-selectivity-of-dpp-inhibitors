@@ -23,7 +23,15 @@ def _compute_label_prediction_statistics(labels, predictions, statistics_to_comp
 
     return stats
 
-def calculate_statistics(model, dataloader, criterion, device, max_batches: int | None = None, statistics_to_compute: list[str] | None = None) -> dict[str, float]:
+def calculate_statistics(
+    model,
+    dataloader,
+    criterion,
+    device,
+    max_batches: int | None = None,
+    statistics_to_compute: list[str] | None = None,
+    batch_preparation_fn=prepare_model_batch,
+) -> dict[str, float]:
     """Calculate specified statistics for a model on a given dataloader. Loop over the dataloader and compute the specified statistics for each batch, then average them over the entire dataloader.
     Args:
         model (_type_): _model to evaluate
@@ -38,6 +46,7 @@ def calculate_statistics(model, dataloader, criterion, device, max_batches: int 
     """
     if statistics_to_compute is None:
         statistics_to_compute = ["accuracy", "loss", "precision", "recall", "f1_score", "confusion_matrix"]
+    batch_preparation_fn = batch_preparation_fn or prepare_model_batch
     
     all_labels = []
     all_predictions = []
@@ -57,7 +66,7 @@ def calculate_statistics(model, dataloader, criterion, device, max_batches: int 
             logging.debug(f"Processing batch {batch_idx + 1}...")
             if max_batches is not None and batch_idx >= max_batches:
                 break
-            images, labels = prepare_model_batch(data, device, scramble=False)
+            images, labels = batch_preparation_fn(data, device, scramble=False)
             outputs = model(images)
             loss = criterion(outputs, labels)
             total_loss += loss.item()
@@ -123,11 +132,12 @@ def calculate_statistics(model, dataloader, criterion, device, max_batches: int 
 
     return statistics
 
-def calculate_accuracy_and_loss(model, dataloader, criterion, device, max_batches: int | None = None):
+def calculate_accuracy_and_loss(model, dataloader, criterion, device, max_batches: int | None = None, batch_preparation_fn=prepare_model_batch):
     correct = 0
     total = 0
     current_loss = 0.0
     num_batches = 0
+    batch_preparation_fn = batch_preparation_fn or prepare_model_batch
 
     model.to(device)
     model.eval()
@@ -137,7 +147,7 @@ def calculate_accuracy_and_loss(model, dataloader, criterion, device, max_batche
         for batch_idx, data in enumerate(dataloader):
             if max_batches is not None and batch_idx >= max_batches:
                 break
-            images, labels = prepare_model_batch(data, device, scramble=False)
+            images, labels = batch_preparation_fn(data, device, scramble=False)
 
             outputs = model(images)
             loss = criterion(outputs, labels)
@@ -154,9 +164,10 @@ def calculate_accuracy_and_loss(model, dataloader, criterion, device, max_batche
 
     return accuracy, current_loss
 
-def calculate_precision_recall_f1(model, dataloader, device, max_batches: int | None = None):
+def calculate_precision_recall_f1(model, dataloader, device, max_batches: int | None = None, batch_preparation_fn=prepare_model_batch):
     all_labels = []
     all_predictions = []
+    batch_preparation_fn = batch_preparation_fn or prepare_model_batch
     model.to(device)
     model.eval()
 
@@ -164,7 +175,7 @@ def calculate_precision_recall_f1(model, dataloader, device, max_batches: int | 
         for batch_idx, data in enumerate(dataloader):
             if max_batches is not None and batch_idx >= max_batches:
                 break
-            images, labels = prepare_model_batch(data, device, scramble=False)
+            images, labels = batch_preparation_fn(data, device, scramble=False)
             outputs = model(images)
             _, predicted = torch.max(outputs.data, 1)
             all_labels.extend(labels.cpu().numpy())
@@ -177,19 +188,21 @@ def calculate_precision_recall_f1(model, dataloader, device, max_batches: int | 
 
     return precision, recall, f1, conf_matrix
 
-def all_statistics(model, dataloader, criterion, device, max_batches: int | None = None) -> dict[str, float]:
+def all_statistics(model, dataloader, criterion, device, max_batches: int | None = None, batch_preparation_fn=prepare_model_batch) -> dict[str, float]:
     accuracy, loss = calculate_accuracy_and_loss(
         model=model,
         dataloader=dataloader,
         device=device,
         criterion=criterion,
         max_batches=max_batches,
+        batch_preparation_fn=batch_preparation_fn,
     )
     precision, recall, f1, conf_matrix = calculate_precision_recall_f1(
         model=model,
         dataloader=dataloader,
         device=device,
         max_batches=max_batches,
+        batch_preparation_fn=batch_preparation_fn,
     )
 
     return {

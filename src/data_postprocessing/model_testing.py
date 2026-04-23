@@ -6,13 +6,23 @@ from src.model_training.LabelEncoder import LabelEncoder
 from sklearn.metrics import ConfusionMatrixDisplay
 
 
-def model_testing(model, testloader, criterion, device, output_dir, max_batches=None, split_name="test"):
+def model_testing(
+    model,
+    testloader,
+    criterion,
+    device,
+    output_dir,
+    max_batches=None,
+    split_name="test",
+    batch_preparation_fn=None,
+):
     statistics = calculate_statistics(
         model=model,
         dataloader=testloader,
         device=device,
         criterion=criterion,
         max_batches=max_batches,
+        batch_preparation_fn=batch_preparation_fn,
     )
     labelencoder = LabelEncoder()
     label_classes = labelencoder.get_classes()

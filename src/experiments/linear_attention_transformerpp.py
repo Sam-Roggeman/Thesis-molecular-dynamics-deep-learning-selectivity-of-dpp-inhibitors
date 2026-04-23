@@ -1,6 +1,7 @@
 from dotenv import load_dotenv
 
 from src.Models.LinearAttentionTransformerPP import LinearAttentionTransformerPP
+from src.model_training.batch_preprocessing import prepare_sequence_batch
 from src.Transform.sequence_transforms import (
     apply_sequence_transform,
     apply_sequence_transform_noscramble,
@@ -28,6 +29,7 @@ if __name__ == "__main__":
         dataset_location="Sam-Roggeman/SamRoggeman_Thesis_Dataset_full",
         training_transform=apply_sequence_transform,
         validation_transform=apply_sequence_transform_noscramble,
+        batch_preparation_fn=prepare_sequence_batch,
         batch_size=64,
         compile_model=False,
     )

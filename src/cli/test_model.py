@@ -13,6 +13,7 @@ from src.Models.OneLayer import OneLayerNet
 from src.Models.SimpleCNN import SimpleCNN
 from src.data_loading.HFDataloader import initialize_dataloaders
 from src.data_postprocessing.model_testing import model_testing
+from src.model_training.batch_preprocessing import prepare_model_batch, prepare_sequence_batch
 from src.utils.training_config import TrainingConfig
 from src.model_training.utils import load_model
 # logging
@@ -23,6 +24,10 @@ MODEL_REGISTRY = {
 	"OneLayerNet": OneLayerNet,
 	"CustomDenseNet": CustomDenseNet,
 	"LinearAttentionTransformerPP": LinearAttentionTransformerPP,
+}
+
+BATCH_PREPARATION_REGISTRY = {
+	"LinearAttentionTransformerPP": prepare_sequence_batch,
 }
 
 
@@ -115,6 +120,12 @@ def _parse_model_args(model_args: str | None) -> dict:
 def _build_test_dataloader(config: TrainingConfig, splits=["test"], streaming=False):
 	dataloaders = initialize_dataloaders(config, keep_all_columns=True, splits=splits)
 	return dataloaders
+
+
+def _resolve_batch_preparation_fn(config: TrainingConfig, model_name: str):
+	if callable(getattr(config, "batch_preparation_fn", None)):
+		return config.batch_preparation_fn
+	return BATCH_PREPARATION_REGISTRY.get(model_name, prepare_model_batch)
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -215,6 +226,7 @@ def main() -> None:
 		raise RuntimeError("CUDA requested but is not available.")
 	model = load_model(checkpoint_path, device=device)
 	criterion = config.criterion() if config.criterion else torch.nn.CrossEntropyLoss()
+	batch_preparation_fn = _resolve_batch_preparation_fn(config, model_name)
 	test_loaders = _build_test_dataloader(config, splits=args.splits, streaming=args.streaming)
 	logging.info(f"Evaluating checkpoint: {checkpoint_path}")
 	logging.info(f"Model: {model_name} with args={config.model_args}")
@@ -238,9 +250,10 @@ def main() -> None:
 			output_dir=output_dir,
 			max_batches=args.max_batches,
 			split_name=split,
+			batch_preparation_fn=batch_preparation_fn,
 		)
 
-		logging.info(f"Testing complete. Confusion matrix saved to: {os.path.join(output_dir, 'confusion_matrix.png')}")
+	logging.info(f"Testing complete. output saved to {args.output_dir}")
 
 
 if __name__ == "__main__":

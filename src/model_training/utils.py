@@ -131,10 +131,11 @@ def _train_single_batch_prepared(model, inputs, labels, optimizer, criterion):
 class CUDABatchPrefetcher:
     """Prefetch and preprocess the next batch on a dedicated CUDA stream."""
 
-    def __init__(self, dataloader, device, scramble=True):
+    def __init__(self, dataloader, device, scramble=True, batch_preparation_fn=prepare_model_batch):
         self.dataloader = dataloader
         self.device = device
         self.scramble = scramble
+        self.batch_preparation_fn = batch_preparation_fn
         self.stream = torch.cuda.Stream(device=device)
         self.loader_iter = None
         self.next_inputs = None
@@ -161,7 +162,7 @@ class CUDABatchPrefetcher:
             return
 
         with torch.cuda.stream(self.stream):
-            inputs, labels = prepare_model_batch(batch, self.device, scramble=self.scramble)
+            inputs, labels = self.batch_preparation_fn(batch, self.device, scramble=self.scramble)
             self.next_inputs = inputs
             self.next_labels = labels
 
@@ -222,6 +223,7 @@ def training_loop(
     eval_every_steps=1000,
     log_every_steps=100,
     use_cuda_prefetcher=True,
+    batch_preparation_fn=prepare_model_batch,
     validation_max_batches=None,
     patience=10,
     time_limit=None,
@@ -285,7 +287,12 @@ def training_loop(
     prefetcher = None
     if device.type == "cuda" and use_cuda_prefetcher:
         logging.info("CUDA prefetcher enabled: overlapping next-batch preprocessing with current compute.")
-        prefetcher = CUDABatchPrefetcher(trainloader, device=device, scramble=True)
+        prefetcher = CUDABatchPrefetcher(
+            trainloader,
+            device=device,
+            scramble=True,
+            batch_preparation_fn=batch_preparation_fn,
+        )
         prefetcher.reset()
     interval_correct = 0
     interval_total = 0
@@ -337,7 +344,7 @@ def training_loop(
                 criterion,
             )
         else:
-            prepared_inputs, prepared_labels = prepare_model_batch(batch, device, scramble=True)
+            prepared_inputs, prepared_labels = batch_preparation_fn(batch, device, scramble=True)
             interval_prep_time += time.time() - prep_start
 
             compute_start = time.time()
@@ -401,6 +408,7 @@ def training_loop(
                     criterion,
                     device,
                     max_batches=validation_max_batches,
+                    batch_preparation_fn=batch_preparation_fn,
                 )
             except RuntimeError as exc:
                 if "DataLoader worker" in str(exc):

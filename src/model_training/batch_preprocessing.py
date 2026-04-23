@@ -162,6 +162,28 @@ def _coords_to_rgb(coords, num_atoms):
     return out
 
 
+def _coords_to_sequence(coords, num_atoms):
+    """Normalize packed coordinates per sample while keeping (B, T, C) sequence layout."""
+    batch_size, seq_len, _ = coords.shape
+    device = coords.device
+
+    n_real = num_atoms.to(device=device, dtype=torch.long).clamp(min=1, max=seq_len)
+    atom_idx = torch.arange(seq_len, device=device).unsqueeze(0)
+    valid_mask = atom_idx < n_real.unsqueeze(1)
+    valid_mask_3d = valid_mask.unsqueeze(-1)
+
+    finfo = torch.finfo(coords.dtype)
+    masked_min = torch.where(valid_mask_3d, coords, torch.full_like(coords, finfo.max))
+    masked_max = torch.where(valid_mask_3d, coords, torch.full_like(coords, finfo.min))
+    coords_min = masked_min.min(dim=1).values
+    coords_max = masked_max.max(dim=1).values
+    coords_range = (coords_max - coords_min).clamp_min(1e-8)
+
+    normalized = (coords - coords_min.unsqueeze(1)) / coords_range.unsqueeze(1)
+    normalized = torch.where(valid_mask_3d, normalized, torch.zeros_like(normalized))
+    return normalized.contiguous()
+
+
 def prepare_model_batch(batch, device, scramble=False, log_every_steps=0):
     """WITH TIMING: Measure each step"""
     
@@ -210,3 +232,16 @@ def prepare_model_batch(batch, device, scramble=False, log_every_steps=0):
         logging.debug(f"  TOTAL: {sum(timings.values())*1000:.2f}ms")
     
     return images, labels
+
+
+def prepare_sequence_batch(batch, device, scramble=False, log_every_steps=0):
+    """Prepare packed coordinate data for sequence models expecting input shape (B, T, C)."""
+    labels = _labels_to_tensor(batch["labels"], device)
+    coords = _coords_to_tensor(batch["data"], device)
+    num_atoms = _num_atoms_to_tensor(batch.get("num_atoms"), coords, device)
+
+    if scramble:
+        _scramble_in_place(coords, num_atoms)
+
+    sequence = _coords_to_sequence(coords, num_atoms)
+    return sequence, labels

@@ -99,6 +99,8 @@ class TrainingConfig:
     training_transform: Callable = apply_image_transform
     # Batch transform applied to validation/test data.
     validation_transform: Callable = apply_image_transform_noscramble
+    # Callable that turns a raw dataloader batch into model inputs and labels.
+    batch_preparation_fn: Callable | None = None
     # Batch size used inside dataset.map for preprocessing.
     transform_batch_size:int = 1024
     # CPU workers used by dataset processing/DataLoader. Derived from GPULAB_CPUS_RESERVED when available.
