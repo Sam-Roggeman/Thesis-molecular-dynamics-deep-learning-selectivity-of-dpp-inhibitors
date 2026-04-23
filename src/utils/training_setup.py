@@ -145,6 +145,7 @@ def train_model(config: TrainingConfig, model_name: str, streaming: bool = False
                 device = get_device()
                 criterion = config.criterion()
                 optimizer = config.optimizer(model.parameters(), lr=config.learning_rate, weight_decay=config.weight_decay)
+                effective_amp_dtype = config.amp_dtype
 
                 # Set up device and CUDA settings before moving model to device
                 if device.type == "cuda":
@@ -153,6 +154,15 @@ def train_model(config: TrainingConfig, model_name: str, streaming: bool = False
                     torch.backends.cuda.matmul.allow_tf32 = True
                     torch.backends.cudnn.allow_tf32 = True
                     torch.set_float32_matmul_precision("high")
+                    if config.use_mixed_precision:
+                        dtype_name = str(config.amp_dtype).strip().lower()
+                        wants_bf16 = dtype_name in {"bf16", "bfloat16", "torch.bfloat16"}
+                        if wants_bf16 and not torch.cuda.is_bf16_supported():
+                            effective_amp_dtype = "float16"
+                            logger.warning(
+                                "Requested AMP dtype bfloat16, but CUDA device does not support native bf16. "
+                                "Falling back to float16."
+                            )
 
                 model.to(device)
                 if config.compile_model:
@@ -189,7 +199,7 @@ def train_model(config: TrainingConfig, model_name: str, streaming: bool = False
                     use_cuda_prefetcher=config.use_cuda_prefetcher,
                     batch_preparation_fn=batch_preparation_fn,
                     use_mixed_precision=config.use_mixed_precision,
-                    amp_dtype=config.amp_dtype,
+                    amp_dtype=effective_amp_dtype,
                     validation_max_batches=config.validation_max_batches,
                     patience=config.patience,
                     time_limit=config.time_limit
@@ -204,7 +214,7 @@ def train_model(config: TrainingConfig, model_name: str, streaming: bool = False
                     device,
                     batch_preparation_fn=batch_preparation_fn,
                     use_mixed_precision=config.use_mixed_precision,
-                    amp_dtype=config.amp_dtype,
+                    amp_dtype=effective_amp_dtype,
                     output_dir=run_dir,
                     max_batches=config.test_max_batches,
                 )

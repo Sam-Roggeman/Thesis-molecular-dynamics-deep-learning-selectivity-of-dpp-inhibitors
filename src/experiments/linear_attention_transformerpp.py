@@ -33,7 +33,7 @@ if __name__ == "__main__":
         batch_size=64,
         compile_model=True,
         use_mixed_precision=True,
-        amp_dtype="bfloat16",
+        amp_dtype="float16",
     )
 
     train_model(config_transformerpp, "LinearAttentionTransformerPP_Randomsplit_Dataset")
