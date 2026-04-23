@@ -287,7 +287,7 @@ def training_loop(
     resolved_amp_dtype = _resolve_amp_dtype(amp_dtype)
     use_amp = bool(use_mixed_precision and device.type == "cuda")
     use_grad_scaler = bool(use_amp and resolved_amp_dtype == torch.float16)
-    grad_scaler = torch.cuda.amp.GradScaler(enabled=use_grad_scaler)
+    grad_scaler = torch.amp.GradScaler("cuda", enabled=use_grad_scaler)
 
     metric_path =os.path.join(model_folder, f'metrics_training_loop.pt')
     plot_path = os.path.join(model_folder, f'plots_training_loop.png')
