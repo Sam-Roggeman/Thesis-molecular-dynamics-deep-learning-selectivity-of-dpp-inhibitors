@@ -1,4 +1,5 @@
 from dotenv import load_dotenv
+import torch
 
 from src.Models.LinearAttentionTransformerPP import LinearAttentionTransformerPP
 from src.model_training.batch_preprocessing import prepare_sequence_batch
@@ -14,6 +15,9 @@ if __name__ == "__main__":
     # load dotenv variables
     load_dotenv()
 
+    # Class 4 (apo) is typically underrepresented; gentle reweighting helps avoid collapse.
+    class_weights = torch.tensor([1.0, 1.0, 1.0, 1.0, 1.8], dtype=torch.float32)
+
     config_transformerpp = TrainingConfig(
         model_class=LinearAttentionTransformerPP,
         model_args={
@@ -24,8 +28,9 @@ if __name__ == "__main__":
             "n_heads": 4,
             "n_layers": 3,
             "ffn_multiplier": 4,
-            "dropout": 0.3,
+            "dropout": 0.1,
         },
+        criterion=lambda: torch.nn.CrossEntropyLoss(weight=class_weights),
         dataset_location="Sam-Roggeman/SamRoggeman_Thesis_Dataset_full",
         training_transform=apply_sequence_transform,
         validation_transform=apply_sequence_transform_noscramble,
@@ -34,8 +39,8 @@ if __name__ == "__main__":
         compile_model=True,
         use_mixed_precision=False,
         amp_dtype="float16",
-        dataset_size=0.01,
-        learning_rate=1e-5,
+        dataset_size=0.15,
+        learning_rate=3e-4,
         max_nr_epochs=25,
     )
 

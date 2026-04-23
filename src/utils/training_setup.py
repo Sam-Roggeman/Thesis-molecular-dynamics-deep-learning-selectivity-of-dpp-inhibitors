@@ -144,6 +144,8 @@ def train_model(config: TrainingConfig, model_name: str, streaming: bool = False
                 # Setup training
                 device = get_device()
                 criterion = config.criterion()
+                if isinstance(criterion, nn.Module):
+                    criterion = criterion.to(device)
                 optimizer = config.optimizer(model.parameters(), lr=config.learning_rate, weight_decay=config.weight_decay)
                 effective_amp_dtype = config.amp_dtype
 
