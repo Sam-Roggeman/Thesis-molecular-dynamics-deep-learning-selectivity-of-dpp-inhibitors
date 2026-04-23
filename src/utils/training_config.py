@@ -60,6 +60,10 @@ class TrainingConfig:
     compile_model: bool = True
     # Number of explicit warmup train steps after torch.compile. Set to 0 to disable.
     compile_warmup_steps: int = 5
+    # Enable CUDA AMP mixed precision for faster training on supported GPUs.
+    use_mixed_precision: bool = False
+    # AMP autocast dtype on CUDA: "float16" or "bfloat16".
+    amp_dtype: str = "bfloat16"
     # Automatically retry training on CUDA OOM by lowering batch size.
     oom_retry_enabled: bool = True
     # Maximum number of CUDA OOM retries per run.

@@ -188,6 +188,8 @@ def train_model(config: TrainingConfig, model_name: str, streaming: bool = False
                     log_every_steps=config.log_every_steps,
                     use_cuda_prefetcher=config.use_cuda_prefetcher,
                     batch_preparation_fn=batch_preparation_fn,
+                    use_mixed_precision=config.use_mixed_precision,
+                    amp_dtype=config.amp_dtype,
                     validation_max_batches=config.validation_max_batches,
                     patience=config.patience,
                     time_limit=config.time_limit
@@ -201,6 +203,8 @@ def train_model(config: TrainingConfig, model_name: str, streaming: bool = False
                     criterion,
                     device,
                     batch_preparation_fn=batch_preparation_fn,
+                    use_mixed_precision=config.use_mixed_precision,
+                    amp_dtype=config.amp_dtype,
                     output_dir=run_dir,
                     max_batches=config.test_max_batches,
                 )

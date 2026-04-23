@@ -31,7 +31,9 @@ if __name__ == "__main__":
         validation_transform=apply_sequence_transform_noscramble,
         batch_preparation_fn=prepare_sequence_batch,
         batch_size=64,
-        compile_model=False,
+        compile_model=True,
+        use_mixed_precision=True,
+        amp_dtype="bfloat16",
     )
 
     train_model(config_transformerpp, "LinearAttentionTransformerPP_Randomsplit_Dataset")

@@ -1,7 +1,27 @@
 import torch
+from contextlib import nullcontext
 from sklearn.metrics import precision_score, recall_score, f1_score, accuracy_score, confusion_matrix
 import logging
 from src.model_training.batch_preprocessing import prepare_model_batch
+
+
+def _resolve_amp_dtype(amp_dtype):
+    if isinstance(amp_dtype, torch.dtype):
+        return amp_dtype
+    if isinstance(amp_dtype, str):
+        normalized = amp_dtype.strip().lower()
+        if normalized in {"fp16", "float16", "half"}:
+            return torch.float16
+        if normalized in {"bf16", "bfloat16"}:
+            return torch.bfloat16
+    return torch.bfloat16
+
+
+def _autocast_context(device, use_mixed_precision=False, amp_dtype=torch.bfloat16):
+    amp_dtype = _resolve_amp_dtype(amp_dtype)
+    if bool(use_mixed_precision) and device.type == "cuda":
+        return torch.autocast(device_type="cuda", dtype=amp_dtype, enabled=True)
+    return nullcontext()
 
 def _compute_label_prediction_statistics(labels, predictions, statistics_to_compute):
     stats = {}
@@ -31,6 +51,8 @@ def calculate_statistics(
     max_batches: int | None = None,
     statistics_to_compute: list[str] | None = None,
     batch_preparation_fn=prepare_model_batch,
+    use_mixed_precision=False,
+    amp_dtype=torch.bfloat16,
 ) -> dict[str, float]:
     """Calculate specified statistics for a model on a given dataloader. Loop over the dataloader and compute the specified statistics for each batch, then average them over the entire dataloader.
     Args:
@@ -67,8 +89,9 @@ def calculate_statistics(
             if max_batches is not None and batch_idx >= max_batches:
                 break
             images, labels = batch_preparation_fn(data, device, scramble=False)
-            outputs = model(images)
-            loss = criterion(outputs, labels)
+            with _autocast_context(device, use_mixed_precision=use_mixed_precision, amp_dtype=amp_dtype):
+                outputs = model(images)
+                loss = criterion(outputs, labels)
             total_loss += loss.item()
             num_batches += 1
 
@@ -132,7 +155,16 @@ def calculate_statistics(
 
     return statistics
 
-def calculate_accuracy_and_loss(model, dataloader, criterion, device, max_batches: int | None = None, batch_preparation_fn=prepare_model_batch):
+def calculate_accuracy_and_loss(
+    model,
+    dataloader,
+    criterion,
+    device,
+    max_batches: int | None = None,
+    batch_preparation_fn=prepare_model_batch,
+    use_mixed_precision=False,
+    amp_dtype=torch.bfloat16,
+):
     correct = 0
     total = 0
     current_loss = 0.0
@@ -149,8 +181,9 @@ def calculate_accuracy_and_loss(model, dataloader, criterion, device, max_batche
                 break
             images, labels = batch_preparation_fn(data, device, scramble=False)
 
-            outputs = model(images)
-            loss = criterion(outputs, labels)
+            with _autocast_context(device, use_mixed_precision=use_mixed_precision, amp_dtype=amp_dtype):
+                outputs = model(images)
+                loss = criterion(outputs, labels)
 
             _, predicted = torch.max(outputs.data, 1)
 
@@ -164,7 +197,15 @@ def calculate_accuracy_and_loss(model, dataloader, criterion, device, max_batche
 
     return accuracy, current_loss
 
-def calculate_precision_recall_f1(model, dataloader, device, max_batches: int | None = None, batch_preparation_fn=prepare_model_batch):
+def calculate_precision_recall_f1(
+    model,
+    dataloader,
+    device,
+    max_batches: int | None = None,
+    batch_preparation_fn=prepare_model_batch,
+    use_mixed_precision=False,
+    amp_dtype=torch.bfloat16,
+):
     all_labels = []
     all_predictions = []
     batch_preparation_fn = batch_preparation_fn or prepare_model_batch
@@ -176,7 +217,8 @@ def calculate_precision_recall_f1(model, dataloader, device, max_batches: int | 
             if max_batches is not None and batch_idx >= max_batches:
                 break
             images, labels = batch_preparation_fn(data, device, scramble=False)
-            outputs = model(images)
+            with _autocast_context(device, use_mixed_precision=use_mixed_precision, amp_dtype=amp_dtype):
+                outputs = model(images)
             _, predicted = torch.max(outputs.data, 1)
             all_labels.extend(labels.cpu().numpy())
             all_predictions.extend(predicted.cpu().numpy())
@@ -188,7 +230,16 @@ def calculate_precision_recall_f1(model, dataloader, device, max_batches: int | 
 
     return precision, recall, f1, conf_matrix
 
-def all_statistics(model, dataloader, criterion, device, max_batches: int | None = None, batch_preparation_fn=prepare_model_batch) -> dict[str, float]:
+def all_statistics(
+    model,
+    dataloader,
+    criterion,
+    device,
+    max_batches: int | None = None,
+    batch_preparation_fn=prepare_model_batch,
+    use_mixed_precision=False,
+    amp_dtype=torch.bfloat16,
+) -> dict[str, float]:
     accuracy, loss = calculate_accuracy_and_loss(
         model=model,
         dataloader=dataloader,
@@ -196,6 +247,8 @@ def all_statistics(model, dataloader, criterion, device, max_batches: int | None
         criterion=criterion,
         max_batches=max_batches,
         batch_preparation_fn=batch_preparation_fn,
+        use_mixed_precision=use_mixed_precision,
+        amp_dtype=amp_dtype,
     )
     precision, recall, f1, conf_matrix = calculate_precision_recall_f1(
         model=model,
@@ -203,6 +256,8 @@ def all_statistics(model, dataloader, criterion, device, max_batches: int | None
         device=device,
         max_batches=max_batches,
         batch_preparation_fn=batch_preparation_fn,
+        use_mixed_precision=use_mixed_precision,
+        amp_dtype=amp_dtype,
     )
 
     return {

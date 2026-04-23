@@ -1,6 +1,7 @@
 import os
 import time
 import threading
+from contextlib import nullcontext
 import datasets
 
 import torch
@@ -128,6 +129,58 @@ def _train_single_batch_prepared(model, inputs, labels, optimizer, criterion):
     return batch_correct, batch_total, loss.item()
 
 
+def _resolve_amp_dtype(amp_dtype):
+    if isinstance(amp_dtype, torch.dtype):
+        return amp_dtype
+    if isinstance(amp_dtype, str):
+        normalized = amp_dtype.strip().lower()
+        if normalized in {"fp16", "float16", "half"}:
+            return torch.float16
+        if normalized in {"bf16", "bfloat16"}:
+            return torch.bfloat16
+    return torch.bfloat16
+
+
+def _train_single_batch_prepared_amp(
+    model,
+    inputs,
+    labels,
+    optimizer,
+    criterion,
+    device,
+    use_mixed_precision=False,
+    amp_dtype=torch.bfloat16,
+    grad_scaler=None,
+):
+    """Train one already-prepared batch with optional CUDA AMP and return stats."""
+    model.train()
+    optimizer.zero_grad()
+
+    use_amp = bool(use_mixed_precision and device.type == "cuda")
+    amp_context = (
+        torch.autocast(device_type="cuda", dtype=amp_dtype, enabled=True)
+        if use_amp
+        else nullcontext()
+    )
+
+    with amp_context:
+        outputs = model(inputs)
+        loss = criterion(outputs, labels)
+
+    if use_amp and grad_scaler is not None:
+        grad_scaler.scale(loss).backward()
+        grad_scaler.step(optimizer)
+        grad_scaler.update()
+    else:
+        loss.backward()
+        optimizer.step()
+
+    _, predicted = torch.max(outputs, 1)
+    batch_total = labels.size(0)
+    batch_correct = (predicted == labels).sum().item()
+    return batch_correct, batch_total, loss.item()
+
+
 class CUDABatchPrefetcher:
     """Prefetch and preprocess the next batch on a dedicated CUDA stream."""
 
@@ -224,11 +277,17 @@ def training_loop(
     log_every_steps=100,
     use_cuda_prefetcher=True,
     batch_preparation_fn=prepare_model_batch,
+    use_mixed_precision=False,
+    amp_dtype="bfloat16",
     validation_max_batches=None,
     patience=10,
     time_limit=None,
 ):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    resolved_amp_dtype = _resolve_amp_dtype(amp_dtype)
+    use_amp = bool(use_mixed_precision and device.type == "cuda")
+    use_grad_scaler = bool(use_amp and resolved_amp_dtype == torch.float16)
+    grad_scaler = torch.cuda.amp.GradScaler(enabled=use_grad_scaler)
 
     metric_path =os.path.join(model_folder, f'metrics_training_loop.pt')
     plot_path = os.path.join(model_folder, f'plots_training_loop.png')
@@ -336,24 +395,32 @@ def training_loop(
             # In prefetch mode, prep reflects stream sync + handoff cost.
             interval_prep_time += time.time() - prep_start
             compute_start = time.time()
-            batch_correct, batch_total, batch_loss = _train_single_batch_prepared(
+            batch_correct, batch_total, batch_loss = _train_single_batch_prepared_amp(
                 model,
                 inputs,
                 labels,
                 optimizer,
                 criterion,
+                device,
+                use_mixed_precision=use_amp,
+                amp_dtype=resolved_amp_dtype,
+                grad_scaler=grad_scaler,
             )
         else:
             prepared_inputs, prepared_labels = batch_preparation_fn(batch, device, scramble=True)
             interval_prep_time += time.time() - prep_start
 
             compute_start = time.time()
-            batch_correct, batch_total, batch_loss = _train_single_batch_prepared(
+            batch_correct, batch_total, batch_loss = _train_single_batch_prepared_amp(
                 model,
                 prepared_inputs,
                 prepared_labels,
                 optimizer,
                 criterion,
+                device,
+                use_mixed_precision=use_amp,
+                amp_dtype=resolved_amp_dtype,
+                grad_scaler=grad_scaler,
             )
             prepared_inputs = None
             prepared_labels = None
@@ -409,6 +476,8 @@ def training_loop(
                     device,
                     max_batches=validation_max_batches,
                     batch_preparation_fn=batch_preparation_fn,
+                    use_mixed_precision=use_amp,
+                    amp_dtype=resolved_amp_dtype,
                 )
             except RuntimeError as exc:
                 if "DataLoader worker" in str(exc):
