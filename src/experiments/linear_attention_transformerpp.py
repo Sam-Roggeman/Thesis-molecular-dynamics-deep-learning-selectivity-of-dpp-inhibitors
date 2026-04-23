@@ -32,7 +32,7 @@ if __name__ == "__main__":
         batch_preparation_fn=prepare_sequence_batch,
         batch_size=64,
         compile_model=True,
-        use_mixed_precision=True,
+        use_mixed_precision=False,
         amp_dtype="float16",
     )
 
