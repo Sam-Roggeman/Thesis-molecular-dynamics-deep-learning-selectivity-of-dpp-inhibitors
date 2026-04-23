@@ -11,12 +11,14 @@ from src.utils.training_config import TrainingConfig
 from src.utils.training_setup import train_model
 
 
+def build_weighted_cross_entropy():
+    class_weights = torch.tensor([1.0, 1.0, 1.0, 1.0, 1.8], dtype=torch.float32)
+    return torch.nn.CrossEntropyLoss(weight=class_weights)
+
+
 if __name__ == "__main__":
     # load dotenv variables
     load_dotenv()
-
-    # Class 4 (apo) is typically underrepresented; gentle reweighting helps avoid collapse.
-    class_weights = torch.tensor([1.0, 1.0, 1.0, 1.0, 1.8], dtype=torch.float32)
 
     config_transformerpp = TrainingConfig(
         model_class=LinearAttentionTransformerPP,
@@ -30,7 +32,7 @@ if __name__ == "__main__":
             "ffn_multiplier": 4,
             "dropout": 0.1,
         },
-        criterion=lambda: torch.nn.CrossEntropyLoss(weight=class_weights),
+        criterion=build_weighted_cross_entropy,
         dataset_location="Sam-Roggeman/SamRoggeman_Thesis_Dataset_full",
         training_transform=apply_sequence_transform,
         validation_transform=apply_sequence_transform_noscramble,
