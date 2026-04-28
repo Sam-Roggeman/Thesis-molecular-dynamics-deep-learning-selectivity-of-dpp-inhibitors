@@ -6,14 +6,12 @@ import tarfile
 import os
 import tempfile
 from pathlib import Path
-import numpy as np
-from Bio import PDB
-import multiprocessing as mp
+
 
 from src.model_training.utils import train_val_test_split
 from src.utils.utils import parse_filename
 from src.utils.configParser import ConfigParserWrapper
-
+from src.data_preprocessing.utils import extract_coordinates
 
 def parse_pdb_streaming(tar, frames, dpp_class, ligand_name, binding_type, replica_id):
     """Stream PDB files directly from TAR archives without extraction.
@@ -41,24 +39,6 @@ def parse_pdb_streaming(tar, frames, dpp_class, ligand_name, binding_type, repli
                 continue
 
 
-def extract_coordinates(pdb_file, pdb_id):
-    """Extract 3D coordinates from PDB file object."""
-    from io import StringIO
-
-    # Convert bytes to string
-    content = pdb_file.read().decode('utf-8')
-
-    parser = PDB.PDBParser(QUIET=True)
-    structure = parser.get_structure(pdb_id, StringIO(content))
-
-    coords = []
-    for model in structure:
-        for chain in model:
-            for residue in chain:
-                for atom in residue:
-                    coords.append(atom.coord)
-
-    return np.array(coords, dtype=np.float32)
 
 
 

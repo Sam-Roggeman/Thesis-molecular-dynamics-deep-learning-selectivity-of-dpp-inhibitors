@@ -4,14 +4,10 @@ from src.data_loading.SafetensorsDataset import ShardedSafetensorsDataset
 mp.set_start_method('spawn', force=True)
 import shutil
 
-import datasets
 import os
-import numpy as np
-from safetensors.torch import save_file
 import torch
 torch.multiprocessing.set_sharing_strategy('file_system')
-from src.model_training.LabelEncoder import LabelEncoder
-from src.utils.cacheManager import cacheManager, construct_cache_identifier
+from src.utils.cacheManager import cacheManager
 from src.utils.training_config import TrainingConfig
 from src.utils.logger import get_logger
 logging = get_logger()
@@ -22,39 +18,6 @@ def _effective_worker_count(requested_cpus: int) -> int:
     requested = max(1, int(requested_cpus))
     return max(1, requested // 2)
 
-
-def _download_streaming_dataset(config: TrainingConfig, splits: list = ["train", "validation", "test"],  shuffle: bool = False) -> datasets.IterableDatasetDict:
-    dataset_size = config.dataset_size
-    assert dataset_size > 0 and dataset_size <= 1, "Dataset size must be between 0 and 1"
-    logging.info(f"\tDownloading {dataset_size} of {config.dataset_location}")
-    dataset: datasets.IterableDatasetDict = datasets.load_dataset(
-        config.dataset_location,
-        token=os.environ.get("HF_TOKEN"),
-        streaming=True
-    )
-    if shuffle:
-        for split in splits:
-            if split != "train":
-                logging.info(f"\tShuffling {split} split...")
-                dataset[split] = dataset[split].shuffle(seed=config.shuffle_seed, buffer_size=config.shuffle_buffer_size)
-    if dataset_size < 1:
-        splitinfo: datasets.DatasetInfo = dataset["train"].info
-        for split in dataset.keys():
-            try:
-                total_samples = splitinfo.splits[split].num_examples
-                n_samples = int(total_samples * config.dataset_size)
-                n_samples = max(config.batch_size, n_samples)
-                n_samples = ((n_samples + config.batch_size - 1) // config.batch_size) * config.batch_size
-                logging.info(f"\tUsing streaming subset for {split}: {n_samples}/{total_samples} samples")
-                dataset[split] = dataset[split].take(n_samples)
-            except Exception:
-                logging.info(
-                    f"Warning: Could not determine split size for streaming subset on {split}. "
-                    "Falling back to full streamed split."
-                )
-    logging.info("\t...downloading_streaming_dataset complete")
-    # take only the specified splits
-    return datasets.IterableDatasetDict({split: dataset[split] for split in splits if split in dataset})   
 
 # Define a type for the dataloader dict
 DataLoaderDict = dict[str, torch.utils.data.DataLoader]

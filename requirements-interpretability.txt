@@ -1,0 +1,7 @@
+# Captum is the only extra package needed by src/utils/interpretability.py.
+# Torch is installed by install_interpretability_env.sh so you can choose CPU or CUDA.
+captum
+numpy
+biopython
+fvcore
+safetensors

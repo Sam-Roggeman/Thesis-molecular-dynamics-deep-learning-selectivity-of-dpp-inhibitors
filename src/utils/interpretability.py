@@ -4,10 +4,11 @@ from dataclasses import dataclass
 from typing import Any
 
 import torch
-from captum.attr import GuidedBackprop
+from captum.attr import GuidedBackprop, Occlusion
 from captum.attr import IntegratedGradients
 from captum.attr import LayerIntegratedGradients
 from captum.attr import Saliency
+from captum.attr import GradientShap
 from torch import nn
 
 
@@ -130,71 +131,17 @@ class CaptumInterpreter:
             target=resolved_target,
         )
 
-    def guided_backprop(
-        self,
-        inputs: torch.Tensor,
-        target: int | torch.Tensor | None = None,
-    ) -> AttributionResult:
+    def occlusion(self, inputs: torch.Tensor, target: int | torch.Tensor | None = None, patch_size: int = 1, shift_size: int = 1) -> AttributionResult:
         self._prepare_model()
-        gbp = GuidedBackprop(self.model)
-
+        ablator = Occlusion(self.model)
         with torch.enable_grad():
             outputs = self.model(inputs)
             resolved_target = self._resolve_target(outputs, target)
-            attributions = gbp.attribute(inputs, target=resolved_target)
-
+            # Computes occlusion attribution, ablating each patch_size x patch_size patch
+            # shifting in each direction by the default of 1.
+            attributions = ablator.attribute(inputs, target=resolved_target, sliding_window_shapes=(1, patch_size, patch_size), strides=(1, shift_size, shift_size))
         return AttributionResult(
             attributions=attributions,
-            method="guided_backprop",
-            target=resolved_target,
+            method="occlusion",
+            target=target,
         )
-
-    def layer_integrated_gradients(
-        self,
-        layer: nn.Module,
-        inputs: torch.Tensor,
-        target: int | torch.Tensor | None = None,
-        baselines: torch.Tensor | None = None,
-        n_steps: int = 50,
-        additional_forward_args: Any | None = None,
-        internal_batch_size: int | None = None,
-        return_convergence_delta: bool = True,
-    ) -> AttributionResult:
-        self._prepare_model()
-        lig = LayerIntegratedGradients(self.model, layer)
-
-        with torch.enable_grad():
-            outputs = self.model(inputs)
-            resolved_target = self._resolve_target(outputs, target)
-
-            if return_convergence_delta:
-                attributions, delta = lig.attribute(
-                    inputs,
-                    baselines=baselines,
-                    target=resolved_target,
-                    additional_forward_args=additional_forward_args,
-                    n_steps=n_steps,
-                    internal_batch_size=internal_batch_size,
-                    return_convergence_delta=True,
-                )
-                return AttributionResult(
-                    attributions=attributions,
-                    method="layer_integrated_gradients",
-                    target=resolved_target,
-                    convergence_delta=delta,
-                )
-
-            attributions = lig.attribute(
-                inputs,
-                baselines=baselines,
-                target=resolved_target,
-                additional_forward_args=additional_forward_args,
-                n_steps=n_steps,
-                internal_batch_size=internal_batch_size,
-                return_convergence_delta=False,
-            )
-            return AttributionResult(
-                attributions=attributions,
-                method="layer_integrated_gradients",
-                target=resolved_target,
-            )

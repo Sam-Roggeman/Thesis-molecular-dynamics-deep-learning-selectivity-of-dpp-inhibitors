@@ -1,23 +1,7 @@
-import os
-from datetime import datetime
-
-import datasets
-import numpy as np
-
 from src.Models.custom_model_template import AbstractNNModel
-from src.Transform.ListScrambler import ListScrambler, ScramblingTransform
-from src.Transform.Padder import Padder
-from src.Transform.XYZToRGBTensor import XYZToRGBTensor
-from src.model_training.utils import training_loop, load_model, model_name, get_device, get_subset
-from src.model_training.LabelEncoder import LabelEncoder
-import torch.optim as optim
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from src.Transform.tranformators import apply_image_transform, apply_image_transform_noscramble
-from src.utils.configParser import ConfigParser
-from src.utils.training_config import TrainingConfig
-from src.utils.training_setup import train_model
 
 class _DenseLayer(nn.Module):
     def __init__(self, num_input_features, growth_rate, bn_size=4, dropout_rate=0.2):

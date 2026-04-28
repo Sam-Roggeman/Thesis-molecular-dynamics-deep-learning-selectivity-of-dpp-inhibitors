@@ -2,14 +2,14 @@ import argparse
 import os
 from pathlib import Path
 from typing import Callable
-
+import matplotlib.pyplot as plt
 import torch
-
+import numpy as np
 from src.Transform.tranformators import apply_image_transform_noscramble
-from src.data_preprocessing.pre_processing_huggingface import extract_coordinates
+from src.data_preprocessing.utils import extract_coordinates
 from src.model_training.LabelEncoder import LabelEncoder
 from src.utils.interpretability import AttributionResult, CaptumInterpreter
-from src.cli.test_model import (
+from src.utils.resolvers import (
     _extract_class_name,
     _load_config_from_artifacts,
     _load_state_dict,
@@ -100,16 +100,29 @@ def solve_methods(interpreter: CaptumInterpreter, args) -> dict[str, Callable]:
     methods = {}
     for method in args.methods:
         if method == "integrated_gradients":
-            # make lamda function that takes model, inputs, target and returns the attributions using IntegratedGradients
-            methods[method] = lambda inputs, target: interpreter.integrated_gradients(inputs, target=target, n_steps=50)
+            # keep argparse-driven parameters configurable per run
+            methods[method] = lambda inputs, target: interpreter.integrated_gradients(
+                inputs,
+                target=target,
+                n_steps=args.ig_steps,
+            )
         elif method == "saliency":
             methods[method] = lambda inputs, target: interpreter.saliency(inputs, target=target)
-        elif method == "gradient_shap":
-            methods[method] = lambda inputs, target: interpreter.gradient_shap(inputs, target=target)
+        elif method == "occlusion":
+            methods[method] = lambda inputs, target: interpreter.occlusion(
+                inputs,
+                target=target,
+                patch_size=args.occlusion_patch_size,
+                shift_size=args.occlusion_shift_size,
+            )
         else:
-            print(f"Unknown interpretability method '{method}'. Supported methods: 'integrated_gradients', 'saliency', 'gradient_shap'. Skipping.")
+            print(f"Unknown interpretability method '{method}'. Supported methods: 'integrated_gradients', 'saliency', 'occlusion'. Skipping.")
     if len(methods) == 0:
-        methods["integrated_gradients"] = lambda inputs, target: interpreter.integrated_gradients(inputs, target=target, n_steps=50)
+        methods["integrated_gradients"] = lambda inputs, target: interpreter.integrated_gradients(
+            inputs,
+            target=target,
+            n_steps=args.ig_steps,
+        )
     return methods
 
 def generate_interpretability_attribution(
@@ -205,6 +218,8 @@ def save_attribution_colored_pdbs(
     for method, result in attribution_results.items():
         atom_scores = _attribution_to_atom_scores(result.attributions, num_atoms)
         atom_scores = _normalize_scores(atom_scores)
+        # the most important atoms will have a B-factor of 100, the least important will have a B-factor of 0, and the others will be scaled in between
+        # this allows for easy visualization in PyMOL using a spectrum from gray (0) to red (100)
         output_path = os.path.join(output_dir, f"{Path(pdb_file).stem}_{method}_bfactor.pdb")
         _write_bfactor_colored_pdb(pdb_file, output_path, atom_scores)
         print(f"Saved colored PDB for {method}: {output_path}")
@@ -249,33 +264,42 @@ def write_coloring_script(colored_pdb_paths: list[str], script_path: str, thresh
             f.write(f"hide cartoon, {stem_name}_high_residue\n")
             f.write(f"show sticks, {stem_name}_high_residue\n")
     print(f"PyMOL coloring script written to: {script_path}")
+
+def arg_parser() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="CLI for interpretability tools")
+    parser.add_argument("--pdb_file", type=str, help="Path to a PDB file for generating interpretability insights", required=True)
+    parser.add_argument("--output_dir", type=str, help="Directory to save interpretability results, defaults to 'interpretability_results' next to the pdb file if not provided")
+    parser.add_argument("--model_checkpoint", type=str, help="Path to the trained model checkpoint for interpretability analysis", required=True)
+    parser.add_argument("--methods", nargs="+", default=["integrated_gradients"], help="List of interpretability methods to apply (e.g., 'integrated_gradients', 'saliency', 'gradient_shap').")
+    parser.add_argument("--ig_steps", type=int, default=50, help="Number of steps for Integrated Gradients approximation.")
+    parser.add_argument("--occlusion_patch_size", type=int, default=1, help="Patch size for occlusion attribution.")
+    parser.add_argument("--occlusion_shift_size", type=int, default=1, help="Shift size for occlusion attribution.")
+    parser.add_argument("--binding_type", type=str, default=None, required=True, help="Binding type of the sample. Required for proper sample construction.", choices=["apo", "dpp8selective", "dpp9selective", "aselective", 'nonbinder'])
+    parser.add_argument("--open-in-pymol", action="store_true", help="Whether to automatically open the generated colored PDBs in PyMOL after processing.")
+    parser.add_argument("--threshold", type=float, default=0.2, help="High attribution threshold as a fraction of the max score for PyMOL visualization (e.g., 0.8 means atoms with scores in the top 20% will be shown as sticks).")
+    args = parser.parse_args()
+    if not 0.0 <= args.threshold <= 1.0:
+        parser.error("--threshold must be between 0 and 1.")
+
+    if not args.pdb_file:
+        print("Please provide a PDB file using the --pdb_file argument.")
+        return
+    if not args.output_dir:
+        args.output_dir = str(Path(args.pdb_file).parent / "interpretability_results")
+    return args
+
+
 def main():
     """
     CLI entry point for interpretability tools.
     :param pdb_file: path to a PDB file for generating interpretability insights. If provided, the tool will process the file, feed it into the interpretability model, and output the insights. 
     :param output_dir: Directory where interpretability results will be saved. Defaults to "./interpretability_results".
     """
-    
-    parser = argparse.ArgumentParser(description="CLI for interpretability tools")
-    parser.add_argument("--pdb_file", type=str, help="Path to a PDB file for generating interpretability insights", required=True)
-    parser.add_argument("--output_dir", type=str, help="Directory to save interpretability results, defaults to 'interpretability_results' next to the pdb file if not provided")
-    parser.add_argument("--model_checkpoint", type=str, help="Path to the trained model checkpoint for interpretability analysis", required=True)
-    parser.add_argument("--methods", nargs="+", default=["integrated_gradients"], help="List of interpretability methods to apply (e.g., 'integrated_gradients', 'saliency', 'gradient_shap').")
-    parser.add_argument("--binding_type", type=str, default=None, required=True, help="Binding type of the sample. Required for proper sample construction.", choices=["apo", "dpp8selective", "dpp9selective", "aselective", 'nonbinder'])
-    parser.add_argument("--open-in-pymol", action="store_true", help="Whether to automatically open the generated colored PDBs in PyMOL after processing.")
-    parser.add_argument("--threshold", type=float, default=0.2, help="Low-impact cutoff in [0, 1]. Atoms below this normalized attribution threshold are shown as sticks.")
-    args = parser.parse_args()
-
-    if not 0.0 <= args.threshold <= 1.0:
-        parser.error("--threshold must be between 0 and 1.")
+    args = arg_parser()
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     class_labels= LabelEncoder().get_classes()
-    if not args.pdb_file:
-        print("Please provide a PDB file using the --pdb_file argument.")
-        return
-    if not args.output_dir:
-        args.output_dir = str(Path(args.pdb_file).parent / "interpretability_results")
+
     os.makedirs(args.output_dir, exist_ok=True)
     print(f"Processing PDB file: {args.pdb_file}")
     sample = extract_pdb_file(args.pdb_file, binding_type=args.binding_type)
@@ -288,15 +312,37 @@ def main():
 
     logits, predicted_class = apply_classification(sample_tensor, model, device=device)
     percentages = torch.nn.functional.softmax(logits, dim=1) * 100
-    prob_string = "Model classification choices with probabilities:"
+    prob_string = "Model classification choices with probabilities:\n"
     for idx, percentage in enumerate(percentages[0]):
         class_name = class_labels[idx] 
         prob_string += f"\tClass '{class_name}': {percentage.item():.2f}%\n"
+
     print(prob_string)
     print(prob_string, file=open(os.path.join(args.output_dir, "classification_probabilities.txt"), "w"))
     print(f"Predicted class: {predicted_class}")
     methods = solve_methods(CaptumInterpreter(model), args)
-    insights = generate_interpretability_attribution(methods, predicted_class, sample_tensor, device=device)
+    insights: dict[str, AttributionResult] = generate_interpretability_attribution(methods, predicted_class, sample_tensor, device=device)
+
+    # save the insigths as image, where the attributions are mapped from gray (low attribution) to red (high attribution) on a 2d heatmap using matplotlib, one image per method
+    for method, result in insights.items():
+        attribution = result.attributions.detach().cpu().numpy()
+        if attribution.ndim == 4:
+            attribution = attribution[0]
+        # sum over channels to get a single 2d map
+        attribution_map = np.sum(np.abs(attribution), axis=0)
+        plt.imshow(attribution_map, cmap="hot", interpolation="nearest")
+        plt.colorbar()
+        plt.title(f"Attribution heatmap for method: {method}")
+        save_path = os.path.join(args.output_dir, f"{Path(args.pdb_file).stem}_{method}_heatmap.png")
+        plt.savefig(save_path)
+        plt.clf()
+        print(f"Saved attribution heatmap for {method} to {save_path}")
+
+
+        
+
+
+
     colored_pdb_paths = save_attribution_colored_pdbs(
         pdb_file=args.pdb_file,
         output_dir=args.output_dir,
@@ -305,10 +351,11 @@ def main():
     )
 
     print(f"Interpretability analysis completed. Results saved to: {args.output_dir}")
+    
 
 
     for colored_pdb in colored_pdb_paths:
-        script_path = Path.joinpath(colored_pdb.parent, f"{Path(colored_pdb).stem}.pml")
+        script_path = Path.joinpath(colored_pdb.parent, f"{Path(colored_pdb).stem}_{method}.pml")
         write_coloring_script([colored_pdb], script_path, threshold=args.threshold)
         # Open the script in PyMOL using the command line
         if args.open_in_pymol:
