@@ -276,7 +276,7 @@ def arg_parser() -> argparse.Namespace:
     parser.add_argument("--occlusion_shift_size", type=int, default=1, help="Shift size for occlusion attribution.")
     parser.add_argument("--binding_type", type=str, default=None, required=True, help="Binding type of the sample. Required for proper sample construction.", choices=["apo", "dpp8selective", "dpp9selective", "aselective", 'nonbinder'])
     parser.add_argument("--open-in-pymol", action="store_true", help="Whether to automatically open the generated colored PDBs in PyMOL after processing.")
-    parser.add_argument("--threshold", type=float, default=0.2, help="High attribution threshold as a fraction of the max score for PyMOL visualization (e.g., 0.8 means atoms with scores in the top 20% will be shown as sticks).")
+    parser.add_argument("--threshold", type=float, default=0.2, help="High attribution threshold as a fraction of the max score for PyMOL visualization (e.g., 0.8 means atoms with scores in the top 20%% will be shown as sticks).")
     args = parser.parse_args()
     if not 0.0 <= args.threshold <= 1.0:
         parser.error("--threshold must be between 0 and 1.")
