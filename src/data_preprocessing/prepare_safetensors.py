@@ -453,7 +453,7 @@ if __name__ == "__main__":
         prepare_safetensors(
             splits=["train", "validation", "test", "unseen_trajects"],
             initial_batch_size=2048,
-            skip_existing_cache=True,
+            skip_existing_cache=False,
             repo_id=repo_id,
             redo_cache=False,
         )
