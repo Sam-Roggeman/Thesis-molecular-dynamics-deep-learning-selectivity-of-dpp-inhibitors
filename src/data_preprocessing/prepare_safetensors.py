@@ -10,7 +10,7 @@ from src.data_loading.SafetensorsDataset import ShardedSafetensorsDataset
 import datasets
 label_encoder = LabelEncoder()
 import logging
-logging.config(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.DEBUG)
 import os 
 from src.utils.training_config import calculate_num_cpus
 import numpy as np
