@@ -14,7 +14,7 @@ logging = get_logger()
 import os 
 from src.utils.training_config import calculate_num_cpus
 import numpy as np
-from safetensors.torch import save_file
+from safetensors.torch import save_file, safe_open
 import torch
 import shutil
 import time
@@ -80,15 +80,54 @@ def _write_safetensor_shard_from_worker_split(shard_idx, n_shards, start, end, s
     data_np = np.concatenate([r[0] for r in chunk_results], axis=0)
     labels_np = np.concatenate([r[1] for r in chunk_results], axis=0)
     num_atoms_np = np.concatenate([r[2] for r in chunk_results], axis=0)
-    
-    # Save tensors
+
+    # Save tensors atomically: write to a temp file, fsync, then atomically replace.
     tensors = {
         'data': torch.from_numpy(np.ascontiguousarray(data_np)),
         'labels': torch.from_numpy(labels_np),
         'num_atoms': torch.from_numpy(num_atoms_np),
     }
-    save_file(tensors, shard_path)
-    return shard_idx, n_shards, shard_path, os.path.getsize(shard_path)
+
+    temp_path = f"{shard_path}.part"
+    try:
+        # Ensure any previous temp is removed to avoid confusion
+        if os.path.exists(temp_path):
+            try:
+                os.remove(temp_path)
+            except Exception:
+                pass
+
+        # Write to temp file first
+        save_file(tensors, temp_path)
+
+        # fsync the written file to ensure data reaches disk
+        try:
+            with open(temp_path, 'rb') as f:
+                os.fsync(f.fileno())
+        except Exception:
+            logging.debug(f"Could not fsync temp shard file {temp_path}")
+
+        # Atomically move into place
+        os.replace(temp_path, shard_path)
+
+        # fsync the directory so the rename is durable
+        try:
+            dirfd = os.open(os.path.dirname(shard_path) or '.', os.O_DIRECTORY)
+            try:
+                os.fsync(dirfd)
+            finally:
+                os.close(dirfd)
+        except Exception:
+            logging.debug(f"Could not fsync directory for {shard_path}")
+
+        return shard_idx, n_shards, shard_path, os.path.getsize(shard_path)
+    finally:
+        # Clean up stray temp file if it still exists
+        try:
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
+        except Exception:
+            pass
 def _materialize_shard_absolute(start, end):
     """Read one shard slice once, then extract arrays for all required fields."""
     logging.debug(f"Worker for {start}-{end} starting materialization...")
@@ -209,8 +248,17 @@ def _save_split_as_safetensors_memory_efficient(dataset_dict, split, cache_path,
 
         shard_path = f"{cache_path}/{split}_shard_{shard_idx:04d}_of_{n_shards:04d}.safetensors"
         if os.path.exists(shard_path):
-            logging.info(f"  Shard {shard_idx+1} already exists at {shard_path}, skipping...")
-            continue
+            # Verify integrity before skipping: an incomplete file can cause deserialization errors.
+            try:
+                with safe_open(shard_path, framework="pt", device="cpu") as _:
+                    logging.info(f"  Shard {shard_idx+1} already exists at {shard_path}, valid. Skipping...")
+                    continue
+            except Exception as e:
+                logging.warning(f"  Existing shard {shard_path} is corrupted or incomplete: {e}. Removing and rewriting.")
+                try:
+                    os.remove(shard_path)
+                except Exception:
+                    logging.warning(f"  Failed to remove corrupted shard {shard_path}; will attempt to overwrite.")
         _write_safetensor_shard_from_worker_split(
             shard_idx,
             n_shards,
@@ -319,7 +367,6 @@ def _is_map_worker_crash_error(exc: BaseException) -> bool:
         current = current.__cause__ or current.__context__
 
     return False
-
 
 def prepare_safetensors(splits=["train", "validation", "test", "unseen_trajects"], initial_batch_size=1024, skip_existing_cache=True,repo_id="Sam-Roggeman/SamRoggeman_Thesis_Dataset_full", redo_cache=False):
     cache_prefix = os.environ.get("HF_DOWNLOADED_DATASET_DIR", "./hf_cache")
