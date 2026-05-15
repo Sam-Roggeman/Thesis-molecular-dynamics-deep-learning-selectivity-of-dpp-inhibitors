@@ -1,7 +1,7 @@
 from src.Models.SimpleCNN import SimpleCNN
 from src.Models.OneLayer import OneLayerNet
 from src.Models.DCNN import CustomDenseNet
-from src.Models.LongSequenceAtomTransformer import LinearAttentionTransformerPP
+from src.Models.LongSequenceAtomTransformer import LongSequenceAtomTransformer
 from src.data_loading.HFDataloader import initialize_dataloaders
 from src.model_training.batch_preprocessing import prepare_model_batch, prepare_sequence_batch
 from src.utils.training_config import TrainingConfig
@@ -16,11 +16,11 @@ MODEL_REGISTRY = {
 	"SimpleCNN": SimpleCNN,
 	"OneLayerNet": OneLayerNet,
 	"CustomDenseNet": CustomDenseNet,
-	"LinearAttentionTransformerPP": LinearAttentionTransformerPP,
+	"LongSequenceAtomTransformer": LongSequenceAtomTransformer,
 }
 
 BATCH_PREPARATION_REGISTRY = {
-	"LinearAttentionTransformerPP": prepare_sequence_batch,
+	"LongSequenceAtomTransformer": prepare_sequence_batch,
 }
 
 

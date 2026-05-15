@@ -10,7 +10,7 @@ import torch
 from dotenv import load_dotenv
 
 from src.Models.DCNN import CustomDenseNet
-from src.Models.LongSequenceAtomTransformer import LinearAttentionTransformerPP
+from src.Models.LongSequenceAtomTransformer import LongSequenceAtomTransformer
 from src.Models.OneLayer import OneLayerNet
 from src.Models.SimpleCNN import SimpleCNN
 from src.data_loading.HFDataloader import initialize_dataloaders, initialize_streaming_dataloader
@@ -24,7 +24,7 @@ MODEL_REGISTRY = {
     "SimpleCNN": SimpleCNN,
     "OneLayerNet": OneLayerNet,
     "CustomDenseNet": CustomDenseNet,
-    "LinearAttentionTransformerPP": LinearAttentionTransformerPP,
+    "LongSequenceAtomTransformer": LongSequenceAtomTransformer,
 }
 
 

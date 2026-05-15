@@ -1,3 +1,3 @@
-from src.Models.LongSequenceAtomTransformer import LinearAttentionTransformerPP
+from src.Models.LongSequenceAtomTransformer import LongSequenceAtomTransformer
 
-__all__ = ["LinearAttentionTransformerPP"]
+__all__ = ["LongSequenceAtomTransformer"]

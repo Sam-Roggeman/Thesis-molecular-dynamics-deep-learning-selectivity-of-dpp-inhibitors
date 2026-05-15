@@ -40,4 +40,4 @@ if __name__ == "__main__":
         max_nr_epochs=25,
     )
 
-    train_model(config_transformerpp, "LinearAttentionTransformerPP_Randomsplit_Dataset")
+    train_model(config_transformerpp, "LongSequenceAtomTransformer_Randomsplit_Dataset")
