@@ -171,6 +171,7 @@ def _coords_to_sequence(coords, num_atoms):
     batch_size, seq_len, _ = coords.shape
     device = coords.device
 
+    coords = coords - coords.mean(dim=1, keepdim=True)
     n_real = num_atoms.to(device=device, dtype=torch.long).clamp(min=1, max=seq_len)
     atom_idx = torch.arange(seq_len, device=device).unsqueeze(0)
     valid_mask = atom_idx < n_real.unsqueeze(1)

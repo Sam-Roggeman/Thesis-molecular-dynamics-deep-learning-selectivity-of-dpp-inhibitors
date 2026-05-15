@@ -23,8 +23,6 @@ if __name__ == "__main__":
     config_transformerpp = TrainingConfig(
         model_class=LongSequenceAtomTransformer,
         model_args={
-            "num_atoms": 168 * 168,
-            "dropout":0.1
         },
         criterion=build_weighted_cross_entropy,
         dataset_location="Sam-Roggeman/SamRoggeman_Thesis_Dataset_full",

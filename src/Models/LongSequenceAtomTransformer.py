@@ -206,14 +206,13 @@ class TransformerBlock(nn.Module):
 class LongSequenceAtomTransformer(nn.Module):
     def __init__(
         self,
-        num_atoms = 168*168,  # max number of pixels (atoms) in the input
-        d_model=64,
-        depth=4,
-        heads=4,
+        d_model=48,
+        depth=3,
+        heads=3,
         head_dim=16,
         ff_mult=4,
         num_classes=5,
-        dropout=0.1,
+        dropout=0.15,
     ):
         super().__init__()
 
