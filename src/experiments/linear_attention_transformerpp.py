@@ -35,7 +35,7 @@ if __name__ == "__main__":
         compile_model=True,
         use_mixed_precision=False,
         amp_dtype="float16",
-        dataset_size=0.15,
+        dataset_size=0.01,
         learning_rate=3e-4,
         max_nr_epochs=25,
     )

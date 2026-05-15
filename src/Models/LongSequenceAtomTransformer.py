@@ -115,10 +115,6 @@ class LinearAttention(nn.Module):
         k = k.view(B, N, self.heads, self.head_dim)
         v = v.view(B, N, self.heads, self.head_dim)
 
-        # rotary
-        cos, sin = self.rotary(N, x.device)
-        q = apply_rotary(q, cos, sin)
-        k = apply_rotary(k, cos, sin)
 
         q = self.phi(q)
         k = self.phi(k)
