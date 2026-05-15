@@ -1,7 +1,7 @@
 from dotenv import load_dotenv
 import torch
 
-from src.Models.LinearAttentionTransformerPP import LinearAttentionTransformerPP
+from src.Models.LongSequenceAtomTransformer import LongSequenceAtomTransformer
 from src.model_training.batch_preprocessing import prepare_sequence_batch
 from src.Transform.sequence_transforms import (
     apply_sequence_transform,
@@ -21,16 +21,10 @@ if __name__ == "__main__":
     load_dotenv()
 
     config_transformerpp = TrainingConfig(
-        model_class=LinearAttentionTransformerPP,
+        model_class=LongSequenceAtomTransformer,
         model_args={
-            "input_dim": 3,
-            "num_classes": 5,
-            "seq_len": 168 * 168,
-            "d_model": 64,
-            "n_heads": 4,
-            "n_layers": 3,
-            "ffn_multiplier": 4,
-            "dropout": 0.1,
+            "num_atoms": 168 * 168,
+            "dropout":0.5
         },
         criterion=build_weighted_cross_entropy,
         dataset_location="Sam-Roggeman/SamRoggeman_Thesis_Dataset_full",

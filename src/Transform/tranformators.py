@@ -27,7 +27,7 @@ def apply_image_transform(examples_data, examples_labels, real_nr_atoms):
     # Pad first (in-place numpy)
     examples_data = padder(examples_data)
     # Scramble (stays as numpy arrays, no .tolist() conversion)
-    examples_data = scrambler(examples_data, return_numpy=True)
+    examples_data = scrambler(examples_data, return_numpy=True, real_nr_atoms=real_nr_atoms)
     # Normalize and reshape to RGB tensor
     examples_data = rgb_transformer(examples_data, real_nr_atoms)
     # Encode labels
