@@ -200,45 +200,6 @@ class TransformerBlock(nn.Module):
         return x
 
 
-# ------------------------------------------------------------
-# Atom embedding
-#
-# Input:
-#   atom_idx : (B, N)
-#   xyz      : (B, N, 3)
-#
-# Since atom indices are arbitrary and NOT positional:
-#   - atom embedding handles atom identity
-#   - xyz projected continuously
-#   - rotary still provides sequence structure
-#
-# IMPORTANT:
-# If permutation invariance matters strongly,
-# consider replacing rotary with pairwise geometric bias.
-# ------------------------------------------------------------
-
-class AtomEmbedding(nn.Module):
-    def __init__(self, num_atoms, dim):
-        super().__init__()
-
-        self.atom_emb = nn.Embedding(num_atoms, dim)
-        self.xyz_proj = nn.Linear(3, dim)
-
-        self.mix = nn.Sequential(
-            nn.Linear(dim * 2, dim),
-            nn.SiLU(),
-            nn.Linear(dim, dim),
-        )
-
-    def forward(self, atom_idx, xyz):
-
-        atom_feat = self.atom_emb(atom_idx)
-        xyz_feat = self.xyz_proj(xyz)
-
-        x = torch.cat([atom_feat, xyz_feat], dim=-1)
-
-        return self.mix(x)
-
 
 # ------------------------------------------------------------
 # Final Model
@@ -260,9 +221,10 @@ class LongSequenceAtomTransformer(nn.Module):
     ):
         super().__init__()
 
-        self.embed = AtomEmbedding(
-            num_atoms=num_atoms,
-            dim=d_model,
+        self.input_proj = nn.Sequential(
+            nn.Linear(3, d_model),
+            nn.SiLU(),
+            nn.Linear(d_model, d_model),
         )
 
         self.layers = nn.ModuleList([
@@ -285,13 +247,19 @@ class LongSequenceAtomTransformer(nn.Module):
             nn.Linear(d_model, num_classes),
         )
 
-    def forward(self, atom_idx, xyz):
+    def forward(self, inputs: torch.Tensor) -> torch.Tensor:
         """
-        atom_idx : (B, N)
-        xyz      : (B, N, 3)
-        """
+        inputs:
+            Tensor of shape [B, N, 3]
+            where:
+                B = batch size
+                N = number of atoms
+                3 = (x, y, z)
 
-        x = self.embed(atom_idx, xyz)
+        returns:
+            Tensor of shape [B, num_classes]
+        """
+        x = self.input_proj(inputs)
 
         for layer in self.layers:
             x = layer(x)
