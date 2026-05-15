@@ -35,7 +35,8 @@ if __name__ == "__main__":
         amp_dtype="float16",
         dataset_size=0.01,
         learning_rate=3e-4,
-        max_nr_epochs=25,
+        max_nr_epochs=10,
+        time_limit=3600*3.6,  # 3.6 hours
     )
 
     train_model(config_transformerpp, "LongSequenceAtomTransformer_Randomsplit_Dataset")

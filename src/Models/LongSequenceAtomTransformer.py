@@ -154,6 +154,82 @@ class LinearAttention(nn.Module):
 
         return self.out(out)
 
+class SPDAAttention(nn.Module):
+    def __init__(
+        self,
+        dim,
+        heads=4,
+        head_dim=16,
+        dropout=0.0,
+    ):
+        super().__init__()
+
+        self.heads = heads
+        self.head_dim = head_dim
+
+        inner_dim = heads * head_dim
+
+        self.to_qkv = nn.Linear(
+            dim,
+            inner_dim * 3,
+            bias=False,
+        )
+
+        self.out_proj = nn.Linear(
+            inner_dim,
+            dim,
+            bias=False,
+        )
+
+        self.dropout = dropout
+
+    def forward(self, x):
+        """
+        x:
+            [B, N, D]
+        """
+
+        B, N, _ = x.shape
+
+        qkv = self.to_qkv(x)
+
+        q, k, v = qkv.chunk(3, dim=-1)
+
+        # ----------------------------------------------------
+        # [B, N, H, D]
+        # -> [B, H, N, D]
+        # ----------------------------------------------------
+
+        q = q.view(B, N, self.heads, self.head_dim).transpose(1, 2)
+        k = k.view(B, N, self.heads, self.head_dim).transpose(1, 2)
+        v = v.view(B, N, self.heads, self.head_dim).transpose(1, 2)
+
+        # ----------------------------------------------------
+        # SDPA
+        # automatically uses:
+        # - Flash Attention
+        # - memory efficient kernels
+        # when available
+        # ----------------------------------------------------
+
+        x = F.scaled_dot_product_attention(
+            q,
+            k,
+            v,
+            dropout_p=self.dropout if self.training else 0.0,
+            is_causal=False,
+        )
+
+        # ----------------------------------------------------
+        # [B, H, N, D]
+        # -> [B, N, H*D]
+        # ----------------------------------------------------
+
+        x = x.transpose(1, 2).contiguous()
+
+        x = x.view(B, N, -1)
+
+        return self.out_proj(x)
 
 # ------------------------------------------------------------
 # Transformer++ Block
@@ -178,10 +254,11 @@ class TransformerBlock(nn.Module):
         super().__init__()
 
         self.norm1 = RMSNorm(dim)
-        self.attn = LinearAttention(
+        self.attn = SPDAAttention(
             dim=dim,
             heads=heads,
             head_dim=head_dim,
+            dropout=0.1,
         )
 
         self.norm2 = RMSNorm(dim)
