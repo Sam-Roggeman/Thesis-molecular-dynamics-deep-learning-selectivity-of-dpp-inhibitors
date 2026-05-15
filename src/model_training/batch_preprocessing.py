@@ -219,7 +219,7 @@ def prepare_model_batch(batch, device, scramble=False, log_every_steps=0):
         _scramble_in_place(coords, num_atoms)
     timings['scramble'] = time.time() - t0
     
-    # Step 6: Convert to RGB images (THIS IS LIKELY THE BOTTLENECK)
+    # Step 6: Convert to RGB images
     t0 = time.time()
     images = _coords_to_rgb(coords, num_atoms)
     timings['coords_to_rgb'] = time.time() - t0

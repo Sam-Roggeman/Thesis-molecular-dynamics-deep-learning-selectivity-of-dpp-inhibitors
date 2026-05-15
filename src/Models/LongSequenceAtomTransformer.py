@@ -239,11 +239,15 @@ class LongSequenceAtomTransformer(nn.Module):
 
         self.norm = RMSNorm(d_model)
 
+        self.pool = nn.Sequential(
+            nn.Linear(d_model, 1)
+        )
+
         # mean pooling head
         self.head = nn.Sequential(
             nn.Linear(d_model, d_model),
             nn.SiLU(),
-            nn.Dropout(0.5),   
+            nn.Dropout(dropout),   
             nn.Linear(d_model, num_classes),
         )
 
@@ -266,8 +270,23 @@ class LongSequenceAtomTransformer(nn.Module):
 
         x = self.norm(x)
 
-        # mean pooling for classification
-        x = x.mean(dim=1)
 
+        # ----------------------------------------------------
+        # infer padding mask from zero coordinates
+        # ----------------------------------------------------
+        valid = (inputs.abs().sum(dim=-1) > 1e-8)
+        # ----------------------------------------------------
+        # masked attention pooling
+        # ----------------------------------------------------
+
+        attn = self.pool(x).squeeze(-1)
+
+        attn = attn.masked_fill(~valid, -1e9)
+
+        attn = F.softmax(attn, dim=1)
+
+        attn = attn.unsqueeze(-1)
+
+        x = (x * attn).sum(dim=1)
         return self.head(x)
 
