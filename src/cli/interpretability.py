@@ -124,6 +124,32 @@ def solve_methods(interpreter: CaptumInterpreter, args) -> dict[str, Callable]:
             n_steps=args.ig_steps,
         )
     return methods
+def blur_according_to_attribution_results(
+    threshold: float,
+    input_sample: torch.Tensor,
+    insights: dict[str, AttributionResult]
+) -> dict[str, torch.Tensor]:
+    """Blur the input sample according to the attribution results.
+    :threshold: The attribution score threshold above which pixels will be blurred.
+    :input_sample: The original input sample tensor [C,H,W].
+    :insights: The dictionary of attribution results per method.
+    """
+    blurred_samples = {}
+    for method, result in insights.items():
+        attributions = result.attributions
+        print(f"Validating attribution results for method: {method}")
+        if attributions.ndim == 4:
+            attributions = attributions[0]
+        if attributions.ndim != 3:
+            raise ValueError(f"Expected attribution shape [C,H,W] or [1,C,H,W], got {tuple(attributions.shape)}")
+
+        pixel_scores = attributions.detach().cpu().abs().sum(dim=0).reshape(-1)
+        mask = pixel_scores > threshold
+        blurred_sample = input_sample.clone()
+        blurred_sample[:, mask] = 0.0
+        blurred_samples[method] = blurred_sample
+    return blurred_samples
+
 
 def generate_interpretability_attribution(
     methods: dict[str, Callable],
@@ -288,6 +314,12 @@ def arg_parser() -> argparse.Namespace:
         args.output_dir = str(Path(args.pdb_file).parent / "interpretability_results")
     return args
 
+def probablity_string(percentages: torch.Tensor, class_labels: list[str]) -> str:
+    prob_string = "Model classification choices with probabilities:\n"
+    for idx, percentage in enumerate(percentages[0]):
+        class_name = class_labels[idx] 
+        prob_string += f"\tClass '{class_name}': {percentage.item():.2f}%\n"
+    return prob_string
 
 def main():
     """
@@ -312,11 +344,9 @@ def main():
 
     logits, predicted_class = apply_classification(sample_tensor, model, device=device)
     percentages = torch.nn.functional.softmax(logits, dim=1) * 100
-    prob_string = "Model classification choices with probabilities:\n"
-    for idx, percentage in enumerate(percentages[0]):
-        class_name = class_labels[idx] 
-        prob_string += f"\tClass '{class_name}': {percentage.item():.2f}%\n"
 
+
+    prob_string = probablity_string(percentages, class_labels)
     print(prob_string)
     print(prob_string, file=open(os.path.join(args.output_dir, "classification_probabilities.txt"), "w"))
     print(f"Predicted class: {predicted_class}")
@@ -360,6 +390,26 @@ def main():
         # Open the script in PyMOL using the command line
         if args.open_in_pymol:
             os.system(f"pymol -c {script_path}")
+    
+    # validate the attribution results by blurring the pixels with an attribution score above the threshold and checking if the model's confidence in the predicted class decreases significantly
+    blurred_samples = blur_according_to_attribution_results(
+        args.threshold, sample_tensor, insights
+    )
+    print("Validating attribution results by blurring high-attribution pixels and re-evaluating the model's confidence:")
+    print(f"Original predicted class: {predicted_class}, confidence: {percentages[0][predicted_class].item():.2f}%")
+    print(f"Original distribution over classes:\n{prob_string}")
+    for method, blurred_sample in blurred_samples.items():
+        print(f"Method: {method}")
+        blurred_logits, blurred_predicted_class = apply_classification(sample_tensor, model, device=device)
+        blurred_percentages = torch.nn.functional.softmax(blurred_logits, dim=1) * 100
+        print(f"\tBlurred predicted class: {blurred_predicted_class}, confidence: {blurred_percentages[0][blurred_predicted_class].item():.2f}%")
+        
+        blurred_prob_string = probablity_string(blurred_percentages, class_labels)
+        print(blurred_prob_string)
+
+
+    
+
     if args.open_in_pymol:
         print("PyMOL should now open with the colored PDB visualizations. If it does not, please check that PyMOL is installed and added to your system's PATH.")
         print("You can also manually open the generated .pml script in PyMOL to visualize the results.")
