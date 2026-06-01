@@ -10,27 +10,24 @@ TARGET_PIXELS = TARGET_SIZE * TARGET_SIZE
 from src.utils.logger import get_logger
 logging = get_logger() 
 
-# Labels are normalized to torch.short on the target device so the training loop
-# can treat every batch format the same way.
-
 def _labels_to_tensor(labels, device):
     if torch.is_tensor(labels):
-        return labels.to(device=device, dtype=torch.short, non_blocking=True)
+        return labels.to(device=device, dtype=torch.long, non_blocking=True)
 
     if isinstance(labels, (list, tuple)):
         if len(labels) == 0:
-            return torch.empty(0, dtype=torch.short, device=device)
+            return torch.empty(0, dtype=torch.long, device=device)
         first = labels[0]
         if isinstance(first, str):
             encoded = label_encoder.encode_labels(labels)
-            return torch.tensor(encoded, dtype=torch.short, device=device)
-        return torch.as_tensor(labels, dtype=torch.short, device=device)
+            return torch.tensor(encoded, dtype=torch.long, device=device)
+        return torch.as_tensor(labels, dtype=torch.long, device=device)
 
     # Scalar label fallback.
     if isinstance(labels, str):
-        return torch.tensor([label_encoder.encode_label(labels)], dtype=torch.short, device=device)
+        return torch.tensor([label_encoder.encode_label(labels)], dtype=torch.long, device=device)
     try:
-        return torch.tensor([int(labels)], dtype=torch.short, device=device)
+        return torch.tensor([int(labels)], dtype=torch.long, device=device)
     except Exception as exc:
         raise ValueError(
             f"Unsupported label type: {type(labels)}. Expected tensor, list, tuple, numeric scalar, or string."
