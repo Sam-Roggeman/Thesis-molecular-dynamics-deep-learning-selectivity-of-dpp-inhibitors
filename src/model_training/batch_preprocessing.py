@@ -10,24 +10,27 @@ TARGET_PIXELS = TARGET_SIZE * TARGET_SIZE
 from src.utils.logger import get_logger
 logging = get_logger() 
 
+# Labels are normalized to torch.short on the target device so the training loop
+# can treat every batch format the same way.
+
 def _labels_to_tensor(labels, device):
     if torch.is_tensor(labels):
-        return labels.to(device=device, dtype=torch.long, non_blocking=True)
+        return labels.to(device=device, dtype=torch.short, non_blocking=True)
 
     if isinstance(labels, (list, tuple)):
         if len(labels) == 0:
-            return torch.empty(0, dtype=torch.long, device=device)
+            return torch.empty(0, dtype=torch.short, device=device)
         first = labels[0]
         if isinstance(first, str):
             encoded = label_encoder.encode_labels(labels)
-            return torch.tensor(encoded, dtype=torch.long, device=device)
-        return torch.as_tensor(labels, dtype=torch.long, device=device)
+            return torch.tensor(encoded, dtype=torch.short, device=device)
+        return torch.as_tensor(labels, dtype=torch.short, device=device)
 
     # Scalar label fallback.
     if isinstance(labels, str):
-        return torch.tensor([label_encoder.encode_label(labels)], dtype=torch.long, device=device)
+        return torch.tensor([label_encoder.encode_label(labels)], dtype=torch.short, device=device)
     try:
-        return torch.tensor([int(labels)], dtype=torch.long, device=device)
+        return torch.tensor([int(labels)], dtype=torch.short, device=device)
     except Exception as exc:
         raise ValueError(
             f"Unsupported label type: {type(labels)}. Expected tensor, list, tuple, numeric scalar, or string."
@@ -35,13 +38,15 @@ def _labels_to_tensor(labels, device):
 
 
 def _coords_to_tensor(batch_data, device):
+    # Accept already-materialized tensors first to avoid extra copies.
     if torch.is_tensor(batch_data):
         return batch_data.to(device=device, dtype=torch.float32, non_blocking=True)
 
+    # If the dataset yields a list of tensors, stack them into a single batch.
     if isinstance(batch_data, (list, tuple)) and len(batch_data) > 0 and torch.is_tensor(batch_data[0]):
         return torch.stack([x.to(dtype=torch.float32) for x in batch_data], dim=0).to(device=device, non_blocking=True)
 
-    # Fast path for pre-packed fixed-shape batches (e.g., [B, TARGET_PIXELS, 3]).
+    # Fast path for pre-packed fixed-shape batches such as [B, TARGET_PIXELS, 3].
     if isinstance(batch_data, (list, tuple)) and len(batch_data) > 0:
         try:
             packed = torch.as_tensor(batch_data, dtype=torch.float32)
@@ -50,23 +55,24 @@ def _coords_to_tensor(batch_data, device):
         except Exception:
             pass
     raise ValueError(f"Unsupported batch data format: {type(batch_data)} with element type {type(batch_data[0]) if isinstance(batch_data, (list, tuple)) and len(batch_data) > 0 else 'N/A'}. Expected tensor or list/tuple of tensors.")
-    if isinstance(batch_data, (list, tuple)):
-        tensor_list = [torch.as_tensor(item, dtype=torch.float32) for item in batch_data]
-        max_len = max(t.shape[0] for t in tensor_list)
-        padded = torch.zeros((len(tensor_list), max_len, 3), dtype=torch.float32)
-        for i, t in enumerate(tensor_list):
-            padded[i, :t.shape[0]] = t
-        return padded.to(device=device, non_blocking=True)
 
-    return torch.as_tensor(batch_data, dtype=torch.float32, device=device)
 
 
 def _num_atoms_to_tensor(num_atoms, coords, device):
+    # If the batch does not carry atom counts, assume the full sequence length.
     if num_atoms is None:
         return torch.full((coords.shape[0],), coords.shape[1], dtype=torch.long, device=device)
     if torch.is_tensor(num_atoms):
         return num_atoms.to(device=device, dtype=torch.long, non_blocking=True)
     return torch.as_tensor(num_atoms, dtype=torch.long, device=device)
+
+
+def _make_generator(seed, device):
+    if seed is None:
+        return None
+    generator = torch.Generator(device=torch.device(device).type)
+    generator.manual_seed(int(seed))
+    return generator
 
 
 def _rodrigues_rotation_matrix(vector, random_vector, device):
@@ -85,10 +91,15 @@ def _rodrigues_rotation_matrix(vector, random_vector, device):
     return torch.eye(3, dtype=vector.dtype, device=device) + kmat + kmat_sq * ((1.0 - c) / (s * s + 1e-12))
 
 
-def _scramble_in_place(coords, num_atoms, diameter=140.0):
+def _scramble_in_place(coords, num_atoms, diameter=140.0, seed=None):
+    # Keep valid atoms together, then randomize orientation and position in a bounded volume.
     radius = diameter / 2.0
     device = coords.device
     batch_size, seq_len, _ = coords.shape
+    generator = _make_generator(seed, device)
+    rand_kwargs = dict(device=device, dtype=coords.dtype)
+    if generator is not None:
+        rand_kwargs["generator"] = generator
 
     n_real = num_atoms.to(device=device, dtype=torch.long).clamp(min=1, max=seq_len)
     atom_idx = torch.arange(seq_len, device=device).unsqueeze(0)
@@ -102,7 +113,7 @@ def _scramble_in_place(coords, num_atoms, diameter=140.0):
             vectors = coords[:, 1, :] - coords[:, 0, :]
             vectors = vectors / torch.linalg.norm(vectors, dim=1, keepdim=True).clamp_min(1e-8)
 
-            random_vectors = torch.randn(batch_size, 3, device=device, dtype=coords.dtype)
+            random_vectors = torch.randn(batch_size, 3, **rand_kwargs)
             random_vectors = random_vectors / torch.linalg.norm(random_vectors, dim=1, keepdim=True).clamp_min(1e-8)
 
             v = torch.cross(vectors, random_vectors, dim=1)
@@ -127,10 +138,12 @@ def _scramble_in_place(coords, num_atoms, diameter=140.0):
             rotation = eye + kmat + kmat_sq * factor
             rotation = torch.where(valid_rotation.view(-1, 1, 1), rotation, eye)
 
+            # Rotate only the real atoms; padded positions stay untouched.
             rotated = torch.bmm(coords, rotation.transpose(1, 2))
             rotated = torch.where(valid_mask_3d, rotated, coords)
 
-    random_points = (torch.rand(batch_size, 3, device=device, dtype=coords.dtype) * 2.0 - 1.0) * radius
+    # Translate each sample so its center of mass lands at a random point.
+    random_points = (torch.rand(batch_size, 3, **rand_kwargs) * 2.0 - 1.0) * radius
     denom = n_real.to(dtype=coords.dtype).unsqueeze(1)
     com = (rotated * valid_mask_3d.to(dtype=coords.dtype)).sum(dim=1) / denom
     shifts = random_points - com
@@ -140,10 +153,12 @@ def _scramble_in_place(coords, num_atoms, diameter=140.0):
 
 
 def _coords_to_rgb(coords, num_atoms):
+    # Project the packed coordinates into a fixed square image layout.
     batch_size, current_len, _ = coords.shape
     device = coords.device
     out = torch.zeros((batch_size, TARGET_PIXELS, 3), dtype=coords.dtype, device=device)
 
+    # Copy as many coordinates as fit, then normalize only the valid atoms.
     copy_len = min(current_len, TARGET_PIXELS)
     out[:, :copy_len, :] = coords[:, :copy_len, :]
 
@@ -171,6 +186,7 @@ def _coords_to_sequence(coords, num_atoms):
     batch_size, seq_len, _ = coords.shape
     device = coords.device
 
+    # Center each sequence before scaling so the model sees relative geometry.
     coords = coords - coords.mean(dim=1, keepdim=True)
     n_real = num_atoms.to(device=device, dtype=torch.long).clamp(min=1, max=seq_len)
     atom_idx = torch.arange(seq_len, device=device).unsqueeze(0)
@@ -189,7 +205,7 @@ def _coords_to_sequence(coords, num_atoms):
     return normalized.contiguous()
 
 
-def prepare_model_batch(batch, device, scramble=False, log_every_steps=0):
+def prepare_model_batch(batch, device, scramble=False, log_every_steps=0, seed=None):
     """WITH TIMING: Measure each step"""
     
     timings = {}
@@ -217,7 +233,7 @@ def prepare_model_batch(batch, device, scramble=False, log_every_steps=0):
     # Step 5: Scramble (if enabled)
     t0 = time.time()
     if scramble:
-        _scramble_in_place(coords, num_atoms)
+        _scramble_in_place(coords, num_atoms, seed=seed)
     timings['scramble'] = time.time() - t0
     
     # Step 6: Convert to RGB images
@@ -239,14 +255,15 @@ def prepare_model_batch(batch, device, scramble=False, log_every_steps=0):
     return images, labels
 
 
-def prepare_sequence_batch(batch, device, scramble=False, log_every_steps=0):
+def prepare_sequence_batch(batch, device, scramble=False, log_every_steps=0, seed=None):
     """Prepare packed coordinate data for sequence models expecting input shape (B, T, C)."""
     labels = _labels_to_tensor(batch["labels"], device)
     coords = _coords_to_tensor(batch["data"], device)
     num_atoms = _num_atoms_to_tensor(batch.get("num_atoms"), coords, device)
 
+    # Optional augmentation mirrors the image path so both model types see the same geometry.
     if scramble:
-        _scramble_in_place(coords, num_atoms)
+        _scramble_in_place(coords, num_atoms, seed=seed)
 
     sequence = _coords_to_sequence(coords, num_atoms)
     return sequence, labels

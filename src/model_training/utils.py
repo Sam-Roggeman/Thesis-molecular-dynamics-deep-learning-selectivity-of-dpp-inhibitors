@@ -285,6 +285,7 @@ def training_loop(
     amp_dtype="bfloat16",
     validation_max_batches=None,
     patience=10,
+    minimum_delta=0.001,
     time_limit=None,
 ):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -341,7 +342,7 @@ def training_loop(
 
     best_model_state_dict = None
     epochs_best_model = None
-    metrics = Metrics(patience=patience)
+    metrics = Metrics(patience=patience, minimum_delta=minimum_delta)
 
     start_time = time.time()
 

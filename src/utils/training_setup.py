@@ -204,6 +204,7 @@ def train_model(config: TrainingConfig, model_name: str, streaming: bool = False
                     amp_dtype=effective_amp_dtype,
                     validation_max_batches=config.validation_max_batches,
                     patience=config.patience,
+                    minimum_delta=config.minimum_delta,
                     time_limit=config.time_limit
                 )
 

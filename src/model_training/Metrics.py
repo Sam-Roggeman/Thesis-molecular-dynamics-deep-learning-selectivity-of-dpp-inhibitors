@@ -5,12 +5,13 @@ import matplotlib.pyplot as plt
 from typing import List
 
 class Metrics:
-    def __init__(self, patience=5):
+    def __init__(self, patience=5, minimum_delta=0.001):
         self.validation_loss = []
         self.validation_accuracy = []
         self.training_accuracy = []
         self.train_loss = []
         self.min_val_loss = float('inf')
+        self.minimum_delta = minimum_delta
         self.patience = patience
         self.patience_counter = 0
 
@@ -87,9 +88,13 @@ class Metrics:
             self.min_val_loss = self.validation_loss[-1]
             self.patience_counter = 0
             return True
+        new_val_loss = self.validation_loss[-1]
+        old_val_loss = self.min_val_loss
+        # compute how much the validation loss has decreased since the last best checkpoint
+        delta_loss = old_val_loss - new_val_loss
 
-        # val loss decreased
-        if self.validation_loss[-1] < self.min_val_loss:
+        # val loss decreased by at least minimum_delta, consider it an improvement
+        if delta_loss > self.minimum_delta:
             self.min_val_loss = self.validation_loss[-1]
             self.patience_counter = 0
             return True
