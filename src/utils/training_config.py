@@ -45,7 +45,7 @@ class TrainingConfig:
     batch_size: int = 1024
     # Early stopping patience (number of eval windows without improvement).
     patience: int = 5
-    minimum_delta: float = 0.001
+    minimum_delta: float = 0.01
     # Upper bound on full epochs.
     max_nr_epochs: int = 600
     # Optional hard cap on training steps; if None, epoch-based stopping is used.
