@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import importlib
 import os
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -66,23 +67,93 @@ def _flatten_images(images: torch.Tensor) -> np.ndarray:
     return images.detach().cpu().to(dtype=torch.float32).reshape(images.shape[0], -1).numpy()
 
 
-def _collect_from_dataloader(dataloader, max_batches: int | None = None, scramble: bool = False):
-    features = []
-    labels = []
+def _dataset_length(dataloader) -> int | None:
+    dataset = getattr(dataloader, "dataset", None)
+    if dataset is None:
+        return None
+    try:
+        return len(dataset)
+    except TypeError:
+        return None
+
+
+def _collect_to_memmap(
+    dataloader,
+    work_dir: str | Path,
+    split_name: str,
+    max_batches: int | None = None,
+    scramble: bool = False,
+):
+    work_dir = Path(work_dir)
+    work_dir.mkdir(parents=True, exist_ok=True)
+
     device = torch.device("cpu")
+    iterator = iter(dataloader)
+    batch_count = 0
 
-    for batch_idx, batch in enumerate(dataloader):
-        if max_batches is not None and batch_idx >= max_batches:
-            break
-
-        images, batch_labels = prepare_model_batch(batch, device=device, scramble=scramble)
-        features.append(_flatten_images(images))
-        labels.append(batch_labels.detach().cpu().numpy())
-
-    if not features:
+    try:
+        first_batch = next(iterator)
+    except StopIteration:
         return np.empty((0, 0), dtype=np.float32), np.empty((0,), dtype=np.int64)
 
-    return np.concatenate(features, axis=0), np.concatenate(labels, axis=0)
+    images, batch_labels = prepare_model_batch(first_batch, device=device, scramble=scramble)
+    first_features = _flatten_images(images)
+    feature_dim = first_features.shape[1]
+
+    total_rows = _dataset_length(dataloader)
+    if total_rows is None:
+        raise ValueError("XGBoostImageClassifier requires a sized dataset so it can stream to disk safely.")
+
+    if max_batches is not None:
+        batch_size = getattr(dataloader, "batch_size", None)
+        if batch_size is not None:
+            total_rows = min(total_rows, max_batches * int(batch_size))
+
+    features_path = work_dir / f"{split_name}_features.dat"
+    labels_path = work_dir / f"{split_name}_labels.dat"
+
+    features = np.memmap(features_path, mode="w+", dtype=np.float32, shape=(total_rows, feature_dim))
+    labels = np.memmap(labels_path, mode="w+", dtype=np.int64, shape=(total_rows,))
+
+    rows_written = 0
+
+    def _write_batch(batch_images, batch_labels_tensor):
+        nonlocal rows_written
+        flattened = _flatten_images(batch_images)
+        batch_size = flattened.shape[0]
+        end = min(rows_written + batch_size, total_rows)
+        take = end - rows_written
+        if take <= 0:
+            return False
+        features[rows_written:end] = flattened[:take]
+        labels[rows_written:end] = batch_labels_tensor.detach().cpu().numpy()[:take]
+        rows_written = end
+        return rows_written < total_rows
+
+    _write_batch(images, batch_labels)
+
+    while rows_written < total_rows:
+        try:
+            batch = next(iterator)
+        except StopIteration:
+            break
+
+        if max_batches is not None and batch_count >= max_batches - 1:
+            break
+
+        batch_count += 1
+        images, batch_labels = prepare_model_batch(batch, device=device, scramble=scramble)
+        if not _write_batch(images, batch_labels):
+            break
+
+    features.flush()
+    labels.flush()
+
+    if rows_written < total_rows:
+        features = features[:rows_written]
+        labels = labels[:rows_written]
+
+    return features, labels
 
 
 @dataclass
@@ -95,13 +166,14 @@ class XGBoostMetrics:
 
 
 class XGBoostImageClassifier:
-    def __init__(self, num_classes: int = 5, **xgb_params: Any):
+    def __init__(self, num_classes: int = 5, use_cuda: bool = True, **xgb_params: Any):
         XGBClassifier = _resolve_xgboost()
-        device = "cpu"
+        self.use_cuda = bool(use_cuda)
+        if not self.use_cuda:
+            raise ValueError("XGBoostImageClassifier requires CUDA. Pass use_cuda=True.")
         if not torch.cuda.is_available():
-            print("Warning: CUDA is not available. Falling back to CPU.")
-        else:
-            device = "cuda"
+            raise RuntimeError("CUDA is not available, but XGBoostImageClassifier is configured to require GPU.")
+        self.backend_device = "cuda"
 
         default_params = {
             "objective": "multi:softprob",
@@ -121,7 +193,7 @@ class XGBoostImageClassifier:
             "verbosity": 1,
             "eval_metric": "mlogloss",
         }
-        default_params.update(_build_backend_params(device))
+        default_params.update(_build_backend_params(self.backend_device))
         default_params.update(xgb_params)
 
         self.num_classes = num_classes
@@ -135,20 +207,40 @@ class XGBoostImageClassifier:
         return self
 
     def fit_from_dataloader(self, trainloader, validationloader=None, max_train_batches: int | None = None, max_validation_batches: int | None = None):
-        X_train, y_train = _collect_from_dataloader(trainloader, max_batches=max_train_batches, scramble=False)
-        eval_set = None
-        if validationloader is not None:
-            X_val, y_val = _collect_from_dataloader(validationloader, max_batches=max_validation_batches, scramble=False)
-            eval_set = [(X_val, y_val)]
-        self.fit(X_train, y_train, eval_set=eval_set)
+        with tempfile.TemporaryDirectory(prefix="xgb_image_") as work_dir:
+            X_train, y_train = _collect_to_memmap(
+                trainloader,
+                work_dir=work_dir,
+                split_name="train",
+                max_batches=max_train_batches,
+                scramble=False,
+            )
+            eval_set = None
+            if validationloader is not None:
+                X_val, y_val = _collect_to_memmap(
+                    validationloader,
+                    work_dir=work_dir,
+                    split_name="validation",
+                    max_batches=max_validation_batches,
+                    scramble=False,
+                )
+                eval_set = [(X_val, y_val)]
+            self.fit(X_train, y_train, eval_set=eval_set)
         return self
 
     def predict(self, X: np.ndarray) -> np.ndarray:
         return self.model.predict(X)
 
     def predict_from_dataloader(self, dataloader, max_batches: int | None = None) -> tuple[np.ndarray, np.ndarray]:
-        X, y = _collect_from_dataloader(dataloader, max_batches=max_batches, scramble=False)
-        return self.predict(X), y
+        with tempfile.TemporaryDirectory(prefix="xgb_image_eval_") as work_dir:
+            X, y = _collect_to_memmap(
+                dataloader,
+                work_dir=work_dir,
+                split_name="predict",
+                max_batches=max_batches,
+                scramble=False,
+            )
+            return self.predict(X), y
 
     def evaluate_from_dataloader(self, dataloader, max_batches: int | None = None) -> XGBoostMetrics:
         predictions, labels = self.predict_from_dataloader(dataloader, max_batches=max_batches)

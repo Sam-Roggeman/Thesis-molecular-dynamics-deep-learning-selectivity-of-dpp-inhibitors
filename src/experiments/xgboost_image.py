@@ -68,6 +68,7 @@ def main() -> None:
     dataloaders = initialize_dataloaders(config, cache_manager=cache, streaming=False)
 
     model = XGBoostImageClassifier(
+        use_cuda=True,
         n_estimators=args.n_estimators,
         max_depth=args.max_depth,
         learning_rate=args.learning_rate,
@@ -79,6 +80,8 @@ def main() -> None:
         gamma=args.gamma,
         random_state=args.random_state,
     )
+
+    print(f"XGBoost backend selected: {'cuda' if model.use_cuda else 'cpu'}")
 
     output_dir = _build_output_dir(args.run_name)
 
