@@ -85,8 +85,8 @@ class XGBoostImageClassifier:
         self.model = XGBClassifier(**default_params)
         self.feature_shape_: tuple[int, ...] | None = None
 
-    def fit(self, X: np.ndarray, y: np.ndarray, eval_set=None):
-        self.model.fit(X, y, eval_set=eval_set, verbose=False)
+    def fit(self, X: np.ndarray, y: np.ndarray, eval_set=None, verbose: bool = True):
+        self.model.fit(X, y, eval_set=eval_set, verbose=verbose)
         self.feature_shape_ = tuple(X.shape[1:])
         return self
 
