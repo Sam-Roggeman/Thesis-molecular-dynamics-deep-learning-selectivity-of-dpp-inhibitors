@@ -130,6 +130,7 @@ def train_model(config: TrainingConfig, model_name: str, streaming: bool = False
 
     max_retries = max(0, int(config.oom_max_retries)) if config.oom_retry_enabled else 0
     attempt = 0
+    training_result = None
     try:
         while True:
             model = None
@@ -223,6 +224,17 @@ def train_model(config: TrainingConfig, model_name: str, streaming: bool = False
                 )
                 save_results(model_state_dict, run_dir, model_name, metrics)
                 logger.info("Training complete.")
+                best_validation_accuracy = max(metrics.validation_accuracy) if metrics.validation_accuracy else None
+                best_validation_loss = min(metrics.validation_loss) if metrics.validation_loss else None
+                training_result = {
+                    "run_dir": run_dir,
+                    "nr_epochs": nr_epochs,
+                    "best_validation_accuracy": best_validation_accuracy,
+                    "best_validation_loss": best_validation_loss,
+                    "final_validation_accuracy": metrics.validation_accuracy[-1] if metrics.validation_accuracy else None,
+                    "final_validation_loss": metrics.validation_loss[-1] if metrics.validation_loss else None,
+                    "config": config,
+                }
                 break
 
             except Exception as exc:
@@ -267,4 +279,6 @@ def train_model(config: TrainingConfig, model_name: str, streaming: bool = False
         raise final_exc
     finally:
         cache_manager.cleanup()
+
+    return training_result
 
