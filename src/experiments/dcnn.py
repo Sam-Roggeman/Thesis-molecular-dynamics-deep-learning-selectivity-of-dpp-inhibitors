@@ -31,7 +31,6 @@ if __name__ == "__main__":
         batch_size=256,
         dataset_size=1.0,  # Use the full dataset
         time_limit=24 * 60 * 60,  # 24 hours
-        early_stopping_patience=10,  # Early stopping patience
         use_mixed_precision=False,  # Disable mixed precision for better stability with DenseNet
     )
     train_model(config_dcnn, "CustomDenseNet_Randomsplit_Dataset")
