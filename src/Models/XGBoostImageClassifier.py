@@ -9,6 +9,7 @@ from typing import Any
 
 import numpy as np
 import torch
+import torch.nn.functional as F
 from sklearn.metrics import accuracy_score, confusion_matrix, f1_score, precision_score, recall_score
 
 from src.model_training.batch_preprocessing import prepare_model_batch
@@ -42,13 +43,7 @@ def _get_xgboost_version() -> tuple[int, int, int]:
 
     return tuple(version_parts)
 
-def _build_backend_params(device: str) -> dict[str, Any]:
-    if device == "cpu":
-        return {
-            "tree_method": "hist",
-            "device": "cpu",
-        }
-
+def _build_backend_params() -> dict[str, Any]:
     if _get_xgboost_version() >= (2, 0, 0):
         return {
             "tree_method": "hist",
@@ -61,10 +56,15 @@ def _build_backend_params(device: str) -> dict[str, Any]:
     }
 
 
-def _flatten_images(images: torch.Tensor) -> np.ndarray:
+def _flatten_images(images: torch.Tensor, pooled_size: int) -> np.ndarray:
     if not torch.is_tensor(images):
         images = torch.as_tensor(images)
-    return images.detach().cpu().to(dtype=torch.float32).reshape(images.shape[0], -1).numpy()
+
+    images = images.to(dtype=torch.float32)
+    if images.ndim == 4 and pooled_size > 0:
+        images = F.adaptive_avg_pool2d(images, output_size=(pooled_size, pooled_size))
+
+    return images.detach().cpu().flatten(1).numpy()
 
 
 def _dataset_length(dataloader) -> int | None:
@@ -81,13 +81,14 @@ def _collect_to_memmap(
     dataloader,
     work_dir: str | Path,
     split_name: str,
+    pooled_size: int,
     max_batches: int | None = None,
     scramble: bool = False,
 ):
     work_dir = Path(work_dir)
     work_dir.mkdir(parents=True, exist_ok=True)
 
-    device = torch.device("cpu")
+    device = torch.device("cuda")
     iterator = iter(dataloader)
     batch_count = 0
 
@@ -97,7 +98,7 @@ def _collect_to_memmap(
         return np.empty((0, 0), dtype=np.float32), np.empty((0,), dtype=np.int64)
 
     images, batch_labels = prepare_model_batch(first_batch, device=device, scramble=scramble)
-    first_features = _flatten_images(images)
+    first_features = _flatten_images(images, pooled_size=pooled_size)
     feature_dim = first_features.shape[1]
 
     total_rows = _dataset_length(dataloader)
@@ -119,7 +120,7 @@ def _collect_to_memmap(
 
     def _write_batch(batch_images, batch_labels_tensor):
         nonlocal rows_written
-        flattened = _flatten_images(batch_images)
+        flattened = _flatten_images(batch_images, pooled_size=pooled_size)
         batch_size = flattened.shape[0]
         end = min(rows_written + batch_size, total_rows)
         take = end - rows_written
@@ -166,14 +167,12 @@ class XGBoostMetrics:
 
 
 class XGBoostImageClassifier:
-    def __init__(self, num_classes: int = 5, use_cuda: bool = True, **xgb_params: Any):
+    def __init__(self, num_classes: int = 5, pooled_size: int = 32, **xgb_params: Any):
         XGBClassifier = _resolve_xgboost()
-        self.use_cuda = bool(use_cuda)
-        if not self.use_cuda:
-            raise ValueError("XGBoostImageClassifier requires CUDA. Pass use_cuda=True.")
         if not torch.cuda.is_available():
             raise RuntimeError("CUDA is not available, but XGBoostImageClassifier is configured to require GPU.")
         self.backend_device = "cuda"
+        self.pooled_size = int(pooled_size)
 
         default_params = {
             "objective": "multi:softprob",
@@ -192,10 +191,11 @@ class XGBoostImageClassifier:
             "random_state": 42,
             "verbosity": 1,
             "eval_metric": "mlogloss",
+            "device": self.backend_device,
         }
-        default_params.update(_build_backend_params(self.backend_device))
+        default_params.update(_build_backend_params())
         default_params.update(xgb_params)
-
+        print(f"Initialized XGBoostImageClassifier with params: {default_params}")
         self.num_classes = num_classes
         self.model = XGBClassifier(**default_params)
         self.feature_shape_: tuple[int, ...] | None = None
@@ -212,6 +212,7 @@ class XGBoostImageClassifier:
                 trainloader,
                 work_dir=work_dir,
                 split_name="train",
+                pooled_size=self.pooled_size,
                 max_batches=max_train_batches,
                 scramble=False,
             )
@@ -221,6 +222,7 @@ class XGBoostImageClassifier:
                     validationloader,
                     work_dir=work_dir,
                     split_name="validation",
+                    pooled_size=self.pooled_size,
                     max_batches=max_validation_batches,
                     scramble=False,
                 )
@@ -237,6 +239,7 @@ class XGBoostImageClassifier:
                 dataloader,
                 work_dir=work_dir,
                 split_name="predict",
+                pooled_size=self.pooled_size,
                 max_batches=max_batches,
                 scramble=False,
             )

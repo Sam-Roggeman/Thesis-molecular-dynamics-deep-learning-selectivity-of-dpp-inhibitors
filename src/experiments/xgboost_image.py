@@ -38,6 +38,7 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--min-child-weight", type=float, default=1.0)
     parser.add_argument("--gamma", type=float, default=0.0)
     parser.add_argument("--random-state", type=int, default=42)
+    parser.add_argument("--pooled-size", type=int, default=16, help="Adaptive average pool size before flattening, e.g. 16 -> 3x16x16 features.")
     return parser.parse_args()
 
 
@@ -68,7 +69,7 @@ def main() -> None:
     dataloaders = initialize_dataloaders(config, cache_manager=cache, streaming=False)
 
     model = XGBoostImageClassifier(
-        use_cuda=True,
+        pooled_size=args.pooled_size,
         n_estimators=args.n_estimators,
         max_depth=args.max_depth,
         learning_rate=args.learning_rate,
@@ -82,9 +83,12 @@ def main() -> None:
     )
 
     print(f"XGBoost backend selected: {'cuda' if model.use_cuda else 'cpu'}")
+    print(f"Feature pooling size: {args.pooled_size}x{args.pooled_size}")
 
     output_dir = _build_output_dir(args.run_name)
-
+    print(f"Output directory: {output_dir}")
+    print(f"Training XGBoostImageClassifier with dataset size {args.dataset_size}, batch size {args.batch_size}, and num_cpus {args.num_cpus}...")
+    
     model.fit_from_dataloader(
         dataloaders["train"],
         validationloader=dataloaders["validation"],
@@ -119,10 +123,12 @@ def main() -> None:
             "min_child_weight": args.min_child_weight,
             "gamma": args.gamma,
             "random_state": args.random_state,
+            "pooled_size": args.pooled_size,
         },
         "dataset_size": args.dataset_size,
         "batch_size": args.batch_size,
         "num_cpus": args.num_cpus,
+        "pooled_size": args.pooled_size,
     }
 
     with open(output_dir / "metrics.json", "w", encoding="utf-8") as handle:

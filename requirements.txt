@@ -8,3 +8,5 @@ Biopython
 fvcore
 scikit-learn
 captum
+optuna
+xgboost
