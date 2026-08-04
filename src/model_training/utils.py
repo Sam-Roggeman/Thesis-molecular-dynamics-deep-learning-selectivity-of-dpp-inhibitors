@@ -42,11 +42,9 @@ def load_model(model_filepath, device=None, model_class=None, model_args=None):
         state_dict = checkpoint.get("state_dict")
         if state_dict is None:
             state_dict = checkpoint.get("model_state_dict", checkpoint)
-        if isinstance(state_dict, dict):
-            state_dict = _load_weights(state_dict)
 
         model = model_class(**(model_args or {}))
-        model.load_state_dict(state_dict)
+        _load_weights(model, state_dict)
         model.to(device)
         model.eval()
         return model
