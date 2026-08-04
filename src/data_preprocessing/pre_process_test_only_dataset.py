@@ -11,50 +11,7 @@ from Bio import PDB
 from datasets import Dataset, NamedSplit
 
 from src.utils.utils import parse_filename
-
-
-def extract_coordinates(pdb_file, pdb_id):
-	"""Extract 3D coordinates from a PDB file object."""
-	content = pdb_file.read().decode("utf-8")
-	parser = PDB.PDBParser(QUIET=True)
-	structure = parser.get_structure(pdb_id, StringIO(content))
-
-	coords = []
-	for model in structure:
-		for chain in model:
-			for residue in chain:
-				for atom in residue:
-					coords.append(atom.coord)
-
-	return np.array(coords, dtype=np.float32)
-
-
-def parse_pdb_streaming(tar_path, dpp_class, ligand_name, binding_type, replica_id):
-	"""Yield frame records parsed from PDB files in a TAR archive."""
-	with tarfile.open(tar_path, "r:gz") as tar:
-		for frame in tar:
-			if not frame.isfile() or not frame.name.endswith(".pdb"):
-				continue
-
-			pdb_file = tar.extractfile(frame)
-			if pdb_file is None:
-				continue
-
-			pdb_id = Path(frame.name).stem
-			try:
-				coords = extract_coordinates(pdb_file, pdb_id)
-				yield {
-					"pdb_id": pdb_id,
-					"dpp_class": dpp_class,
-					"ligand_name": ligand_name,
-					"binding_type": binding_type,
-					"coordinates": coords,
-					"num_atoms": len(coords),
-					"replica_id": replica_id,
-				}
-			except Exception as exc:
-				print(f"Error parsing {pdb_id}: {exc}")
-
+from utils import parse_pdb_streaming
 
 def parse_pdb_streaming_many_tars(tar_paths):
 	"""Yield frame records from a list of TAR files.
