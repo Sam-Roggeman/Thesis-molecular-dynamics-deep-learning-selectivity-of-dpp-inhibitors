@@ -19,7 +19,7 @@ if __name__ == "__main__":
         batch_size=128*8,
         time_limit=24 * 60 * 60,  # 24 hours
         use_mixed_precision=False,  # Disable mixed precision for better stability with DenseNet
-
+        max_nr_epochs=25,
     )
 
     train_model(config_scnn, "SimpleCNN_Randomsplit_Dataset")
