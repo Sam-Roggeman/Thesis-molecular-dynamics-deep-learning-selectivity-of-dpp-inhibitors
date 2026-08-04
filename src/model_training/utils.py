@@ -9,6 +9,9 @@ from src.model_training.Metrics import Metrics
 from src.model_training.batch_preprocessing import prepare_model_batch
 from src.model_training.metric_functions import calculate_accuracy_and_loss
 from sklearn.metrics import confusion_matrix
+from src.utils.resolvers import (
+    _load_weights,
+)
 
 from src.utils.logger import get_logger
 logging = get_logger() 
@@ -18,6 +21,7 @@ def save_model(model, model_folder, model_name):
     torch.save(model, model_path)
     logging.info(f"Saved full model to {model_path}")
     return model_path
+
 
 
 def load_model(model_filepath, device=None, model_class=None, model_args=None):
@@ -38,6 +42,8 @@ def load_model(model_filepath, device=None, model_class=None, model_args=None):
         state_dict = checkpoint.get("state_dict")
         if state_dict is None:
             state_dict = checkpoint.get("model_state_dict", checkpoint)
+        if isinstance(state_dict, dict):
+            state_dict = _load_weights(state_dict)
 
         model = model_class(**(model_args or {}))
         model.load_state_dict(state_dict)
