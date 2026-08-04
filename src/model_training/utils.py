@@ -20,12 +20,34 @@ def save_model(model, model_folder, model_name):
     return model_path
 
 
-def load_model(model_filepath, device=None):
+def load_model(model_filepath, device=None, model_class=None, model_args=None):
     if device is None:
         device = torch.device("cpu")
-    model = torch.load(model_filepath, map_location=device, weights_only=False)
-    model.eval()
-    return model
+
+    checkpoint = torch.load(model_filepath, map_location=device, weights_only=False)
+
+    if isinstance(checkpoint, torch.nn.Module):
+        checkpoint.to(device)
+        checkpoint.eval()
+        return checkpoint
+
+    if isinstance(checkpoint, dict):
+        if model_class is None:
+            return checkpoint
+
+        state_dict = checkpoint.get("state_dict")
+        if state_dict is None:
+            state_dict = checkpoint.get("model_state_dict", checkpoint)
+
+        model = model_class(**(model_args or {}))
+        model.load_state_dict(state_dict)
+        model.to(device)
+        model.eval()
+        return model
+
+    raise TypeError(
+        f"Unsupported checkpoint type {type(checkpoint)!r} in {model_filepath}. Expected a torch.nn.Module or state dict."
+    )
 
 def model_name(model_name_prefix):
     # current date and time

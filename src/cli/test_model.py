@@ -25,6 +25,7 @@ from src.utils.resolvers import (
 	_extract_class_name,
 	_load_config_from_artifacts,
 	_build_test_dataloader,
+	_resolve_model_class,
 	_resolve_batch_preparation_fn,
 )
 
@@ -133,7 +134,13 @@ def main() -> None:
 		device = torch.device(args.device)
 	if device.type == "cuda" and not torch.cuda.is_available():
 		raise RuntimeError("CUDA requested but is not available.")
-	model = load_model(checkpoint_path, device=device)
+	model_class = _resolve_model_class(model_name)
+	model = load_model(
+		checkpoint_path,
+		device=device,
+		model_class=model_class,
+		model_args=config.model_args,
+	)
 	criterion = config.criterion() if config.criterion else torch.nn.CrossEntropyLoss()
 	batch_preparation_fn = _resolve_batch_preparation_fn(config, model_name)
 	test_loaders = _build_test_dataloader(config, splits=args.splits, streaming=args.streaming)
