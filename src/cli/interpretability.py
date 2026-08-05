@@ -309,6 +309,8 @@ def arg_parser() -> argparse.Namespace:
     parser.add_argument("--open_in_pymol", action="store_false", help="Whether to automatically open the generated colored PDBs in PyMOL after processing.")
     parser.add_argument("--threshold", type=float, default=0.2, help="High attribution threshold as a fraction of the max score for PyMOL visualization (e.g., 0.8 means atoms with scores in the top 20%% will be shown as sticks).")
     parser.add_argument("--perturbations_per_eval", type=int, default=10)
+    parser.add_argument("--blur_top_n", type=int, default=0, help="Number of top attribution pixels to blur for validation. If 0, no blurring based on threshhold is performed.")
+
 
     args = parser.parse_args()
     if not 0.0 <= args.threshold <= 1.0:
@@ -319,6 +321,10 @@ def arg_parser() -> argparse.Namespace:
         return
     if not args.output_dir:
         args.output_dir = str(Path(args.pdb_file).parent / "interpretability_results")
+    # blur top n and threshold are mutually exclusive, so we can add a check for that later
+    if args.blur_top_n > 0 and args.threshold < 1.0:
+        parser.error("--blur_top_n and --threshold are mutually exclusive. Please specify only one of them.")
+
     return args
 
 def probablity_string(percentages: torch.Tensor, class_labels: list[str]) -> str:
@@ -335,7 +341,7 @@ def main():
     :param output_dir: Directory where interpretability results will be saved. Defaults to "./interpretability_results".
     """
     args = arg_parser()
-
+    blur_based_on_threshold = args.blur_top_n == 0
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     class_labels= LabelEncoder().get_classes()
 
@@ -393,11 +399,21 @@ def main():
         plt.imsave(overlay_save_path, overlay)
         print(f"Saved attribution overlay for {method} to {overlay_save_path}")
 
-        
-
-        # validate the attribution results by blurring the pixels with an attribution score above the threshold and checking if the model's confidence in the predicted class decreases significantly
-        blurred_sample = blur_according_to_attribution_results(args.threshold, sample_tensor, attribution_result)
-
+        if blur_based_on_threshold:
+            # validate the attribution results by blurring the pixels with an attribution score above the threshold and checking if the model's confidence in the predicted class decreases significantly
+            blurred_sample = blur_according_to_attribution_results(args.threshold, sample_tensor, attribution_result)
+        else:
+            # blur based on the top N attribution pixels, where N is specified by the user
+            flattened_attributions = attribution_result.attributions.detach().cpu().abs().sum(dim=0).reshape(-1)
+            top_n_indices = torch.topk(flattened_attributions, args.blur_top_n).indices
+            mask = torch.zeros_like(flattened_attributions, dtype=torch.bool)
+            mask[top_n_indices] = True
+            mask = mask.reshape(attribution_result.attributions.shape[1], attribution_result.attributions.shape[2])
+            mask = mask.to(sample_tensor.device)
+            blurred_sample = sample_tensor.clone()
+            blurred_sample = blurred_sample.masked_fill(mask.unsqueeze(0), 0.0)
+            print(f"\tBlurred top {args.blur_top_n} attribution pixels for validation.")
+            
 
 
 
