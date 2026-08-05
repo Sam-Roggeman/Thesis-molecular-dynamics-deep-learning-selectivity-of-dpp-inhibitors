@@ -132,15 +132,6 @@ def solve_methods(interpreter: CaptumInterpreter, args) -> dict[str, Callable]:
     return methods
 
 
-def _prepare_spatial_attribution_map(attributions: torch.Tensor) -> torch.Tensor:
-    """Reduce attribution tensors to a single 2D spatial map [H, W]."""
-    if attributions.ndim == 4:
-        attributions = attributions[0]
-    if attributions.ndim != 3:
-        raise ValueError(f"Expected attribution shape [C,H,W] or [1,C,H,W], got {tuple(attributions.shape)}")
-    return attributions.detach().float().abs().sum(dim=0)
-
-
 def _normalize_spatial_scores(spatial_scores: torch.Tensor) -> torch.Tensor:
     """Normalize spatial scores to the range [0, 1] so thresholds are comparable across methods."""
     if spatial_scores.numel() == 0:
@@ -421,12 +412,13 @@ def main():
         os.makedirs(method_output_dir, exist_ok=True)
         print(f"Processing attribution results for method: {method}")
         
-        attribution = attribution_result.attributions.detach().cpu().numpy()
+        attribution = attribution_result.attributions.detach()
+        
         if attribution.ndim == 4:
             attribution = attribution[0]
-        # sum over channels to get a single 2d map
-        attribution_map = np.sum(np.abs(attribution), axis=0)
-        plt.imshow(attribution_map, cmap="hot", interpolation="nearest")
+        
+        spatial_scores = _normalize_spatial_scores(torch.sum(torch.abs(attribution), dim=0))       
+        plt.imshow(spatial_scores.cpu(), cmap="hot", interpolation="nearest")
         plt.colorbar()
         plt.title(f"Attribution heatmap\n{method}\nModel: {model.__class__.__name__}\n Predicted class: {predicted_class_label}")
         # give title some extra height to avoid overlap with colorbar
@@ -439,7 +431,7 @@ def main():
 
         # overlay the heatmap on the transformed sample image and save it for visualization
         sample_image = sample_tensor.detach().cpu().permute(1, 2, 0).numpy()
-        heatmap = plt.get_cmap("hot")(attribution_map / np.max(attribution_map))[:, :, :3]  # get RGB values from heatmap 
+        heatmap = plt.get_cmap("hot")(spatial_scores.cpu())[:, :, :3]  # get RGB values from heatmap using the normalized map
         overlay = (0.6 * sample_image + 0.4 * heatmap).clip(0, 1)
         overlay_save_path = os.path.join(method_output_dir, f"{Path(args.pdb_file).stem}_{method}_overlay.png")
         plt.imsave(overlay_save_path, overlay)
@@ -477,7 +469,7 @@ def main():
         axs[0, 0].imshow(sample_image)
         axs[0, 0].set_title(f"Original Sample\nPredicted: {predicted_class_label}\nConfidence: {percentages[0][predicted_class].item():.2f}%")
         axs[0, 0].axis("off")
-        axs[0, 1].imshow(attribution_map, cmap="hot", interpolation="nearest")
+        axs[0, 1].imshow(spatial_scores.cpu(), cmap="hot", interpolation="nearest")
         axs[0, 1].set_title(f"Attribution Heatmap\n{method}")
         axs[0, 1].axis("off")
         axs[1, 0].imshow(overlay)
