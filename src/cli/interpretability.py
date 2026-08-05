@@ -120,7 +120,6 @@ def solve_methods(interpreter: CaptumInterpreter, args) -> dict[str, Callable]:
                 patch_size=args.occlusion_patch_size,
                 shift_size=args.occlusion_shift_size,
                 perturbations_per_eval=args.perturbations_per_eval,
-
             )
         else:
             print(f"Unknown interpretability method '{method}'. Supported methods: 'integrated_gradients', 'saliency', 'occlusion'. Skipping.")
@@ -131,34 +130,49 @@ def solve_methods(interpreter: CaptumInterpreter, args) -> dict[str, Callable]:
             n_steps=args.ig_steps,
         )
     return methods
-def blur_top_n_pixels(n: int, input_sample: torch.Tensor, attribution_result: AttributionResult) -> dict[str, torch.Tensor]:
-    # blur based on the top N attribution pixels, where N is specified by the user
-    flattened_attributions = attribution_result.attributions.detach().cpu().abs().sum(dim=0).reshape(-1)
-    top_n_indices = torch.topk(flattened_attributions, n).indices
-    mask = torch.zeros_like(flattened_attributions, dtype=torch.bool)
+
+
+def _prepare_spatial_attribution_map(attributions: torch.Tensor) -> torch.Tensor:
+    """Reduce attribution tensors to a single 2D spatial map [H, W]."""
+    if attributions.ndim == 4:
+        attributions = attributions[0]
+    if attributions.ndim != 3:
+        raise ValueError(f"Expected attribution shape [C,H,W] or [1,C,H,W], got {tuple(attributions.shape)}")
+    return attributions.detach().cpu().abs().sum(dim=0)
+
+
+def blur_top_n_pixels(n: int, input_sample: torch.Tensor, attribution_result: AttributionResult) -> torch.Tensor:
+    """Blur the top-N attribution pixels based on a 2D spatial attribution map."""
+    spatial_scores = _prepare_spatial_attribution_map(attribution_result.attributions)
+    flattened_scores = spatial_scores.reshape(-1)
+    if flattened_scores.numel() == 0:
+        return input_sample.clone()
+
+    k = max(0, min(int(n), flattened_scores.numel()))
+    if k == 0:
+        return input_sample.clone()
+
+    top_n_indices = torch.topk(flattened_scores, k).indices
+    mask = torch.zeros_like(flattened_scores, dtype=torch.bool)
     mask[top_n_indices] = True
-    mask = mask.reshape(attribution_result.attributions.shape[1:])  # reshape to [H,W]
+    mask = mask.reshape(spatial_scores.shape)
     mask = mask.to(input_sample.device)
     blurred_sample = input_sample.clone()
     blurred_sample = blurred_sample.masked_fill(mask.unsqueeze(0), 0.0)
     return blurred_sample
-            
+
+
 def blur_according_to_attribution_results(
     threshold: float,
     input_sample: torch.Tensor,
     attribution_result: AttributionResult
-) -> dict[str, torch.Tensor]:
+) -> torch.Tensor:
     """Blur the input sample according to the attribution results.
     :threshold: The attribution score threshold above which pixels will be blurred.
     :input_sample: The original input sample tensor [C,H,W].
     :attribution_result: The attribution result for the input sample.
     """
-    attributions = attribution_result.attributions
-    if attributions.ndim == 4:
-        attributions = attributions[0]
-    if attributions.ndim != 3:
-        raise ValueError(f"Expected attribution shape [C,H,W] or [1,C,H,W], got {tuple(attributions.shape)}")
-    pixel_scores = attributions.detach().cpu().abs().sum(dim=0)
+    pixel_scores = _prepare_spatial_attribution_map(attribution_result.attributions)
     mask = pixel_scores > threshold
     mask = mask.to(input_sample.device)
     blur_ratio = mask.sum().item() / mask.numel()
