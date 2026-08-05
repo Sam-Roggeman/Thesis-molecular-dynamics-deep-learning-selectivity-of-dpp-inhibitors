@@ -131,6 +131,18 @@ def solve_methods(interpreter: CaptumInterpreter, args) -> dict[str, Callable]:
             n_steps=args.ig_steps,
         )
     return methods
+def blur_top_n_pixels(n: int, input_sample: torch.Tensor, attribution_result: AttributionResult) -> dict[str, torch.Tensor]:
+    # blur based on the top N attribution pixels, where N is specified by the user
+    flattened_attributions = attribution_result.attributions.detach().cpu().abs().sum(dim=0).reshape(-1)
+    top_n_indices = torch.topk(flattened_attributions, n).indices
+    mask = torch.zeros_like(flattened_attributions, dtype=torch.bool)
+    mask[top_n_indices] = True
+    mask = mask.reshape(attribution_result.attributions.shape[1], attribution_result.attributions.shape[2])
+    mask = mask.to(input_sample.device)
+    blurred_sample = input_sample.clone()
+    blurred_sample = blurred_sample.masked_fill(mask.unsqueeze(0), 0.0)
+    return blurred_sample
+            
 def blur_according_to_attribution_results(
     threshold: float,
     input_sample: torch.Tensor,
@@ -403,17 +415,8 @@ def main():
             # validate the attribution results by blurring the pixels with an attribution score above the threshold and checking if the model's confidence in the predicted class decreases significantly
             blurred_sample = blur_according_to_attribution_results(args.threshold, sample_tensor, attribution_result)
         else:
-            # blur based on the top N attribution pixels, where N is specified by the user
-            flattened_attributions = attribution_result.attributions.detach().cpu().abs().sum(dim=0).reshape(-1)
-            top_n_indices = torch.topk(flattened_attributions, args.blur_top_n).indices
-            mask = torch.zeros_like(flattened_attributions, dtype=torch.bool)
-            mask[top_n_indices] = True
-            mask = mask.reshape(attribution_result.attributions.shape[1], attribution_result.attributions.shape[2])
-            mask = mask.to(sample_tensor.device)
-            blurred_sample = sample_tensor.clone()
-            blurred_sample = blurred_sample.masked_fill(mask.unsqueeze(0), 0.0)
-            print(f"\tBlurred top {args.blur_top_n} attribution pixels for validation.")
-            
+            blurred_sample = blur_top_n_pixels(args.blur_top_n, sample_tensor, attribution_result )
+
 
 
 
