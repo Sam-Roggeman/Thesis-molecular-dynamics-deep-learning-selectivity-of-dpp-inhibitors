@@ -137,7 +137,7 @@ def blur_top_n_pixels(n: int, input_sample: torch.Tensor, attribution_result: At
     top_n_indices = torch.topk(flattened_attributions, n).indices
     mask = torch.zeros_like(flattened_attributions, dtype=torch.bool)
     mask[top_n_indices] = True
-    mask = mask.reshape(attribution_result.attributions.shape[1], attribution_result.attributions.shape[2])
+    mask = mask.reshape(attribution_result.attributions.shape[1:])  # reshape to [H,W]
     mask = mask.to(input_sample.device)
     blurred_sample = input_sample.clone()
     blurred_sample = blurred_sample.masked_fill(mask.unsqueeze(0), 0.0)
