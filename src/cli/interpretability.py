@@ -142,24 +142,28 @@ def _prepare_spatial_attribution_map(attributions: torch.Tensor) -> torch.Tensor
 
 
 def blur_top_n_pixels(n: int, input_sample: torch.Tensor, attribution_result: AttributionResult) -> torch.Tensor:
-    """Blur the top-N attribution pixels based on a 2D spatial attribution map."""
-    spatial_scores = _prepare_spatial_attribution_map(attribution_result.attributions)
-    flattened_scores = spatial_scores.reshape(-1)
-    if flattened_scores.numel() == 0:
-        return input_sample.clone()
+    attribution = attribution_result.attributions.detach()
 
-    k = max(0, min(int(n), flattened_scores.numel()))
-    if k == 0:
-        return input_sample.clone()
+    if attribution.ndim == 4:
+        attribution = attribution[0]
+
+    # same processing as your heatmap
+    spatial_scores = torch.sum(torch.abs(attribution), dim=0)
+
+    flattened_scores = spatial_scores.reshape(-1)
+
+    k = min(int(n), flattened_scores.numel())
 
     top_n_indices = torch.topk(flattened_scores, k).indices
+
     mask = torch.zeros_like(flattened_scores, dtype=torch.bool)
     mask[top_n_indices] = True
     mask = mask.reshape(spatial_scores.shape)
-    mask = mask.to(input_sample.device)
-    blurred_sample = input_sample.clone()
-    blurred_sample = blurred_sample.masked_fill(mask.unsqueeze(0), 0.0)
-    return blurred_sample
+
+    return input_sample.clone().masked_fill(
+        mask.to(input_sample.device).unsqueeze(0),
+        0.0
+    )
 
 
 def blur_according_to_attribution_results(
@@ -172,7 +176,12 @@ def blur_according_to_attribution_results(
     :input_sample: The original input sample tensor [C,H,W].
     :attribution_result: The attribution result for the input sample.
     """
-    pixel_scores = _prepare_spatial_attribution_map(attribution_result.attributions)
+    attributions = attribution_result.attributions
+    if attributions.ndim == 4:
+        attributions = attributions[0]
+    if attributions.ndim != 3:
+        raise ValueError(f"Expected attribution shape [C,H,W] or [1,C,H,W], got {tuple(attributions.shape)}")
+    pixel_scores = attributions.detach().cpu().abs().sum(dim=0)
     mask = pixel_scores > threshold
     mask = mask.to(input_sample.device)
     blur_ratio = mask.sum().item() / mask.numel()
