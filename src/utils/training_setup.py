@@ -10,7 +10,7 @@ import sys
 from torch import optim, split
 from torch.utils.data import DataLoader
 from src.data_loading.HFDataloader import initialize_dataloaders
-from src.data_postprocessing.model_testing import model_testing
+from src.model_training.model_testing import model_testing
 from src.model_training.batch_preprocessing import prepare_model_batch
 from src.model_training.metric_functions import all_statistics
 from src.model_training.utils import _train_single_batch, get_device, get_subset, training_loop

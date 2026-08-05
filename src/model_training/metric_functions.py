@@ -3,7 +3,7 @@ from contextlib import nullcontext
 from sklearn.metrics import precision_score, recall_score, f1_score, accuracy_score, confusion_matrix
 import logging
 from src.model_training.batch_preprocessing import prepare_model_batch
-
+import numpy as np
 
 def _resolve_amp_dtype(amp_dtype):
     if isinstance(amp_dtype, torch.dtype):
@@ -42,6 +42,40 @@ def _compute_label_prediction_statistics(labels, predictions, statistics_to_comp
         stats["confusion_matrix_normalized"] = confusion_matrix(labels, predictions, normalize='true', labels=list(range(5)))
 
     return stats
+
+def calculate_fpr_multiclass(conf_matrix):
+    """
+    Calculate the False Positive Rate (FPR) for each class
+    from a multiclass confusion matrix.
+
+    Parameters
+    ----------
+    conf_matrix : np.ndarray
+        NxN confusion matrix.
+
+    Returns
+    -------
+    dict
+        Dictionary mapping each class index to its FPR.
+    """
+    n_classes = conf_matrix.shape[0]
+
+    if conf_matrix.shape[0] != conf_matrix.shape[1]:
+        raise ValueError("Confusion matrix must be square.")
+
+    total = np.sum(conf_matrix)
+    fpr = {}
+
+    for i in range(n_classes):
+        tp = conf_matrix[i, i]
+        fp = np.sum(conf_matrix[:, i]) - tp
+        fn = np.sum(conf_matrix[i, :]) - tp
+        tn = total - tp - fp - fn
+
+        fpr[i] = fp / (fp + tn) if (fp + tn) > 0 else 0.0
+    macro_fpr = np.mean(list(fpr.values()))
+
+    return macro_fpr
 
 def calculate_statistics(
     model,
@@ -130,6 +164,8 @@ def calculate_statistics(
     if "confusion_matrix" in statistics_to_compute:
         statistics["confusion_matrix"] = confusion_matrix(all_labels, all_predictions, labels=list(range(5)))
         statistics["confusion_matrix_normalized"] = confusion_matrix(all_labels, all_predictions, normalize='true', labels=list(range(5)))
+    if "fpr" in statistics_to_compute:
+        statistics["fpr"] = calculate_fpr_multiclass(statistics["confusion_matrix"])
 
     if has_dpp_class or any(len(v["labels"]) > 0 for v in dpp_class_examples.values()):
         statistics["dpp_class"] = {}

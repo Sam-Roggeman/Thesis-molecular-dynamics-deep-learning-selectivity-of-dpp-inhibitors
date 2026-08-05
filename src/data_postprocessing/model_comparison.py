@@ -9,7 +9,7 @@ import torch
 
 from src.utils.training_config import TestConfig, TrainingConfig
 from src.utils.training_setup import load_and_prepare_test
-from src.data_postprocessing.model_testing import plot_cm
+from src.model_training.model_testing import plot_cm
 from src.model_training.Metrics import Metrics
 class ModelStatistics:
     def __init__(self, model_folder, model_name, model_filename, device, criterion):

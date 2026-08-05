@@ -12,7 +12,7 @@ from src.Models.LongSequenceAtomTransformer import LongSequenceAtomTransformer
 from src.Models.OneLayer import OneLayerNet
 from src.Models.SimpleCNN import SimpleCNN
 from src.data_loading.HFDataloader import initialize_dataloaders
-from src.data_postprocessing.model_testing import model_testing
+from src.model_training.model_testing import model_testing
 from src.model_training.batch_preprocessing import prepare_model_batch, prepare_sequence_batch
 from src.utils.training_config import TrainingConfig
 from src.model_training.utils import load_model

@@ -1,4 +1,5 @@
 import argparse
+from html import parser
 import os
 from pathlib import Path
 from typing import Callable
@@ -118,6 +119,8 @@ def solve_methods(interpreter: CaptumInterpreter, args) -> dict[str, Callable]:
                 target=target,
                 patch_size=args.occlusion_patch_size,
                 shift_size=args.occlusion_shift_size,
+                perturbations_per_eval=args.perturbations_per_eval,
+
             )
         else:
             print(f"Unknown interpretability method '{method}'. Supported methods: 'integrated_gradients', 'saliency', 'occlusion'. Skipping.")
@@ -305,6 +308,8 @@ def arg_parser() -> argparse.Namespace:
     parser.add_argument("--binding_type", type=str, default=None, required=True, help="Binding type of the sample. Required for proper sample construction.", choices=["apo", "dpp8selective", "dpp9selective", "aselective", 'nonbinder'])
     parser.add_argument("--open_in_pymol", action="store_false", help="Whether to automatically open the generated colored PDBs in PyMOL after processing.")
     parser.add_argument("--threshold", type=float, default=0.2, help="High attribution threshold as a fraction of the max score for PyMOL visualization (e.g., 0.8 means atoms with scores in the top 20%% will be shown as sticks).")
+    parser.add_argument("--perturbations_per_eval", type=int, default=10)
+
     args = parser.parse_args()
     if not 0.0 <= args.threshold <= 1.0:
         parser.error("--threshold must be between 0 and 1.")
