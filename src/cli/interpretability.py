@@ -159,7 +159,8 @@ def blur_top_n_pixels(n: int, input_sample: torch.Tensor, attribution_result: At
     mask = torch.zeros_like(flattened_scores, dtype=torch.bool)
     mask[top_n_indices] = True
     mask = mask.reshape(spatial_scores.shape)
-
+    # print k and the actual number of pixels that are being blurred
+    print(f"\tBlurring top {k} pixels based on attribution scores (actual blurred pixels: {mask.sum().item()})")
     return input_sample.clone().masked_fill(
         mask.to(input_sample.device).unsqueeze(0),
         0.0
