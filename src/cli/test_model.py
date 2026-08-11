@@ -7,10 +7,10 @@ import re
 import torch
 from dotenv import load_dotenv
 load_dotenv()
-from src.Models.DCNN import CustomDenseNet
+from src.Models.DCNN import DCNN
 from src.Models.LongSequenceAtomTransformer import LongSequenceAtomTransformer
 from src.Models.OneLayer import OneLayerNet
-from src.Models.SimpleCNN import SimpleCNN
+from src.Models.SCNN import SCNN
 from src.data_loading.HFDataloader import initialize_dataloaders
 from src.model_training.model_testing import model_testing
 from src.model_training.batch_preprocessing import prepare_model_batch, prepare_sequence_batch

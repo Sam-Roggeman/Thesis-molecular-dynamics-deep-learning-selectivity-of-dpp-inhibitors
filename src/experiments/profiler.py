@@ -1,7 +1,7 @@
 from torch.profiler import profile, ProfilerActivity
 import torch
 
-from src.Models.SimpleCNN import SimpleCNN
+from src.Models.SCNN import SCNN
 from src.Transform.tranformators import apply_image_transform, apply_image_transform_noscramble
 from src.data_loading import HFDataloader
 from src.utils.training_config import TrainingConfig 
@@ -80,7 +80,7 @@ if __name__ == "__main__":
     load_dotenv()
     
     config = TrainingConfig(
-        model_class=SimpleCNN,
+        model_class=SCNN,
         model_args={
             "input_size": 168,
             "dropout_rate": 0.2

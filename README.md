@@ -30,7 +30,7 @@ pip install -r requirements.txt
 - Example: run the simple CNN experiment (uses the workspace venv or Docker task):
 
 ```bash
-python src/experiments/simplecnn.py
+python src/experiments/SCNN.py
 ```
 
 **Data**:

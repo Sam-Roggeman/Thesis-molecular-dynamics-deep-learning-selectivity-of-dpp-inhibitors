@@ -1,6 +1,6 @@
-from src.Models.SimpleCNN import SimpleCNN
+from src.Models.SCNN import SCNN
 from src.Models.OneLayer import OneLayerNet
-from src.Models.DCNN import CustomDenseNet
+from src.Models.DCNN import DCNN
 from src.Models.LongSequenceAtomTransformer import LongSequenceAtomTransformer
 from src.data_loading.HFDataloader import initialize_dataloaders
 from src.model_training.batch_preprocessing import prepare_model_batch, prepare_sequence_batch
@@ -13,9 +13,9 @@ import ast
 
 
 MODEL_REGISTRY = {
-	"SimpleCNN": SimpleCNN,
+	"SCNN": SCNN,
 	"OneLayerNet": OneLayerNet,
-	"CustomDenseNet": CustomDenseNet,
+	"DCNN": DCNN,
 	"LongSequenceAtomTransformer": LongSequenceAtomTransformer,
 }
 

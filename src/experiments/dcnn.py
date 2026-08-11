@@ -3,7 +3,7 @@ import os
 from huggingface_hub import HfApi
 
 from src.utils.training_setup import train_model
-from src.Models.DCNN import CustomDenseNet
+from src.Models.DCNN import DCNN
 from src.Transform.tranformators import apply_image_transform, apply_image_transform_noscramble
 from src.utils.training_config import TrainingConfig
 import datasets
@@ -14,7 +14,7 @@ if __name__ == "__main__":
     load_dotenv()
 
     config_dcnn = TrainingConfig(
-        model_class=CustomDenseNet,
+        model_class=DCNN,
         model_args={
             "growth_rate": 48,
             "block_config": (6, 12, 36, 24),  # 4 dense blocks with 6, 12, 36, 24 layers
@@ -34,4 +34,4 @@ if __name__ == "__main__":
         use_mixed_precision=False,  # Disable mixed precision for better stability with DenseNet
         max_nr_epochs=6,
     )
-    train_model(config_dcnn, "CustomDenseNet_Randomsplit_Dataset")
+    train_model(config_dcnn, "DCNN")

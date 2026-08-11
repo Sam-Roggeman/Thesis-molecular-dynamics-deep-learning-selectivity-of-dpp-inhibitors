@@ -11,7 +11,7 @@ import torch
 from optuna.pruners import MedianPruner
 from optuna.samplers import TPESampler
 
-from src.Models.SimpleCNN import SimpleCNN
+from src.Models.SCNN import SCNN
 from src.Transform.tranformators import apply_image_transform, apply_image_transform_noscramble
 from src.utils.training_config import TrainingConfig
 from src.utils.training_setup import train_model
@@ -121,7 +121,7 @@ def main() -> None:
         compile_model = trial.suggest_categorical("compile_model", [True, False])
 
         config = TrainingConfig(
-            model_class=SimpleCNN,
+            model_class=SCNN,
             model_args={
                 "input_size": 168,
                 "dropout_rate": dropout_rate,

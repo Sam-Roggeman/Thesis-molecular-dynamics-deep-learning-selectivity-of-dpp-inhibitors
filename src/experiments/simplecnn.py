@@ -2,13 +2,13 @@ import os
 
 from huggingface_hub import HfApi
 
-from src.Models.SimpleCNN import SimpleCNN
+from src.Models.SCNN import SCNN
 from src.utils.training_setup import train_model
 from src.Transform.tranformators import apply_image_transform, apply_image_transform_noscramble
 from src.utils.training_config import TrainingConfig
 if __name__ == "__main__":
     config_scnn = TrainingConfig(
-        model_class=SimpleCNN,
+        model_class=SCNN,
         model_args={
             "input_size": 168,
             "dropout_rate": 0.2
@@ -22,4 +22,4 @@ if __name__ == "__main__":
         max_nr_epochs=25,
     )
 
-    train_model(config_scnn, "SimpleCNN_Randomsplit_Dataset")
+    train_model(config_scnn, "SCNN")

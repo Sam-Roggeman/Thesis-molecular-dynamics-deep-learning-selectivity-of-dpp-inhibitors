@@ -5,7 +5,7 @@ import torch.nn.functional as F
 from src.Models.custom_model_template import AbstractNNModel
 
 
-class SimpleCNN(AbstractNNModel):
+class SCNN(AbstractNNModel):
     def __init__(self, input_size=168, dropout_rate=0.5):
         super().__init__()
 

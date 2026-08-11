@@ -9,10 +9,10 @@ import matplotlib.pyplot as plt
 import torch
 from dotenv import load_dotenv
 
-from src.Models.DCNN import CustomDenseNet
+from src.Models.DCNN import DCNN
 from src.Models.LongSequenceAtomTransformer import LongSequenceAtomTransformer
 from src.Models.OneLayer import OneLayerNet
-from src.Models.SimpleCNN import SimpleCNN
+from src.Models.SCNN import SCNN
 from src.data_loading.HFDataloader import initialize_dataloaders, initialize_streaming_dataloader
 from src.model_training.LabelEncoder import LabelEncoder
 from src.utils.interpretability import CaptumInterpreter
@@ -21,9 +21,9 @@ from src.utils.training_config import TrainingConfig
 
 # Registry to resolve a serialized model name back to an actual class.
 MODEL_REGISTRY = {
-    "SimpleCNN": SimpleCNN,
+    "SCNN": SCNN,
     "OneLayerNet": OneLayerNet,
-    "CustomDenseNet": CustomDenseNet,
+    "DCNN": DCNN,
     "LongSequenceAtomTransformer": LongSequenceAtomTransformer,
 }
 

@@ -63,11 +63,11 @@ class _Transition(nn.Module):
         return out
 
 
-class CustomDenseNet(AbstractNNModel):
+class DCNN(AbstractNNModel):
     def __init__(self, growth_rate=48, block_config=(6, 12, 36, 24),
                  num_init_features=96, reduction_ratio=0.5, num_classes=5, bn_size=4,
                  dropout_rate=0.5, feature_dropout_rate=0, transition_dropout_rate=0):
-        super(CustomDenseNet, self).__init__()
+        super(DCNN, self).__init__()
 
         # Initial convolution
         self.features = nn.Sequential(
@@ -129,7 +129,7 @@ class CustomDenseNet(AbstractNNModel):
 
 # Create the model with your specified parameters
 def create_custom_densenet(num_classes=5):
-    model = CustomDenseNet(
+    model = DCNN(
         growth_rate=48,
         block_config=(6, 12, 36, 24),  # 4 dense blocks with 6, 12, 36, 24 layers
         num_init_features=96,  # 96 initial filters
