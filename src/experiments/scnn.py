@@ -20,6 +20,7 @@ if __name__ == "__main__":
         time_limit=24 * 60 * 60,  # 24 hours
         use_mixed_precision=False,  # Disable mixed precision for better stability with DenseNet
         max_nr_epochs=25,
+        dataset_size=1.0,  # Use the full dataset
     )
 
     train_model(config_scnn, "SCNN")
