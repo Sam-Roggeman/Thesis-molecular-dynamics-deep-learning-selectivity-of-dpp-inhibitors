@@ -16,7 +16,7 @@ if __name__ == "__main__":
         dataset_location="Sam-Roggeman/SamRoggeman_Thesis_Dataset_full",
         training_transform=apply_image_transform,
         validation_transform=apply_image_transform_noscramble,
-        batch_size=128*8,
+        batch_size=16384,
         time_limit=24 * 60 * 60,  # 24 hours
         use_mixed_precision=False,  # Disable mixed precision for better stability with DenseNet
         max_nr_epochs=100,
