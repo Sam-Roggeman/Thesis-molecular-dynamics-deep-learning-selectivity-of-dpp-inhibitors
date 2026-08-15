@@ -21,6 +21,7 @@ if __name__ == "__main__":
         use_mixed_precision=False,  # Disable mixed precision for better stability with DenseNet
         max_nr_epochs=100,
         dataset_size=1.0,  # Use the full dataset
+        learning_rate = 1e-3,
     )
 
     train_model(config_scnn, "SCNN")
