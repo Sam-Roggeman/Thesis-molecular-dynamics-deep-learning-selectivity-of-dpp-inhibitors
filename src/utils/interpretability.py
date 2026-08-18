@@ -136,10 +136,10 @@ class CaptumInterpreter:
         ablator = Occlusion(self.model)
         with torch.enable_grad():
             outputs = self.model(inputs)
-            resolved_target = self._resolve_target(outputs, target)
-            # Computes occlusion attribution, ablating each patch_size x patch_size patch
-            # shifting in each direction by the default of 1.
-            attributions = ablator.attribute(inputs, target=resolved_target, sliding_window_shapes=(1, patch_size, patch_size), strides=(1, shift_size, shift_size), perturbations_per_eval=perturbations_per_eval)
+        resolved_target = self._resolve_target(outputs, target)
+        # Computes occlusion attribution, ablating each patch_size x patch_size patch
+        # shifting in each direction by the default of 1.
+        attributions = ablator.attribute(inputs, target=resolved_target, sliding_window_shapes=(1, patch_size, patch_size), strides=(1, shift_size, shift_size), perturbations_per_eval=perturbations_per_eval)
         return AttributionResult(
             attributions=attributions,
             method="occlusion",

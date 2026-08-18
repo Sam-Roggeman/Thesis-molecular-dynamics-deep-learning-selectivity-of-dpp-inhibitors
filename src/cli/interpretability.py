@@ -215,10 +215,12 @@ def generate_interpretability_attribution(
     """
     attributions_results: dict[str, AttributionResult] = {}
 
-    sample_batch = sample.unsqueeze(0).to(device).clone().detach().requires_grad_(True)
+    sample_batch = sample.unsqueeze(0).to(device).clone().detach()
     target_idx = int(predicted_class.item())  # batch size is 1
 
     for method, method_fn in methods.items():
+        if method != "occlusion":
+            sample_batch.requires_grad_(True)
         print(f"Generating interpretability insights using method: {method}")
         attributions = method_fn(inputs=sample_batch, target=target_idx)
         attributions_results[method] = attributions
@@ -385,7 +387,8 @@ def execute_interpretability(pdb_file=None, pdb_directory=None, output_dir=None,
     :param output_dir: Directory where interpretability results will be saved. Defaults to "./interpretability_results".
     """
     start_time = time.time()
-
+    torch.backends.cuda.matmul.allow_tf32 = True
+    torch.backends.cudnn.allow_tf32 = True
     # determine whether to blur based on threshold or top n pixels
     blur_based_on_threshold = True 
     if blur_top_n is not None and blur_top_n != 0:
