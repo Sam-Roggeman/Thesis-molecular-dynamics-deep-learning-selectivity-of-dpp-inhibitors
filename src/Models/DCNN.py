@@ -2,7 +2,6 @@ from src.Models.custom_model_template import AbstractNNModel
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-
 class _DenseLayer(nn.Module):
     def __init__(self, num_input_features, growth_rate, bn_size=4, dropout_rate=0.2):
         super(_DenseLayer, self).__init__()
@@ -139,3 +138,4 @@ def create_custom_densenet(num_classes=5):
     )
     return model
 
+CustomDenseNet = DCNN

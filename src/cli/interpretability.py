@@ -62,30 +62,35 @@ def apply_classification(sample: torch.Tensor, model: torch.nn.Module, device: t
         predicted_class = torch.argmax(logits, dim=1)
     return logits, predicted_class
 
-def solve_methods(interpreter: CaptumInterpreter, args) -> dict[str, Callable]:
+def solve_methods(interpreter: CaptumInterpreter, method_args) -> dict[str, Callable]:
     """
     Resolve a method string to the corresponding interpretability method.
     :param method_str: String identifier for the interpretability method (e.g., "integrated_gradients").
     :return: Corresponding interpretability method object.
     """
     methods = {}
-    for method in args.methods:
+    for method, args in method_args.items():
         if method == "integrated_gradients":
+            n_steps = args["steps"]
             # keep argparse-driven parameters configurable per run
             methods[method] = lambda inputs, target: interpreter.integrated_gradients(
                 inputs,
                 target=target,
-                n_steps=args.ig_steps,
+                n_steps=n_steps,
             )
         elif method == "saliency":
             methods[method] = lambda inputs, target: interpreter.saliency(inputs, target=target)
         elif method == "occlusion":
+            patch_size = args["patch_size"]
+            shift_size = args["shift_size"]
+            perturbations_per_eval = args["perturbations_per_eval"]
             methods[method] = lambda inputs, target: interpreter.occlusion(
                 inputs,
                 target=target,
-                patch_size=args.occlusion_patch_size,
-                shift_size=args.occlusion_shift_size,
-                perturbations_per_eval=args.perturbations_per_eval,
+                patch_size=patch_size,
+                shift_size=shift_size,
+                perturbations_per_eval=perturbations_per_eval,
+                
             )
         else:
             print(f"Unknown interpretability method '{method}'. Supported methods: 'integrated_gradients', 'saliency', 'occlusion'. Skipping.")
@@ -93,7 +98,7 @@ def solve_methods(interpreter: CaptumInterpreter, args) -> dict[str, Callable]:
         methods["integrated_gradients"] = lambda inputs, target: interpreter.integrated_gradients(
             inputs,
             target=target,
-            n_steps=args.ig_steps,
+            n_steps=method_args.ig_steps,
         )
     return methods
 
@@ -372,37 +377,36 @@ def probablity_string(percentages: torch.Tensor, class_labels: list[str]) -> str
         prob_string += f"\tClass '{class_name}': {percentage.item():.2f}%\n"
     return prob_string
 
-
-
-def main():
+def execute_interpretability(pdb_file=None, pdb_directory=None, output_dir=None,binding_type=None, blur_top_n=None, model_checkpoint=None, method_args=None, threshold=None):
     """
     CLI entry point for interpretability tools.
     :param pdb_file: path to a PDB file for generating interpretability insights. If provided, the tool will process the file, feed it into the interpretability model, and output the insights. 
     :param output_dir: Directory where interpretability results will be saved. Defaults to "./interpretability_results".
     """
-    # parse command-line arguments
-    args = arg_parser()
+
     # determine whether to blur based on threshold or top n pixels
-    blur_based_on_threshold = args.blur_top_n == 0
+    blur_based_on_threshold = True 
+    if blur_top_n is not None and blur_top_n != 0:
+        blur_based_on_threshold = False 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     class_labels= LabelEncoder().get_classes()
     # load the trained classification model from the provided checkpoint    
-    model = _initilize_classification_model(args.model_checkpoint, device=device)
-    methods = solve_methods(CaptumInterpreter(model), args)
+    model = _initilize_classification_model(model_checkpoint, device=device)
+    methods = solve_methods(CaptumInterpreter(model), method_args=method_args)
 
     # create output directory if it doesn't exist
-    os.makedirs(args.output_dir, exist_ok=True)
+    os.makedirs(output_dir, exist_ok=True)
 
     # process the provided PDB file and generate interpretability insights
     # if args.pdb_directory is provided, we can extend this to process all PDB files in the directory in a loop
-    if args.pdb_file:
-        print(f"Processing PDB file: {args.pdb_file}")
-        samples = [extract_pdb_file(args.pdb_file, binding_type=args.binding_type)]
-    elif args.pdb_directory:
-        print(f"Processing PDB files in directory: {args.pdb_directory}")
-        samples = extract_pdb_files_from_directory(args.pdb_directory, binding_type=args.binding_type)
+    if pdb_file:
+        print(f"Processing PDB file: {pdb_file}")
+        samples = [extract_pdb_file(pdb_file, binding_type=binding_type)]
+    elif pdb_directory:
+        print(f"Processing PDB files in directory: {pdb_directory}")
+        samples = extract_pdb_files_from_directory(pdb_directory, binding_type=binding_type)
 
-    image_dir = os.path.join(args.output_dir, "images")
+    image_dir = os.path.join(output_dir, "images")
     os.makedirs(image_dir, exist_ok=True)
 
     samples_tensor, true_labels = apply_transformations_to_samples(samples)
@@ -422,7 +426,7 @@ def main():
         percentages = torch.nn.functional.softmax(logits, dim=1) * 100
         prob_string = sample_prefix + ": " + probablity_string(percentages, class_labels)
         print(prob_string)
-        print(prob_string, file=open(os.path.join(args.output_dir, "classification_probabilities.txt"), "a"))
+        print(prob_string, file=open(os.path.join(output_dir, "classification_probabilities.txt"), "a"))
         print(f"Predicted class: {predicted_class}")
         sample_insights: dict[str, AttributionResult] = generate_interpretability_attribution(methods, predicted_class, sample_tensor, device=device)
         predicted_class_label = class_labels[predicted_class]  # convert from tensor -> int (class label index) -> label name
@@ -473,9 +477,9 @@ def main():
 
             if blur_based_on_threshold:
                 # validate the attribution results by blurring the pixels with an attribution score above the threshold and checking if the model's confidence in the predicted class decreases significantly
-                blurred_sample = blur_according_to_attribution_results(args.threshold, sample_tensor, attribution)
+                blurred_sample = blur_according_to_attribution_results(threshold, sample_tensor, attribution)
             else:
-                blurred_sample = blur_top_n_pixels(args.blur_top_n, sample_tensor, attribution )
+                blurred_sample = blur_top_n_pixels(blur_top_n, sample_tensor, attribution )
 
 
 
@@ -523,7 +527,7 @@ def main():
             print(f"\tSaved comparison plot for {method} to {comparison_save_path}")
             pdb_filepath = sample["pdb_id"]
             if args.pdb_directory:
-                pdb_filepath = os.path.join(args.pdb_directory, f"{sample['pdb_id']}.pdb")
+                pdb_filepath = os.path.join(pdb_directory, f"{sample['pdb_id']}.pdb")
             colored_pdb_path = save_attribution_colored_pdbs(
                 pdb_file=pdb_filepath,
                 output_dir=image_dir,
@@ -532,11 +536,34 @@ def main():
                 method=method
             )
             script_path = Path.joinpath(Path(colored_pdb_path).parent, f"{Path(colored_pdb_path).stem}.pml")
-            write_coloring_script([colored_pdb_path], script_path, threshold=args.threshold)
+            write_coloring_script([colored_pdb_path], script_path, threshold=threshold)
         blur_accuracy = blurred_correct_predictions / len(insight) * 100
         print(f"\nBlur validation for method '{method}': {blurred_correct_predictions}/{len(insight)} samples ({blur_accuracy:.2f}%) retained the same predicted class after blurring high-attribution pixels.")
-    print(f"Interpretability analysis completed. Results saved to: {args.output_dir}")
+    print(f"Interpretability analysis completed. Results saved to: {output_dir}")
 
+def main():
+    # parse command-line arguments
+    args = arg_parser()
+    method_args = {
+        "integrated_gradients":{"steps": args.ig_steps},
+        "occlusion": {
+            "patch_size": args.occlusion_patch_size,
+            "perturbations_per_eval": args.perturbations_per_eval,
+            "shift_size": args.occlusion_shift_size
+        }, 
+        "saliency": {}
+    }
+
+    execute_interpretability(
+        pdb_file=args.pdb_file, 
+        pdb_directory=args.pdb_directory, 
+        output_dir= args.output_dir,
+        binding_type= args.binding_type, 
+        blur_top_n=args.blur_top_n,
+        model_checkpoint=args.model_checkpoint, 
+        method_args=method_args, 
+        threshold=args.threshold
+    )
 
 if __name__ == "__main__":    
     main()

@@ -1,0 +1,30 @@
+Example command:
+	(Sam_Modelinterpretability) stijn@quantum:~/Sam_ModelVisualisation/Thesis-molecular_dynamics_trajectory_embeddings$ 
+		python3 -m src.cli.interpretability --pdb_file ../input_frames/frame_0.pdb --output_dir ../output_frames/ --methods occlusion --binding_type nonbinder --model_checkpoint ../Models/SimpleCNN/SimpleCNN_Randomsplit_Dataset.pth --threshold 0.4
+
+Documentation
+	
+usage: interpretability.py [-h] --pdb_file PDB_FILE [--output_dir OUTPUT_DIR] --model_checkpoint MODEL_CHECKPOINT [--methods METHODS [METHODS ...]] [--ig_steps IG_STEPS] [--occlusion_patch_size OCCLUSION_PATCH_SIZE] [--occlusion_shift_size OCCLUSION_SHIFT_SIZE]
+                           --binding_type {apo,dpp8selective,dpp9selective,aselective,nonbinder} [--open-in-pymol] [--threshold THRESHOLD]
+
+CLI for interpretability tools
+
+options:
+  -h, --help            show this help message and exit
+  --pdb_file PDB_FILE   Path to a PDB file for generating interpretability insights
+  --output_dir OUTPUT_DIR
+                        Directory to save interpretability results, defaults to 'interpretability_results' next to the pdb file if not provided
+  --model_checkpoint MODEL_CHECKPOINT
+                        Path to the trained model checkpoint for interpretability analysis
+  --methods METHODS [METHODS ...]
+                        List of interpretability methods to apply (e.g., 'integrated_gradients', 'saliency', 'gradient_shap').
+  --ig_steps IG_STEPS   Number of steps for Integrated Gradients approximation.
+  --occlusion_patch_size OCCLUSION_PATCH_SIZE (Default 1 -> 1x1)
+                        Patch size for occlusion attribution.
+  --occlusion_shift_size OCCLUSION_SHIFT_SIZE (Default 1)
+                        Shift size for occlusion attribution.
+  --binding_type {apo,dpp8selective,dpp9selective,aselective,nonbinder}
+                        Binding type of the sample. Required for proper sample construction.
+  --open-in-pymol       Whether to automatically open the generated colored PDBs in PyMOL after processing. (Default False)
+  --threshold THRESHOLD
+                        High attribution threshold as a fraction of the max score for PyMOL visualization (e.g., 0.8 means atoms with scores in the top 20% will be shown as sticks).

@@ -10,6 +10,7 @@ from torch.nn import CrossEntropyLoss
 
 from src.Transform.tranformators import apply_image_transform, apply_image_transform_noscramble
 
+
 def calculate_num_cpus():
     """Calculate the number of CPUs to use based on environment variable or default"""
     # in python vs code debug mode, use 1 CPU to avoid issues with multiprocessing and easier debugging
