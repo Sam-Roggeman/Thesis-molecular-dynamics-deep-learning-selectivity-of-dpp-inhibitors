@@ -10,7 +10,7 @@ def main():
         "integrated_gradients":{"steps": 50},
         "occlusion": {
             "patch_size": 1,
-            "perturbations_per_eval": 5000,
+            "perturbations_per_eval": 2500,
             "shift_size": 1
         }, 
         "saliency": {}
@@ -36,8 +36,8 @@ def main():
                                 start_time = time.time()
                                 for model_name, checkpoint in model_checkpoints.items():
                                     output_dir = Path(root_output_directory, dpp, ligand, replica, model_name)
-                                    if output_dir.exists():
-                                        continue
+                                    # if output_dir.exists():
+                                    #     continue
                                     execute_interpretability(
                                         pdb_directory=replica_dir, 
                                         output_dir= output_dir,
