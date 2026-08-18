@@ -17,6 +17,7 @@ from src.utils.resolvers import (
     _load_weights,
     _resolve_model_class,
 )
+import time
 
 
 
@@ -383,6 +384,7 @@ def execute_interpretability(pdb_file=None, pdb_directory=None, output_dir=None,
     :param pdb_file: path to a PDB file for generating interpretability insights. If provided, the tool will process the file, feed it into the interpretability model, and output the insights. 
     :param output_dir: Directory where interpretability results will be saved. Defaults to "./interpretability_results".
     """
+    start_time = time.time()
 
     # determine whether to blur based on threshold or top n pixels
     blur_based_on_threshold = True 
@@ -391,9 +393,12 @@ def execute_interpretability(pdb_file=None, pdb_directory=None, output_dir=None,
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     class_labels= LabelEncoder().get_classes()
     # load the trained classification model from the provided checkpoint    
+
     model = _initilize_classification_model(model_checkpoint, device=device)
     methods = solve_methods(CaptumInterpreter(model), method_args=method_args)
-
+    delta_time = time.time() - start_time
+    start_time = time.time()
+    print(f"loading methods and models: {delta_time}")
     # create output directory if it doesn't exist
     os.makedirs(output_dir, exist_ok=True)
 
@@ -410,6 +415,9 @@ def execute_interpretability(pdb_file=None, pdb_directory=None, output_dir=None,
     os.makedirs(image_dir, exist_ok=True)
 
     samples_tensor, true_labels = apply_transformations_to_samples(samples)
+    delta_time = time.time() - start_time
+    start_time = time.time()
+    print(f"transforming samples: {delta_time}")
     insights = {method: {} for method in methods.keys()}
     print(f"Transformed sample tensor shape: {samples_tensor.shape}, true label: {class_labels[true_labels[0]]}")
     for i, sample_tensor in enumerate(samples_tensor):
@@ -433,6 +441,12 @@ def execute_interpretability(pdb_file=None, pdb_directory=None, output_dir=None,
 
         for method, attribution_result in sample_insights.items():
             insights[method][sample["pdb_id"]] = attribution_result
+        delta_time = time.time() - start_time
+        start_time = time.time()
+        print(f"generating attribution for one frame: {delta_time}")
+    delta_time = time.time() - start_time
+    start_time = time.time()
+    print(f"generating attribution: {delta_time}")
     # insights = {method -> {pdb_id -> AttributionResult}}
     for method, insight in insights.items():
         # take the average of the attribution scores across all samples for this method
@@ -539,6 +553,9 @@ def execute_interpretability(pdb_file=None, pdb_directory=None, output_dir=None,
             write_coloring_script([colored_pdb_path], script_path, threshold=threshold)
         blur_accuracy = blurred_correct_predictions / len(insight) * 100
         print(f"\nBlur validation for method '{method}': {blurred_correct_predictions}/{len(insight)} samples ({blur_accuracy:.2f}%) retained the same predicted class after blurring high-attribution pixels.")
+    delta_time = time.time() - start_time
+    start_time = time.time()
+    print(f"processing insights: {delta_time}")
     print(f"Interpretability analysis completed. Results saved to: {output_dir}")
 
 def main():
