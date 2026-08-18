@@ -3,7 +3,7 @@ from src.cli.interpretability import execute_interpretability
 from src.utils.utils import ligant_to_class
 
 def main():
-    root_directory = Path("project_antwerp/dataset/decompressed_both_datasets/")
+    root_directory = Path("/project_antwerp/dataset/decompressed_both_datasets/")
     root_output_directory = Path("/project_antwerp/dataset/decompressed_both_datasets/output/")
     threshold = 0.5
     method_args = {
