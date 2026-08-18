@@ -71,7 +71,8 @@ def worker(gpu_id, job_queue):
     # Import CUDA-dependent code only after CUDA_VISIBLE_DEVICES is set
     # if your imports initialize CUDA.
     torch.cuda.set_device(0)
-
+    model=None
+    methods=None
     while True:
         job = job_queue.get()
 
