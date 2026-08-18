@@ -46,7 +46,7 @@ def main():
                                         method_args=method_args, 
                                         threshold=threshold
                                     )
-                                    print(f"time per replica: {time.time-start_time}")
+                                print(f"time per replica: {time.time()-start_time}")
 
 if __name__ == "__main__":    
     main()
