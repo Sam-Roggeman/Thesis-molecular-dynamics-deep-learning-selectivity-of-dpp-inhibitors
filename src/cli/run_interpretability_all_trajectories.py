@@ -50,9 +50,9 @@ def already_completed(output_dir: Path) -> bool:
     :param output_dir: Directory where interpretability results are expected to be saved.
     :return: True if the results already exist, False otherwise.
     """
-    # already completed if the images subfolder contains 148 images
+    # already completed if the images subfolder contains 148 files
     images_dir = output_dir / "images"
-    if images_dir.exists() and len(list(images_dir.glob("*.png"))) >= 148:
+    if images_dir.exists() and len(list(images_dir.glob("*"))) >= 148:
         return True
     
     return False
