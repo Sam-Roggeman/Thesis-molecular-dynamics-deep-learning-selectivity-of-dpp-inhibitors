@@ -33,11 +33,11 @@ def main():
                         replica = replica_dir.stem
                         # replica 
                         if replica_dir.is_dir(): 
+                                start_time = time.time()
                                 for model_name, checkpoint in model_checkpoints.items():
                                     output_dir = Path(root_output_directory, dpp, ligand, replica, model_name)
                                     if output_dir.exists():
                                         continue
-                                    start_time = time.time()
                                     execute_interpretability(
                                         pdb_directory=replica_dir, 
                                         output_dir= output_dir,
