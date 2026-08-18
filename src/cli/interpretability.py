@@ -6,9 +6,9 @@ from typing import Callable
 import matplotlib.pyplot as plt
 import torch
 import numpy as np
-from src.data_preprocessing.utils import extract_coordinates
+from src.data_preprocessing.utils import extract_pdb_file, extract_pdb_files_from_directory
 from src.model_training.LabelEncoder import LabelEncoder
-from src.model_training.batch_preprocessing import _coords_to_rgb, _coords_to_rgb, _coords_to_tensor, prepare_model_batch
+from src.model_training.batch_preprocessing import _coords_to_rgb, _coords_to_tensor, prepare_model_batch
 from src.utils.interpretability import AttributionResult, CaptumInterpreter
 from src.utils.resolvers import (
     _extract_class_name,
@@ -19,68 +19,34 @@ from src.utils.resolvers import (
 )
 
 
-def extract_pdb_file(pdb_file: str, ligand_name: str|None = None, binding_type: str|None = None, dpp_class: str|None = None, replica_id: int|None = None) -> dict:
-    """
-    Generate the preprocessed data sample from a PDB file.
-    Preprocess the PDB file and extract relevant features
-    :param pdb_file: Path to the PDB file to be processed.
-    :param ligand_name: Name of the ligand. Optional
-    :param binding_type: Type of binding. Optional
-    :param dpp_class: DPP class. Optional
-    :param replica_id: ID of the replica. Optional
-    :return: Preprocessed data sample ready for interpretability analysis. 
-    This is a sample containing {'coordinates': list, 'binding_type': str, 'dpp_class': str, 'ligand_name': str, 'replica_id': int, num_atoms: int}
-    """
-    with open(pdb_file, 'rb') as f:
-        pdb_id = Path(pdb_file).stem
-        coords = extract_coordinates(f, pdb_id)
 
-    return {
-        'coordinates': coords,
-        'binding_type': binding_type,
-        'dpp_class': dpp_class,
-        'ligand_name': ligand_name,
-        'replica_id': replica_id,
-        'num_atoms': len(coords)
-    }
 
-def apply_transformations_to_sample(sample: dict) -> dict:
+def apply_transformations_to_samples(samples: list) -> tuple[torch.Tensor, torch.Tensor]:
     """
-    Apply transformations to the preprocessed data sample.
-    :param sample: Preprocessed data sample.
-    :return: Transformed data as a tensor.
+    Apply transformations to the preprocessed data samples.
+    :param samples: List of preprocessed data samples.
+    :return: Transformed data as a tensor [B, C, H, W] and the corresponding true labels as a tensor [B].
     """
     # the transformations should be the same as those applied during training, except for any random scrambling or augmentations that would make the sample non-deterministic
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    # Start with an empty tensor to hold the coordinates of all samples
+    coords_list = []
+    labels_list = []
+    for sample in samples:
+        # grab tensor of coordinates
+        coords = torch.tensor(sample["coordinates"], dtype=torch.float32)  # shape [num_atoms, 3]
+        coords_tensor = _coords_to_tensor([coords], device) 
+        num_atoms_tensor = torch.tensor([sample["num_atoms"]], dtype=torch.int32, device=device)
+        coords_tensor = _coords_to_rgb(coords_tensor, num_atoms=num_atoms_tensor)  # convert coordinates to RGB format expected by the model
+        label = LabelEncoder().encode_label(sample["binding_type"])
+
+        coords_list.append(coords_tensor[0])
+        labels_list.append(label)
+    # Stack the list of tensors into a single tensor for batch processing
+    coords_tensor = torch.stack(coords_list, dim=0)  # shape [B, C, H, W]
+    label = torch.tensor(labels_list, dtype=torch.long, device=device)  # shape [B]
+    return coords_tensor, label
     
-    # grab tensor of coordinates
-    coords = torch.tensor(sample["coordinates"], dtype=torch.float32)  # shape [num_atoms, 3]
-    coords_tensor = _coords_to_tensor([coords], device) 
-    num_atoms_tensor = torch.tensor([sample["num_atoms"]], dtype=torch.int32, device=device)
-    coords_tensor = _coords_to_rgb(coords_tensor, num_atoms=num_atoms_tensor)  # convert coordinates to RGB format expected by the model
-    label = LabelEncoder().encode_label(sample["binding_type"])
-    # remove any batch dimension if present, since we're processing one sample at a time for interpretability
-    return coords_tensor[0], label
-    
-
-def _extract_data_tensor(transformed_sample: dict) -> torch.Tensor:
-    """Extract one sample tensor [C,H,W] from transform output dict."""
-    data = transformed_sample["data"]
-
-    if isinstance(data, list):
-        if len(data) == 0:
-            raise ValueError("Transformed data list is empty.")
-        sample_tensor = torch.as_tensor(data[0], dtype=torch.float32)
-    else:
-        sample_tensor = torch.as_tensor(data, dtype=torch.float32)
-        if sample_tensor.ndim == 4:
-            sample_tensor = sample_tensor[0]
-
-    if sample_tensor.ndim != 3:
-        raise ValueError(f"Expected transformed sample shape [C,H,W], got {tuple(sample_tensor.shape)}")
-    return sample_tensor
-
-
 def apply_classification(sample: torch.Tensor, model: torch.nn.Module, device: torch.device) -> tuple[torch.Tensor, torch.Tensor]:
     """
     Apply the trained classification model to the transformed sample.
@@ -142,13 +108,54 @@ def _normalize_spatial_scores(spatial_scores: torch.Tensor) -> torch.Tensor:
     return spatial_scores / max_score
 
 
-def blur_top_n_pixels(n: int, input_sample: torch.Tensor, attribution_result: AttributionResult) -> torch.Tensor:
-    attribution = attribution_result.attributions.detach()
+def remove_batch_dimension(attributions: torch.Tensor) -> torch.Tensor:
+    """Remove the batch dimension from attributions if present."""
+    if attributions.ndim == 4:
+        return attributions[0]
+    elif attributions.ndim == 3:
+        return attributions
+    else:
+        raise ValueError(f"Expected attribution shape [C,H,W] or [1,C,H,W], got {tuple(attributions.shape)}")
 
-    if attribution.ndim == 4:
-        attribution = attribution[0]
+def calculate_spacial_scores(attribution: torch.Tensor) -> torch.Tensor:
+    """Calculate spatial scores from the attribution result.
+    :attribution: The attribution tensor for the input sample.
+    :return: Normalized spatial scores tensor [H,W].
+    """
+    spatial_scores = _normalize_spatial_scores(attribution.detach().float().abs().sum(dim=0))
+    return spatial_scores
 
-    spatial_scores = _normalize_spatial_scores(torch.sum(torch.abs(attribution), dim=0))
+def apply_mask_to_input(input_sample: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
+    """
+    Apply a binary mask to the input sample, setting masked pixels to zero.
+    Args:
+        input_sample (torch.Tensor): The input sample tensor [C,H,W] or [1,C,H,W].
+        mask (torch.Tensor): A binary mask tensor [H,W] where True indicates pixels to be masked.
+
+    Returns:
+        torch.Tensor: The masked input sample tensor [C,H,W].
+    """
+    if mask.ndim != 2:
+        raise ValueError(f"Expected mask shape [H,W], got {tuple(mask.shape)}")
+    if input_sample.ndim == 4:
+        input_sample = input_sample[0]
+    elif input_sample.ndim != 3:
+        raise ValueError(f"Expected input sample shape [C,H,W] or [1,C,H,W], got {tuple(input_sample.shape)}")
+
+    return input_sample.clone().masked_fill(mask.to(input_sample.device).unsqueeze(0), 0.0)
+
+def blur_top_n_pixels(n: int, input_sample: torch.Tensor, attribution: torch.Tensor) -> torch.Tensor:
+    """
+    Blur the top n pixels in the input sample based on the attribution scores.
+    Args:
+        n (int): Number of top pixels to blur.
+        input_sample (torch.Tensor): The input sample tensor [C,H,W] or [1,C,H,W].
+        attribution (torch.Tensor): The attribution tensor for the input sample.
+
+    Returns:
+        torch.Tensor: The blurred input sample tensor [C,H,W].
+    """
+    spatial_scores = calculate_spacial_scores(attribution)
     flattened_scores = spatial_scores.reshape(-1)
 
     k = min(int(n), flattened_scores.numel())
@@ -161,36 +168,29 @@ def blur_top_n_pixels(n: int, input_sample: torch.Tensor, attribution_result: At
     mask[top_n_indices] = True
     mask = mask.reshape(spatial_scores.shape)
     print(f"\tBlurring top {k} pixels based on normalized attribution scores (actual blurred pixels: {mask.sum().item()})")
-    return input_sample.clone().masked_fill(
-        mask.to(input_sample.device).unsqueeze(0),
-        0.0
-    )
+    return apply_mask_to_input(input_sample, mask)
 
 
 def blur_according_to_attribution_results(
     threshold: float,
     input_sample: torch.Tensor,
-    attribution_result: AttributionResult
+    attribution: torch.Tensor
 ) -> torch.Tensor:
     """Blur the input sample according to the attribution results.
     :threshold: The attribution score threshold above which pixels will be blurred.
     :input_sample: The original input sample tensor [C,H,W].
-    :attribution_result: The attribution result for the input sample.
+    :attribution: The attribution tensor for the input sample.
     """
-    attributions = attribution_result.attributions
-    if attributions.ndim == 4:
-        attributions = attributions[0]
-    if attributions.ndim != 3:
-        raise ValueError(f"Expected attribution shape [C,H,W] or [1,C,H,W], got {tuple(attributions.shape)}")
-    pixel_scores = _normalize_spatial_scores(attributions.detach().float().abs().sum(dim=0))
-    mask = pixel_scores > threshold
+    spatial_scores = calculate_spacial_scores(attribution)
+    mask = spatial_scores > threshold
     mask = mask.to(input_sample.device)
+
     blur_ratio = mask.sum().item() / mask.numel()
     print(f"\tBlur ratio (fraction of pixels above threshold {threshold}): {blur_ratio:.4f}")
     if blur_ratio > 0.5:
         print(f"\tWarning: More than 50% of pixels are above the threshold {threshold}. Consider adjusting the threshold for meaningful validation.")
     blurred_sample = input_sample.clone()
-    blurred_sample = blurred_sample.masked_fill(mask.unsqueeze(0), 0.0)
+    blurred_sample = apply_mask_to_input(blurred_sample, mask)
     return blurred_sample
 
 
@@ -222,11 +222,6 @@ def generate_interpretability_attribution(
 
 def _attribution_to_atom_scores(attributions: torch.Tensor, num_atoms: int) -> torch.Tensor:
     """Map attribution tensor back to first num_atoms entries of flattened 2D grid."""
-    if attributions.ndim == 4:
-        attributions = attributions[0]
-    if attributions.ndim != 3:
-        raise ValueError(f"Expected attribution shape [C,H,W] or [1,C,H,W], got {tuple(attributions.shape)}")
-
     # Aggregate channel-wise magnitude so each flattened pixel maps to one scalar score.
     pixel_scores = attributions.detach().cpu().abs().sum(dim=0).reshape(-1)
     if num_atoms > pixel_scores.numel():
@@ -279,12 +274,12 @@ def _write_bfactor_colored_pdb(pdb_file: str, output_path: str, atom_scores: tor
 def save_attribution_colored_pdbs(
     pdb_file: str,
     output_dir: str,
-    attribution_result: AttributionResult,
+    attribution: torch.Tensor,
     num_atoms: int,
     method: int
 ) -> list[str]:
     """Create one PDB per attribution method with atom scores stored in B-factor."""
-    atom_scores = _attribution_to_atom_scores(attribution_result.attributions, num_atoms)
+    atom_scores = _attribution_to_atom_scores(attribution, num_atoms)
     atom_scores = _normalize_scores(atom_scores)
     # the most important atoms will have a B-factor of 100, the least important will have a B-factor of 0, and the others will be scaled in between
     # this allows for easy visualization in PyMOL using a spectrum from gray (0) to red (100)
@@ -334,7 +329,8 @@ def write_coloring_script(colored_pdb_paths: list[str], script_path: str, thresh
 
 def arg_parser() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="CLI for interpretability tools")
-    parser.add_argument("--pdb_file", type=str, help="Path to a PDB file for generating interpretability insights", required=True)
+    parser.add_argument("--pdb_file", type=str, help="Path to a PDB file for generating interpretability insights")
+    parser.add_argument("--pdb_directory", type=str, default=None, help="Path to a directory containing multiple PDB files for batch interpretability analysis. If provided, the tool will process all PDB files in the directory.")
     parser.add_argument("--output_dir", type=str, help="Directory to save interpretability results, defaults to 'interpretability_results' next to the pdb file if not provided")
     parser.add_argument("--model_checkpoint", type=str, help="Path to the trained model checkpoint for interpretability analysis", required=True)
     parser.add_argument("--methods", nargs="+", default=["integrated_gradients"], help="List of interpretability methods to apply (e.g., 'integrated_gradients', 'saliency', 'occlusion').")
@@ -348,16 +344,21 @@ def arg_parser() -> argparse.Namespace:
     parser.add_argument("--blur_top_n", type=int, default=0, help="Number of top attribution pixels to blur for validation. If 0, no blurring based on threshhold is performed.")
     parser.add_argument("--threshold", type=float, default=1.0, help="High attribution threshold as a fraction of the max score for PyMOL visualization (e.g., 0.8 means atoms with scores in the top 20%% will be shown as sticks).")
 
-
     args = parser.parse_args()
     if not 0.0 <= args.threshold <= 1.0:
         parser.error("--threshold must be between 0 and 1.")
-
-    if not args.pdb_file:
-        print("Please provide a PDB file using the --pdb_file argument.")
+    
+    if not args.pdb_file and not args.pdb_directory:
+        print("Please provide either a single PDB file using the --pdb_file argument or a directory of PDB files using the --pdb_directory argument.")
+        return
+    if args.pdb_file and args.pdb_directory:
+        print("Please provide either a single PDB file using the --pdb_file argument or a directory of PDB files using the --pdb_directory argument, but not both.")
         return
     if not args.output_dir:
-        args.output_dir = str(Path(args.pdb_file).parent / "interpretability_results")
+        if args.pdb_file:
+            args.output_dir = str(Path(args.pdb_file).parent / "interpretability_results")
+        else:
+            args.output_dir = str(Path(args.pdb_directory).parent / "interpretability_results")
     # blur top n and threshold are mutually exclusive, so we can add a check for that later
     if args.blur_top_n > 0 and args.threshold < 1.0:
         parser.error("--blur_top_n and --threshold are mutually exclusive. Please specify only one of them.")
@@ -371,141 +372,171 @@ def probablity_string(percentages: torch.Tensor, class_labels: list[str]) -> str
         prob_string += f"\tClass '{class_name}': {percentage.item():.2f}%\n"
     return prob_string
 
+
+
 def main():
     """
     CLI entry point for interpretability tools.
     :param pdb_file: path to a PDB file for generating interpretability insights. If provided, the tool will process the file, feed it into the interpretability model, and output the insights. 
     :param output_dir: Directory where interpretability results will be saved. Defaults to "./interpretability_results".
     """
+    # parse command-line arguments
     args = arg_parser()
+    # determine whether to blur based on threshold or top n pixels
     blur_based_on_threshold = args.blur_top_n == 0
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     class_labels= LabelEncoder().get_classes()
-
-    os.makedirs(args.output_dir, exist_ok=True)
-    print(f"Processing PDB file: {args.pdb_file}")
-    sample = extract_pdb_file(args.pdb_file, binding_type=args.binding_type)
-
-    sample_tensor, true_label = apply_transformations_to_sample(sample)
-    print (f"Transformed sample tensor shape: {sample_tensor.shape}, true label: {class_labels[true_label]}")
-    # save the transformed sample tensor as an RGB .png file for debugging purposes
-    plt.imsave(os.path.join(args.output_dir, f"{Path(args.pdb_file).stem}_transformed_sample.png"), sample_tensor.detach().cpu().permute(1, 2, 0).numpy())
-    print(f"Saved transformed sample tensor as image to {os.path.join(args.output_dir, f'{Path(args.pdb_file).stem}_transformed_sample.png')}")
+    # load the trained classification model from the provided checkpoint    
     model = _initilize_classification_model(args.model_checkpoint, device=device)
-
-    logits, predicted_class = apply_classification(sample_tensor, model, device=device)
-    percentages = torch.nn.functional.softmax(logits, dim=1) * 100
-
-
-    prob_string = probablity_string(percentages, class_labels)
-    print(prob_string)
-    print(prob_string, file=open(os.path.join(args.output_dir, "classification_probabilities.txt"), "w"))
-    print(f"Predicted class: {predicted_class}")
     methods = solve_methods(CaptumInterpreter(model), args)
-    insights: dict[str, AttributionResult] = generate_interpretability_attribution(methods, predicted_class, sample_tensor, device=device)
-    predicted_class_label = class_labels[predicted_class]  # convert from tensor -> int (class label index) -> label name
 
+    # create output directory if it doesn't exist
+    os.makedirs(args.output_dir, exist_ok=True)
+
+    # process the provided PDB file and generate interpretability insights
+    # if args.pdb_directory is provided, we can extend this to process all PDB files in the directory in a loop
+    if args.pdb_file:
+        print(f"Processing PDB file: {args.pdb_file}")
+        samples = [extract_pdb_file(args.pdb_file, binding_type=args.binding_type)]
+    elif args.pdb_directory:
+        print(f"Processing PDB files in directory: {args.pdb_directory}")
+        samples = extract_pdb_files_from_directory(args.pdb_directory, binding_type=args.binding_type)
+
+    image_dir = os.path.join(args.output_dir, "images")
+    os.makedirs(image_dir, exist_ok=True)
+
+    samples_tensor, true_labels = apply_transformations_to_samples(samples)
+    insights = {method: {} for method in methods.keys()}
+    print(f"Transformed sample tensor shape: {samples_tensor.shape}, true label: {class_labels[true_labels[0]]}")
+    for i, sample_tensor in enumerate(samples_tensor):
+        sample = samples[i]
+        true_label = true_labels[i].item()
+        sample_prefix = sample['pdb_id']
+        print(f"\nProcessing sample {i+1}/{len(samples_tensor)}: PDB ID: {sample['pdb_id']}, True label: {class_labels[true_label]}")
+        # Save transformed sample tensor as RGB .png for debugging
+        image_path = os.path.join(image_dir, f"{sample_prefix}_transformed_sample.png")
+        plt.imsave(image_path, sample_tensor.detach().cpu().permute(1, 2, 0).numpy())
+        print(f"Saved transformed sample tensor as image to {image_path}")
+
+        logits, predicted_class = apply_classification(sample_tensor, model, device=device)
+        percentages = torch.nn.functional.softmax(logits, dim=1) * 100
+        prob_string = sample_prefix + ": " + probablity_string(percentages, class_labels)
+        print(prob_string)
+        print(prob_string, file=open(os.path.join(args.output_dir, "classification_probabilities.txt"), "a"))
+        print(f"Predicted class: {predicted_class}")
+        sample_insights: dict[str, AttributionResult] = generate_interpretability_attribution(methods, predicted_class, sample_tensor, device=device)
+        predicted_class_label = class_labels[predicted_class]  # convert from tensor -> int (class label index) -> label name
+
+        for method, attribution_result in sample_insights.items():
+            insights[method][sample["pdb_id"]] = attribution_result
+    # insights = {method -> {pdb_id -> AttributionResult}}
+    for method, insight in insights.items():
+        # take the average of the attribution scores across all samples for this method
+        avg_attribution = 0
+        for pdb_id, attribution_result in insight.items():
+            avg_attribution += attribution_result.attributions.detach().cpu()
+        avg_attribution /= len(insight)
+        insights[method]["average"] = avg_attribution
     # save the insigths as image, where the attributions are mapped from gray (low attribution) to red (high attribution) on a 2d heatmap using matplotlib, one image per method
-    for method, attribution_result in insights.items():
+    for method, insight in insights.items():
+        blurred_correct_predictions = 0
         # create subfolder for this method's results        
-        method_output_dir = os.path.join(args.output_dir, method)
-        os.makedirs(method_output_dir, exist_ok=True)
         print(f"Processing attribution results for method: {method}")
-        
-        attribution = attribution_result.attributions.detach()
-        
-        if attribution.ndim == 4:
-            attribution = attribution[0]
-        
-        spatial_scores = _normalize_spatial_scores(torch.sum(torch.abs(attribution), dim=0))       
-        plt.imshow(spatial_scores.cpu(), cmap="hot", interpolation="nearest")
-        plt.colorbar()
-        plt.title(f"Attribution heatmap\n{method}\nModel: {model.__class__.__name__}\n Predicted class: {predicted_class_label}")
-        # give title some extra height to avoid overlap with colorbar
-        plt.subplots_adjust(top=0.8)
-        
-        save_path = os.path.join(method_output_dir, f"{Path(args.pdb_file).stem}_{method}_heatmap.png")
-        plt.savefig(save_path)
-        plt.clf()
-        print(f"\tSaved attribution heatmap for {method} to {save_path}")
+        for pdb_id, attribution_result in insight.items():
+            if pdb_id == "average":
+                print(f"\tProcessing average attribution result for method: {method}")
+                attribution = avg_attribution
+            else:
+                attribution = attribution_result.attributions.detach()
+                
+            if attribution.ndim == 4:
+                attribution = attribution[0]
+            spatial_scores = _normalize_spatial_scores(torch.sum(torch.abs(attribution), dim=0))       
+            plt.imshow(spatial_scores.cpu(), cmap="hot", interpolation="nearest")
+            plt.colorbar()
+            plt.title(f"Attribution heatmap\n{method}\nModel: {model.__class__.__name__}\n Predicted class: {predicted_class_label}")
+            # give title some extra height to avoid overlap with colorbar
+            plt.subplots_adjust(top=0.8)
+            
+            save_path = os.path.join(image_dir, f"{pdb_id}_{method}_heatmap.png")
+            plt.savefig(save_path)
+            plt.clf()
+            print(f"\tSaved attribution heatmap for {method} to {save_path}")
 
-        # overlay the heatmap on the transformed sample image and save it for visualization
-        sample_image = sample_tensor.detach().cpu().permute(1, 2, 0).numpy()
-        heatmap = plt.get_cmap("hot")(spatial_scores.cpu())[:, :, :3]  # get RGB values from heatmap using the normalized map
-        overlay = (0.6 * sample_image + 0.4 * heatmap).clip(0, 1)
-        overlay_save_path = os.path.join(method_output_dir, f"{Path(args.pdb_file).stem}_{method}_overlay.png")
-        plt.imsave(overlay_save_path, overlay)
-        print(f"Saved attribution overlay for {method} to {overlay_save_path}")
+            # overlay the heatmap on the transformed sample image and save it for visualization
+            sample_image = sample_tensor.detach().cpu().permute(1, 2, 0).numpy()
+            heatmap = plt.get_cmap("hot")(spatial_scores.cpu())[:, :, :3]  # get RGB values from heatmap using the normalized map
+            overlay = (0.6 * sample_image + 0.4 * heatmap).clip(0, 1)
+            overlay_save_path = os.path.join(image_dir, f"{pdb_id}_{method}_overlay.png")
+            plt.imsave(overlay_save_path, overlay)
+            print(f"Saved attribution overlay for {method} to {overlay_save_path}")
 
-        if blur_based_on_threshold:
-            # validate the attribution results by blurring the pixels with an attribution score above the threshold and checking if the model's confidence in the predicted class decreases significantly
-            blurred_sample = blur_according_to_attribution_results(args.threshold, sample_tensor, attribution_result)
-        else:
-            blurred_sample = blur_top_n_pixels(args.blur_top_n, sample_tensor, attribution_result )
-
-
+            if blur_based_on_threshold:
+                # validate the attribution results by blurring the pixels with an attribution score above the threshold and checking if the model's confidence in the predicted class decreases significantly
+                blurred_sample = blur_according_to_attribution_results(args.threshold, sample_tensor, attribution)
+            else:
+                blurred_sample = blur_top_n_pixels(args.blur_top_n, sample_tensor, attribution )
 
 
-        print("\tValidating attribution results by blurring high-attribution pixels and re-evaluating the model's confidence:")
-        # save the blurred sample tensor as an RGB .png file for debugging purposes
-        plt.imsave(os.path.join(method_output_dir, f"{Path(args.pdb_file).stem}_{method}_blurred_sample.png"), blurred_sample.detach().cpu().permute(1, 2, 0).numpy())
-        plt.clf()
-        print(f"\tSaved blurred sample tensor for {method} as image to {os.path.join(method_output_dir, f'{Path(args.pdb_file).stem}_{method}_blurred_sample.png')}")
-        blurred_logits, blurred_predicted_class = apply_classification(blurred_sample, model, device=device)
-        blurred_percentages = torch.nn.functional.softmax(blurred_logits, dim=1) * 100
-        blurred_predicted_class_label = class_labels[blurred_predicted_class]
-        print(f"\tBlurred predicted class: {blurred_predicted_class_label}, confidence: {blurred_percentages[0][blurred_predicted_class].item():.2f}%")
-        
-        blurred_prob_string = probablity_string(blurred_percentages, class_labels)
-        print(f"\tBlurred distribution over classes:\n{blurred_prob_string}")
 
-        # create a 2x2 plot showing the original sample, the attribution heatmap according to method, the overlayed heatmap, and the blurred sample for side-by-side comparison
-        fig, axs = plt.subplots(2, 2, figsize=(10, 12))
-        # get suptitle with some extra height to avoid overlap with subplots
-        fig.tight_layout(w_pad=0.1, h_pad=4)
-        fig.subplots_adjust(top=0.90)
-        fig.suptitle(f"Interpretability Analysis for {method}\nModel: {model.__class__.__name__}\nTrue label: {class_labels[true_label]}")
 
-        axs[0, 0].imshow(sample_image)
-        axs[0, 0].set_title(f"Original Sample\nPredicted: {predicted_class_label}\nConfidence: {percentages[0][predicted_class].item():.2f}%")
-        axs[0, 0].axis("off")
-        axs[0, 1].imshow(spatial_scores.cpu(), cmap="hot", interpolation="nearest")
-        axs[0, 1].set_title(f"Attribution Heatmap\n{method}")
-        axs[0, 1].axis("off")
-        axs[1, 0].imshow(overlay)
-        axs[1, 0].set_title(f"Overlay Heatmap\n{method}")
-        axs[1, 0].axis("off")
-        axs[1, 1].imshow(blurred_sample.detach().cpu().permute(1, 2, 0).numpy())
-        axs[1, 1].set_title(f"Blurred Sample\nPredicted: {blurred_predicted_class_label}\nConfidence: {blurred_percentages[0][blurred_predicted_class].item():.2f}%")
-        axs[1, 1].axis("off")
-        comparison_save_path = os.path.join(method_output_dir, f"{Path(args.pdb_file).stem}_{method}_comparison.png")
-        # decrease right, left and bottom margins to make the subplots larger and more visible
-        
-        plt.savefig(comparison_save_path)
-        plt.clf()
-        print(f"\tSaved comparison plot for {method} to {comparison_save_path}")
-    
-        colored_pdb_path = save_attribution_colored_pdbs(
-            pdb_file=args.pdb_file,
-            output_dir=method_output_dir,
-            attribution_result=attribution_result,
-            num_atoms=sample["num_atoms"],
-            method=method
-        )
-        script_path = Path.joinpath(Path(colored_pdb_path).parent, f"{Path(colored_pdb_path).stem}.pml")
-        write_coloring_script([colored_pdb_path], script_path, threshold=args.threshold)
-        # Open the script in PyMOL using the command line
-        if args.open_in_pymol:
-            os.system(f"pymol -c {script_path}")
+            print("\tValidating attribution results by blurring high-attribution pixels and re-evaluating the model's confidence:")
+            # save the blurred sample tensor as an RGB .png file for debugging purposes
+            plt.imsave(os.path.join(image_dir, f"{pdb_id}_{method}_blurred_sample.png"), blurred_sample.detach().cpu().permute(1, 2, 0).numpy())
+            plt.clf()
+            print(f"\tSaved blurred sample tensor for {method} as image to {os.path.join(image_dir, f'{pdb_id}_{method}_blurred_sample.png')}")
+            blurred_logits, blurred_predicted_class = apply_classification(blurred_sample, model, device=device)
+            blurred_percentages = torch.nn.functional.softmax(blurred_logits, dim=1) * 100
+            blurred_predicted_class_label = class_labels[blurred_predicted_class]
+            if blurred_predicted_class == predicted_class:
+                blurred_correct_predictions += 1
+            
+            print(f"\tBlurred predicted class: {blurred_predicted_class_label}, confidence: {blurred_percentages[0][blurred_predicted_class].item():.2f}%")
+            
+            blurred_prob_string = sample_prefix + ": " + probablity_string(blurred_percentages, class_labels)
+            print(f"\tBlurred distribution over classes:\n{blurred_prob_string}")
 
+            # create a 2x2 plot showing the original sample, the attribution heatmap according to method, the overlayed heatmap, and the blurred sample for side-by-side comparison
+            fig, axs = plt.subplots(2, 2, figsize=(10, 12))
+            # get suptitle with some extra height to avoid overlap with subplots
+            fig.tight_layout(w_pad=0.1, h_pad=4)
+            fig.subplots_adjust(top=0.90)
+            fig.suptitle(f"Interpretability Analysis for {method}\nModel: {model.__class__.__name__}\nTrue label: {class_labels[true_label]}")
+
+            axs[0, 0].imshow(sample_image)
+            axs[0, 0].set_title(f"Original Sample\nPredicted: {predicted_class_label}\nConfidence: {percentages[0][predicted_class].item():.2f}%")
+            axs[0, 0].axis("off")
+            axs[0, 1].imshow(spatial_scores.cpu(), cmap="hot", interpolation="nearest")
+            axs[0, 1].set_title(f"Attribution Heatmap\n{method}")
+            axs[0, 1].axis("off")
+            axs[1, 0].imshow(overlay)
+            axs[1, 0].set_title(f"Overlay Heatmap\n{method}")
+            axs[1, 0].axis("off")
+            axs[1, 1].imshow(blurred_sample.detach().cpu().permute(1, 2, 0).numpy())
+            axs[1, 1].set_title(f"Blurred Sample\nPredicted: {blurred_predicted_class_label}\nConfidence: {blurred_percentages[0][blurred_predicted_class].item():.2f}%")
+            axs[1, 1].axis("off")
+            comparison_save_path = os.path.join(image_dir, f"{pdb_id}_{method}_comparison.png")
+            # decrease right, left and bottom margins to make the subplots larger and more visible
+            
+            plt.savefig(comparison_save_path)
+            plt.clf()
+            print(f"\tSaved comparison plot for {method} to {comparison_save_path}")
+            pdb_filepath = sample["pdb_id"]
+            if args.pdb_directory:
+                pdb_filepath = os.path.join(args.pdb_directory, f"{sample['pdb_id']}.pdb")
+            colored_pdb_path = save_attribution_colored_pdbs(
+                pdb_file=pdb_filepath,
+                output_dir=image_dir,
+                attribution=attribution,
+                num_atoms=sample["num_atoms"],
+                method=method
+            )
+            script_path = Path.joinpath(Path(colored_pdb_path).parent, f"{Path(colored_pdb_path).stem}.pml")
+            write_coloring_script([colored_pdb_path], script_path, threshold=args.threshold)
+        blur_accuracy = blurred_correct_predictions / len(insight) * 100
+        print(f"\nBlur validation for method '{method}': {blurred_correct_predictions}/{len(insight)} samples ({blur_accuracy:.2f}%) retained the same predicted class after blurring high-attribution pixels.")
     print(f"Interpretability analysis completed. Results saved to: {args.output_dir}")
-    
 
 
-
-
-    if args.open_in_pymol:
-        print("PyMOL should now open with the colored PDB visualizations. If it does not, please check that PyMOL is installed and added to your system's PATH.")
-        print("You can also manually open the generated .pml script in PyMOL to visualize the results.")
 if __name__ == "__main__":    
     main()
