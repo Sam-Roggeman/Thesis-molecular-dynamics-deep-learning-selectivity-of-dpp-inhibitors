@@ -85,7 +85,7 @@ def worker(gpu_id, job_queue):
             f"{model_name} | {replica_dir}",
             flush=True,
         )
-
+        
         try:
             # disable printing from the interpretability function to avoid cluttering the output
             with contextlib.redirect_stdout(open(os.devnull, "w")):
@@ -135,7 +135,9 @@ def main():
             continue
 
         dpp = dpp_dir.stem
-
+        if dpp not in ["DPP8", "DPP9"]:
+            print(f"Skipping {dpp_dir} (not DPP8 or DPP9)")
+            continue
         for ligand_dir in dpp_dir.iterdir():
             if not ligand_dir.is_dir():
                 continue
