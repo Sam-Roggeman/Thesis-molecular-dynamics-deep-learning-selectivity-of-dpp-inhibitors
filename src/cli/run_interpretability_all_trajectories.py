@@ -21,7 +21,7 @@ METHOD_ARGS = {
     "integrated_gradients": {"steps": 50},
     "occlusion": {
         "patch_size": 1,
-        "perturbations_per_eval": 4096,
+        "perturbations_per_eval": 2048,
         "shift_size": 1,
     },
     "saliency": {},
@@ -42,7 +42,19 @@ MODEL_CHECKPOINTS = {
     ),
 }
 
+def already_completed(output_dir: Path) -> bool:
+    """
+    Check if the interpretability results for a given output directory already exist.
 
+    :param output_dir: Directory where interpretability results are expected to be saved.
+    :return: True if the results already exist, False otherwise.
+    """
+    # already completed if the images subfolder contains 148 images
+    images_dir = output_dir / "images"
+    if images_dir.exists() and len(list(images_dir.glob("*.png"))) >= 148:
+        return True
+    
+    return False
 def process_job(job):
     gpu_id, replica_dir, output_dir, binding_type, model_name, checkpoint = job
 
@@ -101,7 +113,6 @@ def main():
                     continue
 
                 replica = replica_dir.stem
-
                 for model_name, checkpoint in MODEL_CHECKPOINTS.items():
                     output_dir = (
                         ROOT_OUTPUT_DIRECTORY
@@ -111,13 +122,12 @@ def main():
                         / model_name
                     )
 
-                    # Optional: skip completed jobs.
-                    # Adjust this depending on what execute_interpretability
-                    # actually produces.
-                    #
-                    # if output_dir.exists():
-                    #     continue
-
+                    if output_dir.exists() and already_completed(output_dir):
+                        print(
+                            f"Skipping {dpp}/{ligand}/{replica}/{model_name} "
+                            f"as interpretability results already exist."
+                        )
+                        continue
                     gpu_id = len(jobs) % num_gpus
 
                     jobs.append(
