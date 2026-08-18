@@ -63,8 +63,8 @@ def worker(gpu_id, job_queue):
 
     # Each worker is permanently assigned to one GPU.
     os.environ["CUDA_VISIBLE_DEVICES"] = str(gpu_id)
-    dcnn = _initilize_classification_model(MODEL_CHECKPOINTS["DCNN"], device=torch.device(f"cuda:{gpu_id}"))
-    scnn = _initilize_classification_model(MODEL_CHECKPOINTS["SCNN"], device=torch.device(f"cuda:{gpu_id}"))
+    dcnn = _initilize_classification_model(MODEL_CHECKPOINTS["DCNN"], device=torch.device("cuda"))
+    scnn = _initilize_classification_model(MODEL_CHECKPOINTS["SCNN"], device=torch.device("cuda"))
 
     # Import CUDA-dependent code only after CUDA_VISIBLE_DEVICES is set
     # if your imports initialize CUDA.
