@@ -143,5 +143,5 @@ class CaptumInterpreter:
         return AttributionResult(
             attributions=attributions,
             method="occlusion",
-            target=target,
+            target=resolved_target,
         )

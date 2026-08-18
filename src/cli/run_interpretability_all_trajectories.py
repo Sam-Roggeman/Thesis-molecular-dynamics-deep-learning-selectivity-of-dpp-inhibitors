@@ -55,42 +55,76 @@ def already_completed(output_dir: Path) -> bool:
         return True
     
     return False
-def process_job(job):
-    gpu_id, replica_dir, output_dir, binding_type, model_name, checkpoint = job
-
-    # Each worker only sees its assigned GPU as cuda:0.
+def worker(gpu_id, job_queue):
+    # Each worker is permanently assigned to one GPU.
     os.environ["CUDA_VISIBLE_DEVICES"] = str(gpu_id)
 
-    start_time = time.time()
+    # Import CUDA-dependent code only after CUDA_VISIBLE_DEVICES is set
+    # if your imports initialize CUDA.
+    torch.cuda.set_device(0)
 
-    execute_interpretability(
-        pdb_directory=replica_dir,
-        output_dir=output_dir,
-        binding_type=binding_type,
-        model_checkpoint=checkpoint,
-        method_args=METHOD_ARGS,
-        threshold=THRESHOLD,
-    )
+    while True:
+        job = job_queue.get()
 
-    elapsed = time.time() - start_time
+        if job is None:
+            break
 
-    print(
-        f"GPU {gpu_id} | "
-        f"{model_name} | "
-        f"{replica_dir.parent.parent.name}/"
-        f"{replica_dir.parent.name}/"
-        f"{replica_dir.name} | "
-        f"{elapsed:.1f}s",
-        flush=True,
-    )
+        (
+            replica_dir,
+            output_dir,
+            binding_type,
+            model_name,
+            checkpoint,
+        ) = job
+
+        start_time = time.time()
+
+        print(
+            f"[GPU {gpu_id}] START "
+            f"{model_name} | {replica_dir}",
+            flush=True,
+        )
+
+        try:
+            execute_interpretability(
+                pdb_directory=replica_dir,
+                output_dir=output_dir,
+                binding_type=binding_type,
+                model_checkpoint=checkpoint,
+                method_args=METHOD_ARGS,
+                threshold=THRESHOLD,
+            )
+
+            elapsed = time.time() - start_time
+
+            print(
+                f"[GPU {gpu_id}] DONE "
+                f"{model_name} | {replica_dir} | "
+                f"{elapsed:.1f}s",
+                flush=True,
+            )
+
+        except Exception as e:
+            print(
+                f"[GPU {gpu_id}] ERROR "
+                f"{model_name} | {replica_dir}: {e}",
+                flush=True,
+            )
 
 
 def main():
     num_gpus = torch.cuda.device_count()
 
     if num_gpus == 0:
-        raise RuntimeError("No CUDA GPUs available")
+        raise RuntimeError("No GPUs available")
 
+    print(f"Using {num_gpus} GPUs")
+
+    ctx = mp.get_context("spawn")
+
+    job_queue = ctx.Queue()
+
+    # Create jobs: (replica, model)
     jobs = []
 
     for dpp_dir in ROOT_DIRECTORY.iterdir():
@@ -98,8 +132,6 @@ def main():
             continue
 
         dpp = dpp_dir.stem
-        if dpp not in ["DPP8", "DPP9"]:
-            continue
 
         for ligand_dir in dpp_dir.iterdir():
             if not ligand_dir.is_dir():
@@ -113,7 +145,9 @@ def main():
                     continue
 
                 replica = replica_dir.stem
+
                 for model_name, checkpoint in MODEL_CHECKPOINTS.items():
+
                     output_dir = (
                         ROOT_OUTPUT_DIRECTORY
                         / dpp
@@ -121,18 +155,15 @@ def main():
                         / replica
                         / model_name
                     )
-
-                    if output_dir.exists() and already_completed(output_dir):
+                    if already_completed(output_dir):
                         print(
-                            f"Skipping {dpp}/{ligand}/{replica}/{model_name} "
-                            f"as interpretability results already exist."
+                            f"Skipping {model_name} | {replica_dir} "
+                            f"(already completed)",
+                            flush=True,
                         )
                         continue
-                    gpu_id = len(jobs) % num_gpus
-
                     jobs.append(
                         (
-                            gpu_id,
                             replica_dir,
                             output_dir,
                             binding_type,
@@ -141,10 +172,30 @@ def main():
                         )
                     )
 
-    print(f"Found {len(jobs)} jobs across {num_gpus} GPUs")
+    print(f"Total jobs: {len(jobs)}")
 
-    with ProcessPoolExecutor(max_workers=num_gpus) as executor:
-        list(executor.map(process_job, jobs))
+    # Put all jobs into the shared queue.
+    for job in jobs:
+        job_queue.put(job)
+
+    # One worker per GPU.
+    workers = []
+
+    for gpu_id in range(num_gpus):
+        p = ctx.Process(
+            target=worker,
+            args=(gpu_id, job_queue),
+        )
+        p.start()
+        workers.append(p)
+
+    # One sentinel per worker.
+    for _ in range(num_gpus):
+        job_queue.put(None)
+
+    # Wait for workers.
+    for p in workers:
+        p.join()
 
 
 if __name__ == "__main__":
