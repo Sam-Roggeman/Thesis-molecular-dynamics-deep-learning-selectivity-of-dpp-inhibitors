@@ -86,6 +86,8 @@ def main():
             continue
 
         dpp = dpp_dir.stem
+        if dpp not in ["DPP8", "DPP9"]:
+            continue
 
         for ligand_dir in dpp_dir.iterdir():
             if not ligand_dir.is_dir():
