@@ -557,6 +557,7 @@ def execute_interpretability(pdb_file=None, pdb_directory=None, output_dir=None,
     start_time = time.time()
     print(f"processing insights: {delta_time}")
     print(f"Interpretability analysis completed. Results saved to: {output_dir}")
+    torch.cuda.empty_cache()
 
 def main():
     # parse command-line arguments
