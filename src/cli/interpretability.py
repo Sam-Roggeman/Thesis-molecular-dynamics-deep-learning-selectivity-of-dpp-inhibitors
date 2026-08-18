@@ -373,8 +373,8 @@ def execute_interpretability(pdb_file=None, pdb_directory=None, output_dir=None,
         blur_based_on_threshold = False 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     class_labels= LabelEncoder().get_classes()
-    # if the model checkpoint path   
-    if model_checkpoint.endswith(".pth"):
+    # if the model checkpoint is a string or path   
+    if model_checkpoint and isinstance(model_checkpoint, (str, Path)):
         # load the trained classification model from the provided checkpoint    
         model = _initilize_classification_model(model_checkpoint, device=device)
         
