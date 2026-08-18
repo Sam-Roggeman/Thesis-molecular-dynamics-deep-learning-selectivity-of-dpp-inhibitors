@@ -1,4 +1,5 @@
 from concurrent.futures import ProcessPoolExecutor
+import contextlib
 from pathlib import Path
 import os
 import time
@@ -86,14 +87,16 @@ def worker(gpu_id, job_queue):
         )
 
         try:
-            execute_interpretability(
-                pdb_directory=replica_dir,
-                output_dir=output_dir,
-                binding_type=binding_type,
-                model_checkpoint=checkpoint,
-                method_args=METHOD_ARGS,
-                threshold=THRESHOLD,
-            )
+            # disable printing from the interpretability function to avoid cluttering the output
+            with contextlib.redirect_stdout(open(os.devnull, "w")):
+                execute_interpretability(
+                    pdb_directory=replica_dir,
+                    output_dir=output_dir,
+                    binding_type=binding_type,
+                    model_checkpoint=checkpoint,
+                    method_args=METHOD_ARGS,
+                    threshold=THRESHOLD,
+                )
 
             elapsed = time.time() - start_time
 
