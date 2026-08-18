@@ -15,10 +15,10 @@ def main():
         }, 
         "saliency": {}
     }
-    model_dir = "/home/stijn/Sam_ModelVisualisation/Models/"
+    model_dir = "/project_antwerp/Thesis-molecular_dynamics_trajectory_embeddings/output/models/SCNN/20260815-030746"
     model_checkpoints = {
-         "DCNN": Path(model_dir, "dcnn", "CustomDenseNet_Randomsplit_Dataset.pth"), 
-         "SCNN": Path(model_dir, "scnn", "SCNN.pth"), 
+         "DCNN": Path("/project_antwerp/Thesis-molecular_dynamics_trajectory_embeddings/output/models/CustomDenseNet_Randomsplit_Dataset/20260323-202241", "CustomDenseNet_Randomsplit_Dataset.pth"), 
+         "SCNN": Path("/project_antwerp/Thesis-molecular_dynamics_trajectory_embeddings/output/models/SCNN/20260815-030746", "SCNN.pth"), 
     }
 
     # dpp8/dpp9

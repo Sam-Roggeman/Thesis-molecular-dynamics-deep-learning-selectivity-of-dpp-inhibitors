@@ -526,7 +526,7 @@ def execute_interpretability(pdb_file=None, pdb_directory=None, output_dir=None,
             plt.clf()
             print(f"\tSaved comparison plot for {method} to {comparison_save_path}")
             pdb_filepath = sample["pdb_id"]
-            if args.pdb_directory:
+            if pdb_directory:
                 pdb_filepath = os.path.join(pdb_directory, f"{sample['pdb_id']}.pdb")
             colored_pdb_path = save_attribution_colored_pdbs(
                 pdb_file=pdb_filepath,
