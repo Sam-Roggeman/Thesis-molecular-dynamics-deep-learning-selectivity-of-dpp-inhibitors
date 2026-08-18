@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import os
-from typing import Any
+from typing import Any, Callable
 
 import torch
 from captum.attr import GuidedBackprop, Occlusion
@@ -18,6 +18,48 @@ from src.utils.resolvers import (
     _load_weights,
     _resolve_model_class,
 )
+
+def solve_methods(interpreter: CaptumInterpreter, method_args) -> dict[str, Callable]:
+    """
+    Resolve a method string to the corresponding interpretability method.
+    :param method_str: String identifier for the interpretability method (e.g., "integrated_gradients").
+    :return: Corresponding interpretability method object.
+    """
+    methods = {}
+    for method, args in method_args.items():
+        if method == "integrated_gradients":
+            n_steps = args["steps"]
+            # keep argparse-driven parameters configurable per run
+            methods[method] = lambda inputs, target: interpreter.integrated_gradients(
+                inputs,
+                target=target,
+                n_steps=n_steps,
+            )
+        elif method == "saliency":
+            methods[method] = lambda inputs, target: interpreter.saliency(inputs, target=target)
+        elif method == "occlusion":
+            patch_size = args["patch_size"]
+            shift_size = args["shift_size"]
+            perturbations_per_eval = args["perturbations_per_eval"]
+            methods[method] = lambda inputs, target: interpreter.occlusion(
+                inputs,
+                target=target,
+                patch_size=patch_size,
+                shift_size=shift_size,
+                perturbations_per_eval=perturbations_per_eval,
+                
+            )
+        else:
+            print(f"Unknown interpretability method '{method}'. Supported methods: 'integrated_gradients', 'saliency', 'occlusion'. Skipping.")
+    if len(methods) == 0:
+        methods["integrated_gradients"] = lambda inputs, target: interpreter.integrated_gradients(
+            inputs,
+            target=target,
+            n_steps=method_args.ig_steps,
+        )
+    return methods
+
+
 def _initilize_classification_model(checkpoint_path: str, device: torch.device) -> torch.nn.Module:
     checkpoint_path = os.path.abspath(checkpoint_path)
 

@@ -3,7 +3,7 @@ import os
 import time
 from pathlib import Path
 import contextlib
-from src.utils.interpretability import _initilize_classification_model
+from src.utils.interpretability import CaptumInterpreter, _initilize_classification_model, solve_methods
 import torch
 
 from src.cli.interpretability import execute_interpretability
@@ -65,6 +65,8 @@ def worker(gpu_id, job_queue):
     os.environ["CUDA_VISIBLE_DEVICES"] = str(gpu_id)
     dcnn = _initilize_classification_model(MODEL_CHECKPOINTS["DCNN"], device=torch.device("cuda"))
     scnn = _initilize_classification_model(MODEL_CHECKPOINTS["SCNN"], device=torch.device("cuda"))
+    dcnn_methods = solve_methods(CaptumInterpreter(dcnn), method_args=METHOD_ARGS)
+    scnn_methods = solve_methods(CaptumInterpreter(scnn), method_args=METHOD_ARGS)
 
     # Import CUDA-dependent code only after CUDA_VISIBLE_DEVICES is set
     # if your imports initialize CUDA.
@@ -93,15 +95,20 @@ def worker(gpu_id, job_queue):
         
         try:
             # load the trained classification model from the provided checkpoint
-            model = dcnn if model_name == "DCNN" else scnn
+            if model_name == "DCNN":
+                model = dcnn
+                methods = dcnn_methods
+            else:
+                model = scnn
+                methods = scnn_methods
             # disable printing from the interpretability function to avoid cluttering the output
             with contextlib.redirect_stdout(open(os.devnull, "w")):
                 execute_interpretability(
                     pdb_directory=replica_dir,
                     output_dir=output_dir,
                     binding_type=binding_type,
-                    model_checkpoint=checkpoint,
-                    method_args=METHOD_ARGS,
+                    model_checkpoint=model,
+                    methods=methods,
                     threshold=THRESHOLD,
                 )
 

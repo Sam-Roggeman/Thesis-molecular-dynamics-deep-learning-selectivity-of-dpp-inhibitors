@@ -9,7 +9,7 @@ import numpy as np
 from src.data_preprocessing.utils import extract_pdb_file, extract_pdb_files_from_directory
 from src.model_training.LabelEncoder import LabelEncoder
 from src.model_training.batch_preprocessing import _coords_to_rgb, _coords_to_tensor, prepare_model_batch
-from src.utils.interpretability import AttributionResult, CaptumInterpreter, _initilize_classification_model
+from src.utils.interpretability import AttributionResult, CaptumInterpreter, _initilize_classification_model, solve_methods
 from src.utils.resolvers import (
     _extract_class_name,
     _load_config_from_artifacts,
@@ -63,45 +63,6 @@ def apply_classification(sample: torch.Tensor, model: torch.nn.Module, device: t
         predicted_class = torch.argmax(logits, dim=1)
     return logits, predicted_class
 
-def solve_methods(interpreter: CaptumInterpreter, method_args) -> dict[str, Callable]:
-    """
-    Resolve a method string to the corresponding interpretability method.
-    :param method_str: String identifier for the interpretability method (e.g., "integrated_gradients").
-    :return: Corresponding interpretability method object.
-    """
-    methods = {}
-    for method, args in method_args.items():
-        if method == "integrated_gradients":
-            n_steps = args["steps"]
-            # keep argparse-driven parameters configurable per run
-            methods[method] = lambda inputs, target: interpreter.integrated_gradients(
-                inputs,
-                target=target,
-                n_steps=n_steps,
-            )
-        elif method == "saliency":
-            methods[method] = lambda inputs, target: interpreter.saliency(inputs, target=target)
-        elif method == "occlusion":
-            patch_size = args["patch_size"]
-            shift_size = args["shift_size"]
-            perturbations_per_eval = args["perturbations_per_eval"]
-            methods[method] = lambda inputs, target: interpreter.occlusion(
-                inputs,
-                target=target,
-                patch_size=patch_size,
-                shift_size=shift_size,
-                perturbations_per_eval=perturbations_per_eval,
-                
-            )
-        else:
-            print(f"Unknown interpretability method '{method}'. Supported methods: 'integrated_gradients', 'saliency', 'occlusion'. Skipping.")
-    if len(methods) == 0:
-        methods["integrated_gradients"] = lambda inputs, target: interpreter.integrated_gradients(
-            inputs,
-            target=target,
-            n_steps=method_args.ig_steps,
-        )
-    return methods
 
 
 def _normalize_spatial_scores(spatial_scores: torch.Tensor) -> torch.Tensor:
@@ -358,7 +319,19 @@ def probablity_string(percentages: torch.Tensor, class_labels: list[str]) -> str
         prob_string += f"\tClass '{class_name}': {percentage.item():.2f}%\n"
     return prob_string
 
-def execute_interpretability(pdb_file=None, pdb_directory=None, output_dir=None,binding_type=None, blur_top_n=None, model_checkpoint=None, method_args=None, threshold=None):
+def load_module(model_checkpoint: str, device: torch.device, method_args: dict) -> CaptumInterpreter:
+    """
+    Load the trained classification model from the provided checkpoint and return a CaptumInterpreter instance.
+    :param model_checkpoint: Path to the trained model checkpoint.
+    :param device: Device used for model inference.
+    :param method_args: Dictionary of method-specific arguments for interpretability methods.
+    :return: CaptumInterpreter instance with the loaded model.
+    """
+    model = _initilize_classification_model(model_checkpoint, device=device)
+    methods = solve_methods(CaptumInterpreter(model), method_args=method_args)
+    return model, methods
+
+def execute_interpretability(pdb_file=None, pdb_directory=None, output_dir=None,binding_type=None, blur_top_n=None, model_checkpoint=None, method_args=None, threshold=None, methods=None):
     """
     CLI entry point for interpretability tools.
     :param pdb_file: path to a PDB file for generating interpretability insights. If provided, the tool will process the file, feed it into the interpretability model, and output the insights. 
@@ -377,8 +350,8 @@ def execute_interpretability(pdb_file=None, pdb_directory=None, output_dir=None,
     if model_checkpoint and isinstance(model_checkpoint, (str, Path)):
         # load the trained classification model from the provided checkpoint    
         model = _initilize_classification_model(model_checkpoint, device=device)
-        
-    methods = solve_methods(CaptumInterpreter(model), method_args=method_args)
+    if methods is None:
+        methods = solve_methods(CaptumInterpreter(model), method_args=method_args)
     delta_time = time.time() - start_time
     start_time = time.time()
     print(f"loading methods and models: {delta_time}")
