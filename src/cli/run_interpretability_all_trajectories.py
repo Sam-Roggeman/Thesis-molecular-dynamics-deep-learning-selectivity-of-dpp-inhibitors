@@ -3,6 +3,7 @@ import os
 import time
 from pathlib import Path
 import contextlib
+from src.utils.interpretability import _initilize_classification_model
 import torch
 
 from src.cli.interpretability import execute_interpretability
@@ -57,8 +58,13 @@ def already_completed(output_dir: Path) -> bool:
     
     return False
 def worker(gpu_id, job_queue):
+    # preload both models to avoid reloading them for each job
+
+
     # Each worker is permanently assigned to one GPU.
     os.environ["CUDA_VISIBLE_DEVICES"] = str(gpu_id)
+    dcnn = _initilize_classification_model(MODEL_CHECKPOINTS["DCNN"], device=torch.device(f"cuda:{gpu_id}"))
+    scnn = _initilize_classification_model(MODEL_CHECKPOINTS["SCNN"], device=torch.device(f"cuda:{gpu_id}"))
 
     # Import CUDA-dependent code only after CUDA_VISIBLE_DEVICES is set
     # if your imports initialize CUDA.
@@ -69,7 +75,6 @@ def worker(gpu_id, job_queue):
 
         if job is None:
             break
-
         (
             replica_dir,
             output_dir,
@@ -87,6 +92,8 @@ def worker(gpu_id, job_queue):
         )
         
         try:
+            # load the trained classification model from the provided checkpoint
+            model = dcnn if model_name == "DCNN" else scnn
             # disable printing from the interpretability function to avoid cluttering the output
             with contextlib.redirect_stdout(open(os.devnull, "w")):
                 execute_interpretability(

@@ -9,7 +9,7 @@ import numpy as np
 from src.data_preprocessing.utils import extract_pdb_file, extract_pdb_files_from_directory
 from src.model_training.LabelEncoder import LabelEncoder
 from src.model_training.batch_preprocessing import _coords_to_rgb, _coords_to_tensor, prepare_model_batch
-from src.utils.interpretability import AttributionResult, CaptumInterpreter
+from src.utils.interpretability import AttributionResult, CaptumInterpreter, _initilize_classification_model
 from src.utils.resolvers import (
     _extract_class_name,
     _load_config_from_artifacts,
@@ -296,28 +296,6 @@ def save_attribution_colored_pdbs(
     print(f"Saved colored PDB for {method}: {output_path}")
     return output_path
 
-def _initilize_classification_model(checkpoint_path: str, device: torch.device) -> torch.nn.Module:
-    checkpoint_path = os.path.abspath(checkpoint_path)
-
-    config = _load_config_from_artifacts(None, checkpoint_path)
-    if config is None:
-        raise ValueError(
-            "No training config found next to checkpoint. "
-            "Expected training_config.pt or training_config.json."
-        )
-
-    model_name = _extract_class_name(config.model_class)
-    if not model_name:
-        raise ValueError("Could not resolve model class from training config.")
-
-    model_class = _resolve_model_class(model_name)
-    model_args = dict(config.model_args) if isinstance(config.model_args, dict) else {}
-
-    model = model_class(**model_args).to(device)
-    state_dict = _load_state_dict(checkpoint_path, device)
-    _load_weights(model, state_dict)
-    model.eval()
-    return model
 def write_coloring_script(colored_pdb_paths: list[str], script_path: str, threshold: float) -> None:
     """Write a PyMOL script to load and visualize the colored PDBs."""
     bfactor_threshold = threshold * 100.0
@@ -395,9 +373,11 @@ def execute_interpretability(pdb_file=None, pdb_directory=None, output_dir=None,
         blur_based_on_threshold = False 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     class_labels= LabelEncoder().get_classes()
-    # load the trained classification model from the provided checkpoint    
-
-    model = _initilize_classification_model(model_checkpoint, device=device)
+    # if the model checkpoint path   
+    if model_checkpoint.endswith(".pth"):
+        # load the trained classification model from the provided checkpoint    
+        model = _initilize_classification_model(model_checkpoint, device=device)
+        
     methods = solve_methods(CaptumInterpreter(model), method_args=method_args)
     delta_time = time.time() - start_time
     start_time = time.time()

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import os
 from typing import Any
 
 import torch
@@ -10,7 +11,35 @@ from captum.attr import LayerIntegratedGradients
 from captum.attr import Saliency
 from captum.attr import GradientShap
 from torch import nn
+from src.utils.resolvers import (
+    _extract_class_name,
+    _load_config_from_artifacts,
+    _load_state_dict,
+    _load_weights,
+    _resolve_model_class,
+)
+def _initilize_classification_model(checkpoint_path: str, device: torch.device) -> torch.nn.Module:
+    checkpoint_path = os.path.abspath(checkpoint_path)
 
+    config = _load_config_from_artifacts(None, checkpoint_path)
+    if config is None:
+        raise ValueError(
+            "No training config found next to checkpoint. "
+            "Expected training_config.pt or training_config.json."
+        )
+
+    model_name = _extract_class_name(config.model_class)
+    if not model_name:
+        raise ValueError("Could not resolve model class from training config.")
+
+    model_class = _resolve_model_class(model_name)
+    model_args = dict(config.model_args) if isinstance(config.model_args, dict) else {}
+
+    model = model_class(**model_args).to(device)
+    state_dict = _load_state_dict(checkpoint_path, device)
+    _load_weights(model, state_dict)
+    model.eval()
+    return model
 
 @dataclass
 class AttributionResult:
