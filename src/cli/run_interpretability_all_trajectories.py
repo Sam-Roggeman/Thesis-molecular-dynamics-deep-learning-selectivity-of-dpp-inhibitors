@@ -315,8 +315,6 @@ def fix_pdbs():
     job_queue = ctx.Queue()
     jobs = []
 
-    # Create jobs: (replica, model)
-    jobs = []
     for dpp_dir in ROOT_DIRECTORY.iterdir():
         if not dpp_dir.is_dir():
             continue
@@ -370,7 +368,7 @@ def fix_pdbs():
     for worker_id in range(nr_workers):
         p = ctx.Process(
             target=pdb_worker,
-            args=(job_queue),
+            args=(job_queue,),
         )
         p.start()
         workers.append(p)
