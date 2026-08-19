@@ -222,44 +222,14 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 
-def recover_spatial_scores(
-    overlay_path,
-    image_path,
-):
-    # Load overlay
-    overlay = (
-        np.asarray(Image.open(overlay_path).convert("RGB"))
-        .astype(np.float32) / 255.0
-    )
-    sample_image = plt.imread(image_path)[..., :3]
-    overlay = plt.imread(overlay_path)[..., :3]
-    heatmap_rgb = (overlay - 0.6 * sample_image) / 0.4
-    heatmap_rgb = np.clip(heatmap_rgb, 0, 1)
+def recover_spatial_scores(image_path):
+    image = plt.imread(image_path)[..., :3]
 
-    # Recover RGB heatmap:
-    #
-    # overlay = 0.6 * sample_image + 0.4 * heatmap
-    heatmap_rgb = (overlay - 0.6 * sample_image) / 0.4
-    heatmap_rgb = np.clip(heatmap_rgb, 0, 1)
+    # Exactly black pixels: R=G=B=0
+    black_pixels = np.all(image == 0.0, axis=-1)
 
-    # Invert matplotlib's "hot" colormap
-    cmap = plt.get_cmap("hot")
-
-    values = np.linspace(0, 1, 10001)
-    colors = cmap(values)[:, :3]
-
-    pixels = heatmap_rgb.reshape(-1, 3)
-
-    # Find closest "hot" color
-    distances = (
-        (pixels[:, None, :] - colors[None, :, :]) ** 2
-    ).sum(axis=2)
-
-    indices = distances.argmin(axis=1)
-
-    spatial_scores = values[indices].reshape(
-        heatmap_rgb.shape[:2]
-    )
+    # Black = 1, everything else = 0
+    spatial_scores = black_pixels.astype(np.float32)
 
     return spatial_scores
 
@@ -278,9 +248,9 @@ def pdb_worker(job_queue):
         # integrated_gradients, occlusion, saliency overlay
         # get the corresponding PDB file fromt he replica dir
         try:
-            original_pdb_file = replica_dir / f"{sample.name.replace('_transformed_sample.png', '.pdb')}"
+            original_pdb_file = replica_dir / f"{sample.name.replace('_blurred_sample.png', '.pdb')}"
             for overlay in ["integrated_gradients", "occlusion", "saliency"]:
-                overlay_filename = sample.name.replace("_transformed_sample.png", f"_{overlay}_overlay.png")
+                overlay_filename = sample.name.replace("_blurred_sample.png", f"_{overlay}_overlay.png")
                 overlay_path = output_dir / overlay_filename
                 if not (overlay_path).exists():
                     print(f"Missing overlay {overlay_filename} for sample {sample.name} in {output_dir}")
@@ -288,7 +258,6 @@ def pdb_worker(job_queue):
                 
                 # recover the spatial scores from the overlay and save them in the PDB file
                 spatial_scores = recover_spatial_scores(
-                    overlay_path=overlay_path,
                     image_path=sample,
                 )
                 spatial_scores = torch.from_numpy(
@@ -346,10 +315,10 @@ def fix_pdbs():
                         / "images"
                     )
                     # for each sample containing transformed sample, check if the corresponding PDB file exists in the output directory
-                    for sample in output_dir.glob("*_transformed_sample.png"):
+                    for sample in output_dir.glob("*_blurred_sample.png"):
                         # only if the sample has 3 pml files (one for each method) and 3 colored PDB files (one for each method), then skip it
-                        pml_files = list(output_dir.glob(f"{sample.stem.replace('_transformed_sample', '')}_*.pml"))
-                        colored_pdb_files = list(output_dir.glob(f"{sample.stem.replace('_transformed_sample', '')}_*_bfactor.pdb"))
+                        pml_files = list(output_dir.glob(f"{sample.stem.replace('_blurred_sample', '')}_*.pml"))
+                        colored_pdb_files = list(output_dir.glob(f"{sample.stem.replace('_blurred_sample', '')}_*_bfactor.pdb"))
                         if len(pml_files) == 3 and len(colored_pdb_files) == 3:
                             print(f"Skipping {sample.name} in {output_dir} (already completed)")
                             continue
@@ -360,6 +329,8 @@ def fix_pdbs():
                                 sample
                             )
                         )
+                    # handle the average sample as well
+
     print(f"Total jobs: {len(jobs)}")
 
     # Put all jobs into the shared queue.
