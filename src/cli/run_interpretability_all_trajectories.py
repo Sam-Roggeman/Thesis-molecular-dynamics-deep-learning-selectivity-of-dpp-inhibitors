@@ -249,31 +249,31 @@ def pdb_worker(job_queue):
         # get the corresponding PDB file fromt he replica dir
         try:
             original_pdb_file = replica_dir / f"{sample.name.replace('_blurred_sample.png', '.pdb')}"
-            for overlay in ["integrated_gradients", "occlusion", "saliency"]:
-                overlay_filename = sample.name.replace("_blurred_sample.png", f"_{overlay}_overlay.png")
-                overlay_path = output_dir / overlay_filename
-                if not (overlay_path).exists():
-                    print(f"Missing overlay {overlay_filename} for sample {sample.name} in {output_dir}")
-                    continue
-                
-                # recover the spatial scores from the overlay and save them in the PDB file
-                spatial_scores = recover_spatial_scores(
-                    image_path=sample,
-                )
-                spatial_scores = torch.from_numpy(
-                    spatial_scores.reshape(-1)
-                ).float()
+            
+            if "integrated_gradients" in sample.name:
+                method = "integrated_gradients"
+            elif "occlusion" in sample.name:
+                method = "occlusion"
+            elif "saliency" in sample.name:
+                method = "saliency"
+            # recover the spatial scores from the overlay and save them in the PDB file
+            spatial_scores = recover_spatial_scores(
+                image_path=sample,
+            )
+            spatial_scores = torch.from_numpy(
+                spatial_scores.reshape(-1)
+            ).float()
 
 
-                colored_pdb_path = save_attribution_colored_pdbs_spatial_scores(
-                    pdb_file=original_pdb_file,
-                    output_dir=output_dir,
-                    spatial_scores=spatial_scores,
-                    method=overlay,
-                )
-                script_path = Path.joinpath(Path(colored_pdb_path).parent, f"{Path(colored_pdb_path).stem}.pml")
+            colored_pdb_path = save_attribution_colored_pdbs_spatial_scores(
+                pdb_file=original_pdb_file,
+                output_dir=output_dir,
+                spatial_scores=spatial_scores,
+                method=method,
+            )
+            script_path = Path.joinpath(Path(colored_pdb_path).parent, f"{Path(colored_pdb_path).stem}.pml")
 
-                write_coloring_script([colored_pdb_path], script_path, threshold=threshold)
+            write_coloring_script([colored_pdb_path], script_path, threshold=threshold)
             print(f"Processed sample {sample.name} in {output_dir}")
         except Exception as e:
             print(f"Error processing sample {sample.name} in {output_dir}: {e}")
