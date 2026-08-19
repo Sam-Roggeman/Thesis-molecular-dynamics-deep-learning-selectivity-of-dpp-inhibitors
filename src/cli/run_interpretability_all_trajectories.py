@@ -262,6 +262,7 @@ def pdb_worker(job_queue):
                 method = "saliency"
                 pdb_name = pdb_name.replace("_saliency", "")
             if "average" in sample.name:
+                method += "_average"
                 # find the file in the replica dir that contains frame_1000 and ends with .pdb
                 pdb_name =  next(replica_dir.glob("*frame_1000.pdb")).name
 
