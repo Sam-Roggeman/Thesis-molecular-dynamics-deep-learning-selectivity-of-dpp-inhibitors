@@ -323,4 +323,4 @@ def fix_pdbs():
                     input(f"Finished fixing PDBs for {model_name} | {replica_dir}. Press Enter to continue...") 
                         
 if __name__ == "__main__":
-    main()
+    fix_pdbs()
