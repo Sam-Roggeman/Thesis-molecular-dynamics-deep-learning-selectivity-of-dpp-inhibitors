@@ -252,10 +252,13 @@ def pdb_worker(job_queue):
             
             if "integrated_gradients" in sample.name:
                 method = "integrated_gradients"
+                original_pdb_file = original_pdb_file.replace("_integrated_gradients", "")
             elif "occlusion" in sample.name:
                 method = "occlusion"
+                original_pdb_file = original_pdb_file.replace("_occlusion", "")
             elif "saliency" in sample.name:
                 method = "saliency"
+                original_pdb_file = original_pdb_file.replace("_saliency", "")
             # recover the spatial scores from the overlay and save them in the PDB file
             spatial_scores = recover_spatial_scores(
                 image_path=sample,
