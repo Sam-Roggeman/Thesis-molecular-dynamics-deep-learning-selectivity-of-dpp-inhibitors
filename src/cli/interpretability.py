@@ -255,7 +255,7 @@ def save_attribution_colored_pdbs(
 def save_attribution_colored_pdbs_spatial_scores(
     pdb_file: str,
     output_dir: str,
-    spacial_scores: torch.Tensor,
+    spatial_scores: torch.Tensor,
     method: int
 ) -> list[str]:
     """Create one PDB per attribution method with atom scores stored in B-factor."""
@@ -263,7 +263,7 @@ def save_attribution_colored_pdbs_spatial_scores(
     # the most important atoms will have a B-factor of 100, the least important will have a B-factor of 0, and the others will be scaled in between
     # this allows for easy visualization in PyMOL using a spectrum from gray (0) to red (100)
     output_path = os.path.join(output_dir, f"{Path(pdb_file).stem}_{method}_bfactor.pdb")
-    _write_bfactor_colored_pdb(pdb_file, output_path, spacial_scores)
+    _write_bfactor_colored_pdb(pdb_file, output_path, spatial_scores)
     print(f"Saved colored PDB for {method}: {output_path}")
     return output_path
 
