@@ -6,7 +6,7 @@ import contextlib
 from src.utils.interpretability import CaptumInterpreter, _initilize_classification_model, solve_methods
 import torch
 
-from src.cli.interpretability import execute_interpretability
+from src.cli.interpretability import execute_interpretability, save_attribution_colored_pdbs, write_coloring_script
 from src.utils.utils import ligant_to_class
 
 
@@ -224,21 +224,17 @@ import matplotlib.pyplot as plt
 
 def recover_spatial_scores(
     overlay_path,
-    sample_tensor,
+    image_path,
 ):
     # Load overlay
     overlay = (
         np.asarray(Image.open(overlay_path).convert("RGB"))
         .astype(np.float32) / 255.0
     )
-
-    # Original image
-    sample_image = (
-        sample_tensor.detach()
-        .cpu()
-        .permute(1, 2, 0)
-        .numpy()
-    )
+    sample_image = plt.imread(image_path)[..., :3]
+    overlay = plt.imread(overlay_path)[..., :3]
+    heatmap_rgb = (overlay - 0.6 * sample_image) / 0.4
+    heatmap_rgb = np.clip(heatmap_rgb, 0, 1)
 
     # Recover RGB heatmap:
     #
@@ -266,6 +262,65 @@ def recover_spatial_scores(
     )
 
     return spatial_scores
+def fix_pdbs():
+    threshold = 0.5
+    for dpp_dir in ROOT_DIRECTORY.iterdir():
+        if not dpp_dir.is_dir():
+            continue
 
+        dpp = dpp_dir.stem
+        if dpp not in ["DPP8", "DPP9"]:
+            print(f"Skipping {dpp_dir} (not DPP8 or DPP9)")
+            continue
+        for ligand_dir in dpp_dir.iterdir():
+            if not ligand_dir.is_dir():
+                continue
+
+            ligand = ligand_dir.stem
+            binding_type = ligant_to_class(ligand_name=ligand)
+
+            for replica_dir in ligand_dir.iterdir():
+                if not replica_dir.is_dir():
+                    continue
+
+                replica = replica_dir.stem
+
+                for model_name, checkpoint in MODEL_CHECKPOINTS.items():
+                    output_dir = (
+                        ROOT_OUTPUT_DIRECTORY
+                        / dpp
+                        / ligand
+                        / replica
+                        / model_name
+                    )
+                    # for each sample containing transformed sample, check if the corresponding PDB file exists in the output directory
+                    for sample in output_dir.glob("*_transformed_sample.png"):
+                        # integrated_gradients, occlusion, saliency overlay
+                        # get the corresponding PDB file fromt he replica dir
+                        original_pdb_file = replica_dir / f"{sample.name.replace('_transformed_sample.png', '.pdb')}"
+                        for overlay in ["integrated_gradients", "occlusion", "saliency"]:
+                            overlay_filename = sample.name.replace("_transformed_sample.png", f"_{overlay}_overlay.png")
+                            overlay_path = output_dir / overlay_filename
+                            if not (overlay_path).exists():
+                                print(f"Missing overlay {overlay_filename} for sample {sample.name} in {output_dir}")
+                                continue
+                            
+                            pdb_filename = sample.name.replace("_transformed_sample.png", ".pdb")
+                            # recover the spatial scores from the overlay and save them in the PDB file
+                            spatial_scores = recover_spatial_scores(
+                                overlay_path=overlay_path,
+                                image_path=sample,
+                            )
+                            colored_pdb_path = save_attribution_colored_pdbs(
+                                pdb_file=original_pdb_file,
+                                output_path=output_dir / f"{pdb_filename.replace('.pdb', f'_{overlay}_bfactor.pdb')}",
+                                spatial_scores=spatial_scores,
+                            )
+                            script_path = Path.joinpath(Path(colored_pdb_path).parent, f"{Path(colored_pdb_path).stem}.pml")
+
+                            write_coloring_script([colored_pdb_path], script_path, threshold=threshold)
+                    # wait for input from user to continue
+                    input(f"Finished fixing PDBs for {model_name} | {replica_dir}. Press Enter to continue...") 
+                        
 if __name__ == "__main__":
     main()
