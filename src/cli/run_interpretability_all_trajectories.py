@@ -261,6 +261,9 @@ def pdb_worker(job_queue):
             elif "saliency" in sample.name:
                 method = "saliency"
                 pdb_name = pdb_name.replace("_saliency", "")
+            if "average" in sample.name:
+                # find the file in the replica dir that contains frame_1000 and ends with .pdb
+                pdb_name =  next(replica_dir.glob("*frame_1000.pdb")).name
 
             original_pdb_file = replica_dir / pdb_name
             # recover the spatial scores from the overlay and save them in the PDB file
