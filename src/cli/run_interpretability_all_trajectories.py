@@ -347,6 +347,12 @@ def fix_pdbs():
                     )
                     # for each sample containing transformed sample, check if the corresponding PDB file exists in the output directory
                     for sample in output_dir.glob("*_transformed_sample.png"):
+                        # only if the sample has 3 pml files (one for each method) and 3 colored PDB files (one for each method), then skip it
+                        pml_files = list(output_dir.glob(f"{sample.stem.replace('_transformed_sample', '')}_*.pml"))
+                        colored_pdb_files = list(output_dir.glob(f"{sample.stem.replace('_transformed_sample', '')}_*_bfactor.pdb"))
+                        if len(pml_files) == 3 and len(colored_pdb_files) == 3:
+                            print(f"Skipping {sample.name} in {output_dir} (already completed)")
+                            continue
                         jobs.append(
                             (
                                 replica_dir,
@@ -354,8 +360,7 @@ def fix_pdbs():
                                 sample
                             )
                         )
-                    # wait for input from user to continue
-            print(f"Total jobs: {len(jobs)}")
+    print(f"Total jobs: {len(jobs)}")
 
     # Put all jobs into the shared queue.
     nr_workers = 16
