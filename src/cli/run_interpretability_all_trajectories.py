@@ -217,6 +217,55 @@ def main():
     for p in workers:
         p.join()
 
+from PIL import Image
+import numpy as np
+import matplotlib.pyplot as plt
+
+
+def recover_spatial_scores(
+    overlay_path,
+    sample_tensor,
+):
+    # Load overlay
+    overlay = (
+        np.asarray(Image.open(overlay_path).convert("RGB"))
+        .astype(np.float32) / 255.0
+    )
+
+    # Original image
+    sample_image = (
+        sample_tensor.detach()
+        .cpu()
+        .permute(1, 2, 0)
+        .numpy()
+    )
+
+    # Recover RGB heatmap:
+    #
+    # overlay = 0.6 * sample_image + 0.4 * heatmap
+    heatmap_rgb = (overlay - 0.6 * sample_image) / 0.4
+    heatmap_rgb = np.clip(heatmap_rgb, 0, 1)
+
+    # Invert matplotlib's "hot" colormap
+    cmap = plt.get_cmap("hot")
+
+    values = np.linspace(0, 1, 10001)
+    colors = cmap(values)[:, :3]
+
+    pixels = heatmap_rgb.reshape(-1, 3)
+
+    # Find closest "hot" color
+    distances = (
+        (pixels[:, None, :] - colors[None, :, :]) ** 2
+    ).sum(axis=2)
+
+    indices = distances.argmin(axis=1)
+
+    spatial_scores = values[indices].reshape(
+        heatmap_rgb.shape[:2]
+    )
+
+    return spatial_scores
 
 if __name__ == "__main__":
     main()

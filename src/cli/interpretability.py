@@ -247,13 +247,23 @@ def save_attribution_colored_pdbs(
     num_atoms: int,
     method: int
 ) -> list[str]:
-    """Create one PDB per attribution method with atom scores stored in B-factor."""
     atom_scores = _attribution_to_atom_scores(attribution, num_atoms)
     atom_scores = _normalize_scores(atom_scores)
+    return save_attribution_colored_pdbs_spatial_scores(pdb_file, output_dir, atom_scores, method)
+
+    
+def save_attribution_colored_pdbs_spatial_scores(
+    pdb_file: str,
+    output_dir: str,
+    spacial_scores: torch.Tensor,
+    method: int
+) -> list[str]:
+    """Create one PDB per attribution method with atom scores stored in B-factor."""
+
     # the most important atoms will have a B-factor of 100, the least important will have a B-factor of 0, and the others will be scaled in between
     # this allows for easy visualization in PyMOL using a spectrum from gray (0) to red (100)
     output_path = os.path.join(output_dir, f"{Path(pdb_file).stem}_{method}_bfactor.pdb")
-    _write_bfactor_colored_pdb(pdb_file, output_path, atom_scores)
+    _write_bfactor_colored_pdb(pdb_file, output_path, spacial_scores)
     print(f"Saved colored PDB for {method}: {output_path}")
     return output_path
 
@@ -351,7 +361,7 @@ def execute_interpretability(pdb_file=None, pdb_directory=None, output_dir=None,
         # load the trained classification model from the provided checkpoint    
         model = _initilize_classification_model(model_checkpoint, device=device)
     else:
-        model = model_checkpoint
+        model
     if methods is None:
         methods = solve_methods(CaptumInterpreter(model), method_args=method_args)
     delta_time = time.time() - start_time
@@ -499,7 +509,7 @@ def execute_interpretability(pdb_file=None, pdb_directory=None, output_dir=None,
             print(f"\tSaved comparison plot for {method} to {comparison_save_path}")
             pdb_filepath = sample["pdb_id"]
             if pdb_directory:
-                pdb_filepath = os.path.join(pdb_directory, f"{sample['pdb_id']}.pdb")
+                pdb_filepath = os.path.join(pdb_directory, f"{pdb_id}.pdb")
             colored_pdb_path = save_attribution_colored_pdbs(
                 pdb_file=pdb_filepath,
                 output_dir=image_dir,
