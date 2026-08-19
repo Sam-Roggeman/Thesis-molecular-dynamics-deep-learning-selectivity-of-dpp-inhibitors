@@ -262,8 +262,60 @@ def recover_spatial_scores(
     )
 
     return spatial_scores
+
+def pdb_worker(job_queue):
+    threshold = 0.5
+    while True:
+        job = job_queue.get()
+
+        if job is None:
+            break
+        (
+            replica_dir,
+            output_dir,
+            sample
+        ) = job
+        # integrated_gradients, occlusion, saliency overlay
+        # get the corresponding PDB file fromt he replica dir
+        try:
+            original_pdb_file = replica_dir / f"{sample.name.replace('_transformed_sample.png', '.pdb')}"
+            for overlay in ["integrated_gradients", "occlusion", "saliency"]:
+                overlay_filename = sample.name.replace("_transformed_sample.png", f"_{overlay}_overlay.png")
+                overlay_path = output_dir / overlay_filename
+                if not (overlay_path).exists():
+                    print(f"Missing overlay {overlay_filename} for sample {sample.name} in {output_dir}")
+                    continue
+                
+                # recover the spatial scores from the overlay and save them in the PDB file
+                spatial_scores = recover_spatial_scores(
+                    overlay_path=overlay_path,
+                    image_path=sample,
+                )
+                spatial_scores = torch.from_numpy(
+                    spatial_scores.reshape(-1)
+                ).float()
+
+
+                colored_pdb_path = save_attribution_colored_pdbs_spatial_scores(
+                    pdb_file=original_pdb_file,
+                    output_dir=output_dir,
+                    spatial_scores=spatial_scores,
+                    method=overlay,
+                )
+                script_path = Path.joinpath(Path(colored_pdb_path).parent, f"{Path(colored_pdb_path).stem}.pml")
+
+                write_coloring_script([colored_pdb_path], script_path, threshold=threshold)
+            print(f"Processed sample {sample.name} in {output_dir}")
+        except Exception as e:
+            print(f"Error processing sample {sample.name} in {output_dir}: {e}")
 def fix_pdbs():
     threshold = 0.5
+    ctx = mp.get_context("spawn")
+
+    job_queue = ctx.Queue()
+
+    # Create jobs: (replica, model)
+    jobs = []
     for dpp_dir in ROOT_DIRECTORY.iterdir():
         if not dpp_dir.is_dir():
             continue
@@ -296,38 +348,38 @@ def fix_pdbs():
                     )
                     # for each sample containing transformed sample, check if the corresponding PDB file exists in the output directory
                     for sample in output_dir.glob("*_transformed_sample.png"):
-                        # integrated_gradients, occlusion, saliency overlay
-                        # get the corresponding PDB file fromt he replica dir
-                        original_pdb_file = replica_dir / f"{sample.name.replace('_transformed_sample.png', '.pdb')}"
-                        for overlay in ["integrated_gradients", "occlusion", "saliency"]:
-                            overlay_filename = sample.name.replace("_transformed_sample.png", f"_{overlay}_overlay.png")
-                            overlay_path = output_dir / overlay_filename
-                            if not (overlay_path).exists():
-                                print(f"Missing overlay {overlay_filename} for sample {sample.name} in {output_dir}")
-                                continue
-                            
-                            pdb_filename = sample.name.replace("_transformed_sample.png", ".pdb")
-                            # recover the spatial scores from the overlay and save them in the PDB file
-                            spatial_scores = recover_spatial_scores(
-                                overlay_path=overlay_path,
-                                image_path=sample,
+                        jobs.append(
+                            (
+                                replica_dir,
+                                output_dir,
+                                sample
                             )
-                            spatial_scores = torch.from_numpy(
-                                spatial_scores.reshape(-1)
-                            ).float()
-
-
-                            colored_pdb_path = save_attribution_colored_pdbs_spatial_scores(
-                                pdb_file=original_pdb_file,
-                                output_dir=output_dir,
-                                spatial_scores=spatial_scores,
-                                method=overlay,
-                            )
-                            script_path = Path.joinpath(Path(colored_pdb_path).parent, f"{Path(colored_pdb_path).stem}.pml")
-
-                            write_coloring_script([colored_pdb_path], script_path, threshold=threshold)
+                        )
                     # wait for input from user to continue
-                    input(f"Finished fixing PDBs for {model_name} | {replica_dir} in {output_dir}. Press Enter to continue...") 
-                        
+            print(f"Total jobs: {len(jobs)}")
+
+    # Put all jobs into the shared queue.
+    nr_workers = 16
+    for job in jobs:
+        job_queue.put(job)
+
+    # One worker per GPU.
+    workers = []
+
+    for worker_id in range(nr_workers):
+        p = ctx.Process(
+            target=pdb_worker,
+            args=(job_queue),
+        )
+        p.start()
+        workers.append(p)
+
+    # One sentinel per worker.
+    for _ in range(nr_workers):
+        job_queue.put(None)
+
+    # Wait for workers.
+    for p in workers:
+        p.join()          
 if __name__ == "__main__":
     fix_pdbs()
