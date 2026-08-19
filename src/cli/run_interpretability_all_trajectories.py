@@ -312,7 +312,9 @@ def fix_pdbs():
                                 overlay_path=overlay_path,
                                 image_path=sample,
                             )
-                            spatial_scores = torch.from_numpy(spatial_scores)
+                            spatial_scores = torch.from_numpy(
+                                spatial_scores.reshape(-1)
+                            ).float()
 
 
                             colored_pdb_path = save_attribution_colored_pdbs_spatial_scores(

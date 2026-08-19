@@ -216,6 +216,7 @@ def _write_bfactor_colored_pdb(pdb_file: str, output_path: str, atom_scores: tor
 
     atom_line_count = sum(1 for line in lines if line.startswith(("ATOM", "HETATM")))
     if atom_line_count != int(atom_scores.numel()):
+
         # grab only the atom line count number of scores
         atom_scores = atom_scores[:atom_line_count]
 
