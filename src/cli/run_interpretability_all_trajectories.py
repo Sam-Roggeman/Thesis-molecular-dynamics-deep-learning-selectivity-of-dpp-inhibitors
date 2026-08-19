@@ -320,7 +320,7 @@ def fix_pdbs():
 
                             write_coloring_script([colored_pdb_path], script_path, threshold=threshold)
                     # wait for input from user to continue
-                    input(f"Finished fixing PDBs for {model_name} | {replica_dir}. Press Enter to continue...") 
+                    input(f"Finished fixing PDBs for {model_name} | {replica_dir} in {output_dir}. Press Enter to continue...") 
                         
 if __name__ == "__main__":
     fix_pdbs()
