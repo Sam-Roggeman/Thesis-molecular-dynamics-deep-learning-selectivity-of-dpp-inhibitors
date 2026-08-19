@@ -222,7 +222,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 
-def recover_spatial_scores(image_path, threshold=10/ 255):
+def recover_spatial_scores(image_path, threshold=15/ 255):
     image = plt.imread(image_path)[..., :3].astype(np.float32)
 
     dark_pixels = image.max(axis=-1) <= threshold
@@ -284,12 +284,10 @@ def pdb_worker(job_queue):
                 script_path = Path.joinpath(Path(colored_pdb_path).parent, f"{Path(colored_pdb_path).stem}.pml")
 
                 write_coloring_script([colored_pdb_path], script_path, threshold=threshold)
-            if "average" in sample.name:
-                print(f"Saved average colored PDB for {method}: {colored_pdb_path}")
+
         except Exception as e:
             print(f"Error processing sample {sample.name} in {output_dir}: {e}")
 def fix_pdbs():
-    threshold = 0.5
     ctx = mp.get_context("spawn")
 
     job_queue = ctx.Queue()
