@@ -249,7 +249,6 @@ def pdb_worker(job_queue):
         # get the corresponding PDB file fromt he replica dir
         try:
             pdb_name = sample.name.replace("_blurred_sample.png", ".pdb")
-
             if "integrated_gradients" in sample.name:
                 method = "integrated_gradients"
                 pdb_name = pdb_name.replace("_integrated_gradients", "")
@@ -261,8 +260,10 @@ def pdb_worker(job_queue):
             elif "saliency" in sample.name:
                 method = "saliency"
                 pdb_name = pdb_name.replace("_saliency", "")
+            else:
+                print(f"Unknown method for sample {sample.name}. Skipping.")
             if "average" in sample.name:
-                method += "_average"
+                method = method + "_average"
                 # find the file in the replica dir that contains frame_1000 and ends with .pdb
                 pdb_name =  next(replica_dir.glob("*frame_1000.pdb")).name
 
@@ -289,7 +290,6 @@ def pdb_worker(job_queue):
 
                 write_coloring_script([colored_pdb_path], script_path, threshold=threshold)
             
-            print(f"Processed sample {sample.name} in {output_dir}")
         except Exception as e:
             print(f"Error processing sample {sample.name} in {output_dir}: {e}")
 def fix_pdbs():
