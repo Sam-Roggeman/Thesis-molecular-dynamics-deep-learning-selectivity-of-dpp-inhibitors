@@ -292,6 +292,7 @@ def fix_pdbs():
                         / ligand
                         / replica
                         / model_name
+                        / "images"
                     )
                     # for each sample containing transformed sample, check if the corresponding PDB file exists in the output directory
                     for sample in output_dir.glob("*_transformed_sample.png"):
