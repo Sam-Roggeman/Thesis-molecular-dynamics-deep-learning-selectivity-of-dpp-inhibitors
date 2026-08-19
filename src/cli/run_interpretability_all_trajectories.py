@@ -6,7 +6,7 @@ import contextlib
 from src.utils.interpretability import CaptumInterpreter, _initilize_classification_model, solve_methods
 import torch
 
-from src.cli.interpretability import execute_interpretability, save_attribution_colored_pdbs, write_coloring_script
+from src.cli.interpretability import execute_interpretability, save_attribution_colored_pdbs_spatial_scores, write_coloring_script
 from src.utils.utils import ligant_to_class
 
 
@@ -312,10 +312,13 @@ def fix_pdbs():
                                 overlay_path=overlay_path,
                                 image_path=sample,
                             )
-                            colored_pdb_path = save_attribution_colored_pdbs(
+
+
+                            colored_pdb_path = save_attribution_colored_pdbs_spatial_scores(
                                 pdb_file=original_pdb_file,
-                                output_path=output_dir / f"{pdb_filename.replace('.pdb', f'_{overlay}_bfactor.pdb')}",
+                                output_dir=output_dir,
                                 spatial_scores=spatial_scores,
+                                method=overlay,
                             )
                             script_path = Path.joinpath(Path(colored_pdb_path).parent, f"{Path(colored_pdb_path).stem}.pml")
 
