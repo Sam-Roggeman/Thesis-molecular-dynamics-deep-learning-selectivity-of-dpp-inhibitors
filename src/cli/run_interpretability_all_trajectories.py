@@ -222,16 +222,12 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 
-def recover_spatial_scores(image_path):
-    image = plt.imread(image_path)[..., :3]
+def recover_spatial_scores(image_path, threshold=6 / 255):
+    image = plt.imread(image_path)[..., :3].astype(np.float32)
 
-    # Exactly black pixels: R=G=B=0
-    black_pixels = np.all(image == 0.0, axis=-1)
+    dark_pixels = image.max(axis=-1) <= threshold
 
-    # Black = 1, everything else = 0
-    spatial_scores = black_pixels.astype(np.float32)
-
-    return spatial_scores
+    return dark_pixels.astype(np.float32)
 
 def pdb_worker(job_queue):
     threshold = 0.5
