@@ -266,7 +266,6 @@ def pdb_worker(job_queue):
                 method = method + "_average"
                 # find the file in the replica dir that contains frame_1000 and ends with .pdb
                 pdb_name =  next(replica_dir.glob("*frame_1000.pdb")).name
-
             original_pdb_file = replica_dir / pdb_name
             # recover the spatial scores from the overlay and save them in the PDB file
             spatial_scores = recover_spatial_scores(
@@ -289,7 +288,8 @@ def pdb_worker(job_queue):
                 script_path = Path.joinpath(Path(colored_pdb_path).parent, f"{Path(colored_pdb_path).stem}.pml")
 
                 write_coloring_script([colored_pdb_path], script_path, threshold=threshold)
-            
+            if "average" in sample.name:
+                print(f"Saved average colored PDB for {method}: {colored_pdb_path}")
         except Exception as e:
             print(f"Error processing sample {sample.name} in {output_dir}: {e}")
 def fix_pdbs():
