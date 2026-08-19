@@ -313,6 +313,7 @@ def fix_pdbs():
     ctx = mp.get_context("spawn")
 
     job_queue = ctx.Queue()
+    jobs = []
 
     # Create jobs: (replica, model)
     jobs = []
