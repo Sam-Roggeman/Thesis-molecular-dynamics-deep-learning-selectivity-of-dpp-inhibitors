@@ -271,16 +271,20 @@ def pdb_worker(job_queue):
                 spatial_scores.reshape(-1)
             ).float()
 
+            # stop internal prints  statements from cluttering the output
+            with contextlib.redirect_stdout(open(os.devnull, "w")):
 
-            colored_pdb_path = save_attribution_colored_pdbs_spatial_scores(
-                pdb_file=original_pdb_file,
-                output_dir=output_dir,
-                spatial_scores=spatial_scores,
-                method=method,
-            )
-            script_path = Path.joinpath(Path(colored_pdb_path).parent, f"{Path(colored_pdb_path).stem}.pml")
 
-            write_coloring_script([colored_pdb_path], script_path, threshold=threshold)
+                colored_pdb_path = save_attribution_colored_pdbs_spatial_scores(
+                    pdb_file=original_pdb_file,
+                    output_dir=output_dir,
+                    spatial_scores=spatial_scores,
+                    method=method,
+                )
+                script_path = Path.joinpath(Path(colored_pdb_path).parent, f"{Path(colored_pdb_path).stem}.pml")
+
+                write_coloring_script([colored_pdb_path], script_path, threshold=threshold)
+            
             print(f"Processed sample {sample.name} in {output_dir}")
         except Exception as e:
             print(f"Error processing sample {sample.name} in {output_dir}: {e}")
