@@ -248,17 +248,21 @@ def pdb_worker(job_queue):
         # integrated_gradients, occlusion, saliency overlay
         # get the corresponding PDB file fromt he replica dir
         try:
-            original_pdb_file = replica_dir / f"{sample.name.replace('_blurred_sample.png', '.pdb')}"
-            
+            pdb_name = sample.name.replace("_blurred_sample.png", ".pdb")
+
             if "integrated_gradients" in sample.name:
                 method = "integrated_gradients"
-                original_pdb_file = f"{original_pdb_file.replace("_integrated_gradients", "")}"
+                pdb_name = pdb_name.replace("_integrated_gradients", "")
+
             elif "occlusion" in sample.name:
                 method = "occlusion"
-                original_pdb_file = f"{original_pdb_file.replace("_occlusion", "")}"
+                pdb_name = pdb_name.replace("_occlusion", "")
+
             elif "saliency" in sample.name:
                 method = "saliency"
-                original_pdb_file = f"{original_pdb_file.replace('_saliency', '')}"
+                pdb_name = pdb_name.replace("_saliency", "")
+
+            original_pdb_file = replica_dir / pdb_name
             # recover the spatial scores from the overlay and save them in the PDB file
             spatial_scores = recover_spatial_scores(
                 image_path=sample,
