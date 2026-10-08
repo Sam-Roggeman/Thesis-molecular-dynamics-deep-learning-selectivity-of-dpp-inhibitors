@@ -1,3 +1,5 @@
+"""Command-line helpers for attribution maps and PDB visualizations."""
+
 import argparse
 from html import parser
 import os
@@ -6,10 +8,10 @@ from typing import Callable
 import matplotlib.pyplot as plt
 import torch
 import numpy as np
-from src.data_preprocessing.utils import extract_pdb_file, extract_pdb_files_from_directory
-from src.model_training.LabelEncoder import LabelEncoder
-from src.model_training.batch_preprocessing import _coords_to_rgb, _coords_to_tensor, prepare_model_batch
-from src.utils.interpretability import AttributionResult, CaptumInterpreter
+from src.data.data_preprocessing.utils import extract_pdb_file, extract_pdb_files_from_directory
+from src.training.LabelEncoder import LabelEncoder
+from src.training.batch_preprocessing import _coords_to_rgb, _coords_to_tensor, prepare_model_batch
+from src.utils.interpretability import AttributionResult, CaptumInterpreter, _initilize_classification_model, solve_methods
 from src.utils.resolvers import (
     _extract_class_name,
     _load_config_from_artifacts,
@@ -25,8 +27,10 @@ import time
 def apply_transformations_to_samples(samples: list) -> tuple[torch.Tensor, torch.Tensor]:
     """
     Apply transformations to the preprocessed data samples.
-    :param samples: List of preprocessed data samples.
-    :return: Transformed data as a tensor [B, C, H, W] and the corresponding true labels as a tensor [B].
+    Args:
+        samples: Samples containing coordinates, atom counts, and binding types.
+    Returns:
+        ``(images, labels)`` with shapes ``[B, C, H, W]`` and ``[B]``.
     """
     # the transformations should be the same as those applied during training, except for any random scrambling or augmentations that would make the sample non-deterministic
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -51,10 +55,12 @@ def apply_transformations_to_samples(samples: list) -> tuple[torch.Tensor, torch
 def apply_classification(sample: torch.Tensor, model: torch.nn.Module, device: torch.device) -> tuple[torch.Tensor, torch.Tensor]:
     """
     Apply the trained classification model to the transformed sample.
-    :param sample: Transformed data sample.
-    :param model: Trained classification model.
-    :param device: Device used for model inference.
-    :return: Model output as a tensor.
+    Args:
+        sample: One transformed image with shape ``[C, H, W]``.
+        model: Trained classification model.
+        device: Device used for model inference.
+    Returns:
+        ``(logits, predicted_class)`` for the single sample.
     """
     model.eval()
     with torch.no_grad():
@@ -63,45 +69,6 @@ def apply_classification(sample: torch.Tensor, model: torch.nn.Module, device: t
         predicted_class = torch.argmax(logits, dim=1)
     return logits, predicted_class
 
-def solve_methods(interpreter: CaptumInterpreter, method_args) -> dict[str, Callable]:
-    """
-    Resolve a method string to the corresponding interpretability method.
-    :param method_str: String identifier for the interpretability method (e.g., "integrated_gradients").
-    :return: Corresponding interpretability method object.
-    """
-    methods = {}
-    for method, args in method_args.items():
-        if method == "integrated_gradients":
-            n_steps = args["steps"]
-            # keep argparse-driven parameters configurable per run
-            methods[method] = lambda inputs, target: interpreter.integrated_gradients(
-                inputs,
-                target=target,
-                n_steps=n_steps,
-            )
-        elif method == "saliency":
-            methods[method] = lambda inputs, target: interpreter.saliency(inputs, target=target)
-        elif method == "occlusion":
-            patch_size = args["patch_size"]
-            shift_size = args["shift_size"]
-            perturbations_per_eval = args["perturbations_per_eval"]
-            methods[method] = lambda inputs, target: interpreter.occlusion(
-                inputs,
-                target=target,
-                patch_size=patch_size,
-                shift_size=shift_size,
-                perturbations_per_eval=perturbations_per_eval,
-                
-            )
-        else:
-            print(f"Unknown interpretability method '{method}'. Supported methods: 'integrated_gradients', 'saliency', 'occlusion'. Skipping.")
-    if len(methods) == 0:
-        methods["integrated_gradients"] = lambda inputs, target: interpreter.integrated_gradients(
-            inputs,
-            target=target,
-            n_steps=method_args.ig_steps,
-        )
-    return methods
 
 
 def _normalize_spatial_scores(spatial_scores: torch.Tensor) -> torch.Tensor:
@@ -215,10 +182,12 @@ def generate_interpretability_attribution(
     """
     attributions_results: dict[str, AttributionResult] = {}
 
-    sample_batch = sample.unsqueeze(0).to(device).clone().detach().requires_grad_(True)
+    sample_batch = sample.unsqueeze(0).to(device).clone().detach()
     target_idx = int(predicted_class.item())  # batch size is 1
 
     for method, method_fn in methods.items():
+        if method != "occlusion":
+            sample_batch.requires_grad_(True)
         print(f"Generating interpretability insights using method: {method}")
         attributions = method_fn(inputs=sample_batch, target=target_idx)
         attributions_results[method] = attributions
@@ -253,10 +222,9 @@ def _write_bfactor_colored_pdb(pdb_file: str, output_path: str, atom_scores: tor
 
     atom_line_count = sum(1 for line in lines if line.startswith(("ATOM", "HETATM")))
     if atom_line_count != int(atom_scores.numel()):
-        raise ValueError(
-            "Number of ATOM/HETATM lines does not match attribution-derived atom scores. "
-            f"PDB atoms={atom_line_count}, scores={atom_scores.numel()}."
-        )
+
+        # grab only the atom line count number of scores
+        atom_scores = atom_scores[:atom_line_count]
 
     score_idx = 0
     out_lines = []
@@ -284,38 +252,26 @@ def save_attribution_colored_pdbs(
     num_atoms: int,
     method: int
 ) -> list[str]:
-    """Create one PDB per attribution method with atom scores stored in B-factor."""
     atom_scores = _attribution_to_atom_scores(attribution, num_atoms)
     atom_scores = _normalize_scores(atom_scores)
+    return save_attribution_colored_pdbs_spatial_scores(pdb_file, output_dir, atom_scores, method)
+
+    
+def save_attribution_colored_pdbs_spatial_scores(
+    pdb_file: str,
+    output_dir: str,
+    spatial_scores: torch.Tensor,
+    method: int
+) -> list[str]:
+    """Create one PDB per attribution method with atom scores stored in B-factor."""
+
     # the most important atoms will have a B-factor of 100, the least important will have a B-factor of 0, and the others will be scaled in between
     # this allows for easy visualization in PyMOL using a spectrum from gray (0) to red (100)
     output_path = os.path.join(output_dir, f"{Path(pdb_file).stem}_{method}_bfactor.pdb")
-    _write_bfactor_colored_pdb(pdb_file, output_path, atom_scores)
+    _write_bfactor_colored_pdb(pdb_file, output_path, spatial_scores)
     print(f"Saved colored PDB for {method}: {output_path}")
     return output_path
 
-def _initilize_classification_model(checkpoint_path: str, device: torch.device) -> torch.nn.Module:
-    checkpoint_path = os.path.abspath(checkpoint_path)
-
-    config = _load_config_from_artifacts(None, checkpoint_path)
-    if config is None:
-        raise ValueError(
-            "No training config found next to checkpoint. "
-            "Expected training_config.pt or training_config.json."
-        )
-
-    model_name = _extract_class_name(config.model_class)
-    if not model_name:
-        raise ValueError("Could not resolve model class from training config.")
-
-    model_class = _resolve_model_class(model_name)
-    model_args = dict(config.model_args) if isinstance(config.model_args, dict) else {}
-
-    model = model_class(**model_args).to(device)
-    state_dict = _load_state_dict(checkpoint_path, device)
-    _load_weights(model, state_dict)
-    model.eval()
-    return model
 def write_coloring_script(colored_pdb_paths: list[str], script_path: str, threshold: float) -> None:
     """Write a PyMOL script to load and visualize the colored PDBs."""
     bfactor_threshold = threshold * 100.0
@@ -378,24 +334,41 @@ def probablity_string(percentages: torch.Tensor, class_labels: list[str]) -> str
         prob_string += f"\tClass '{class_name}': {percentage.item():.2f}%\n"
     return prob_string
 
-def execute_interpretability(pdb_file=None, pdb_directory=None, output_dir=None,binding_type=None, blur_top_n=None, model_checkpoint=None, method_args=None, threshold=None):
+def load_module(model_checkpoint: str, device: torch.device, method_args: dict) -> CaptumInterpreter:
+    """
+    Load the trained classification model from the provided checkpoint and return a CaptumInterpreter instance.
+    :param model_checkpoint: Path to the trained model checkpoint.
+    :param device: Device used for model inference.
+    :param method_args: Dictionary of method-specific arguments for interpretability methods.
+    :return: CaptumInterpreter instance with the loaded model.
+    """
+    model = _initilize_classification_model(model_checkpoint, device=device)
+    methods = solve_methods(CaptumInterpreter(model), method_args=method_args)
+    return model, methods
+
+def execute_interpretability(pdb_file=None, pdb_directory=None, output_dir=None,binding_type=None, blur_top_n=None, model_checkpoint=None, method_args=None, threshold=None, methods=None):
     """
     CLI entry point for interpretability tools.
     :param pdb_file: path to a PDB file for generating interpretability insights. If provided, the tool will process the file, feed it into the interpretability model, and output the insights. 
     :param output_dir: Directory where interpretability results will be saved. Defaults to "./interpretability_results".
     """
     start_time = time.time()
-
+    torch.backends.cuda.matmul.allow_tf32 = True
+    torch.backends.cudnn.allow_tf32 = True
     # determine whether to blur based on threshold or top n pixels
     blur_based_on_threshold = True 
     if blur_top_n is not None and blur_top_n != 0:
         blur_based_on_threshold = False 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     class_labels= LabelEncoder().get_classes()
-    # load the trained classification model from the provided checkpoint    
-
-    model = _initilize_classification_model(model_checkpoint, device=device)
-    methods = solve_methods(CaptumInterpreter(model), method_args=method_args)
+    # if the model checkpoint is a string or path   
+    if model_checkpoint and isinstance(model_checkpoint, (str, Path)):
+        # load the trained classification model from the provided checkpoint    
+        model = _initilize_classification_model(model_checkpoint, device=device)
+    else:
+        model
+    if methods is None:
+        methods = solve_methods(CaptumInterpreter(model), method_args=method_args)
     delta_time = time.time() - start_time
     start_time = time.time()
     print(f"loading methods and models: {delta_time}")
@@ -541,7 +514,7 @@ def execute_interpretability(pdb_file=None, pdb_directory=None, output_dir=None,
             print(f"\tSaved comparison plot for {method} to {comparison_save_path}")
             pdb_filepath = sample["pdb_id"]
             if pdb_directory:
-                pdb_filepath = os.path.join(pdb_directory, f"{sample['pdb_id']}.pdb")
+                pdb_filepath = os.path.join(pdb_directory, f"{pdb_id}.pdb")
             colored_pdb_path = save_attribution_colored_pdbs(
                 pdb_file=pdb_filepath,
                 output_dir=image_dir,
@@ -558,6 +531,9 @@ def execute_interpretability(pdb_file=None, pdb_directory=None, output_dir=None,
     print(f"processing insights: {delta_time}")
     print(f"Interpretability analysis completed. Results saved to: {output_dir}")
     torch.cuda.empty_cache()
+    # clean up any matplotlib figures to free memory
+    plt.close("all")
+
 
 def main():
     # parse command-line arguments

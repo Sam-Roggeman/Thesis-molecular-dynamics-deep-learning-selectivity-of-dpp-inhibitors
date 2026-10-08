@@ -1,10 +1,10 @@
-from src.Models.SCNN import SCNN
-from src.Models.OneLayer import OneLayerNet
-from src.Models.DCNN import DCNN
-from src.Models.LongSequenceAtomTransformer import LongSequenceAtomTransformer
-from src.data_loading.HFDataloader import initialize_dataloaders
-from src.model_training.batch_preprocessing import prepare_model_batch, prepare_sequence_batch
-from src.utils.training_config import TrainingConfig
+from src.models.SCNN import SCNN
+from src.models.OneLayer import OneLayerNet
+from src.models.DCNN import DCNN
+from src.models.LongSequenceAtomTransformer import LongSequenceAtomTransformer
+from src.data.data_loading.HFDataloader import initialize_dataloaders
+from src.training.batch_preprocessing import prepare_model_batch, prepare_sequence_batch
+from src.config.training_config import TrainingConfig
 import os 
 import torch
 import json

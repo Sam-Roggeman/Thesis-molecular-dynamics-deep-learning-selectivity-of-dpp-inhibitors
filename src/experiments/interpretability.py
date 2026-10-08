@@ -9,14 +9,14 @@ import matplotlib.pyplot as plt
 import torch
 from dotenv import load_dotenv
 
-from src.Models.DCNN import DCNN
-from src.Models.LongSequenceAtomTransformer import LongSequenceAtomTransformer
-from src.Models.OneLayer import OneLayerNet
-from src.Models.SCNN import SCNN
-from src.data_loading.HFDataloader import initialize_dataloaders, initialize_streaming_dataloader
-from src.model_training.LabelEncoder import LabelEncoder
+from src.models.DCNN import DCNN
+from src.models.LongSequenceAtomTransformer import LongSequenceAtomTransformer
+from src.models.OneLayer import OneLayerNet
+from src.models.SCNN import SCNN
+from src.data.data_loading.HFDataloader import initialize_dataloaders, initialize_streaming_dataloader
+from src.training.LabelEncoder import LabelEncoder
 from src.utils.interpretability import CaptumInterpreter
-from src.utils.training_config import TrainingConfig
+from src.config.training_config import TrainingConfig
 
 
 # Registry to resolve a serialized model name back to an actual class.

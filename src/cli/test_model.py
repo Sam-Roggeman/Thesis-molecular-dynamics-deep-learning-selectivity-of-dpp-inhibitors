@@ -7,17 +7,17 @@ import re
 import torch
 from dotenv import load_dotenv
 load_dotenv()
-from src.Models.DCNN import DCNN
-from src.Models.LongSequenceAtomTransformer import LongSequenceAtomTransformer
-from src.Models.OneLayer import OneLayerNet
-from src.Models.SCNN import SCNN
-from src.data_loading.HFDataloader import initialize_dataloaders
-from src.model_training.model_testing import model_testing
-from src.model_training.batch_preprocessing import prepare_model_batch, prepare_sequence_batch
-from src.utils.training_config import TrainingConfig
-from src.model_training.utils import load_model
+from src.models.DCNN import DCNN
+from src.models.LongSequenceAtomTransformer import LongSequenceAtomTransformer
+from src.models.OneLayer import OneLayerNet
+from src.models.SCNN import SCNN
+from src.data.data_loading.HFDataloader import initialize_dataloaders
+from src.training.model_testing import model_testing
+from src.training.batch_preprocessing import prepare_model_batch, prepare_sequence_batch
+from src.config.training_config import TrainingConfig
+from src.training.utils import load_model
 # logging
-from src.utils.logger import init_logger, get_logger, DEBUG as LOGGING_DEBUG
+from src.infrastructure.logger import init_logger, get_logger, DEBUG as LOGGING_DEBUG
 
 from src.utils.resolvers import (
 	MODEL_REGISTRY,

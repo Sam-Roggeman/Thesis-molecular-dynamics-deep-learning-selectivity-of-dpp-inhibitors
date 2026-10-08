@@ -6,10 +6,10 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-from src.Models.XGBoostImageClassifier import XGBoostImageClassifier
-from src.data_loading.HFDataloader import initialize_dataloaders
-from src.utils.cacheManager import cacheManager
-from src.utils.training_config import TrainingConfig
+from src.models.XGBoostImageClassifier import XGBoostImageClassifier
+from src.data.data_loading.HFDataloader import initialize_dataloaders
+from src.infrastructure.cacheManager import cacheManager
+from src.config.training_config import TrainingConfig
 
 
 def _build_output_dir(run_name: str) -> Path:

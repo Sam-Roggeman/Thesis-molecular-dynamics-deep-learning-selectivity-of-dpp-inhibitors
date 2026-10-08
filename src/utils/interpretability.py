@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
+import os
+from typing import Any, Callable
 
 import torch
 from captum.attr import GuidedBackprop, Occlusion
@@ -10,7 +11,77 @@ from captum.attr import LayerIntegratedGradients
 from captum.attr import Saliency
 from captum.attr import GradientShap
 from torch import nn
+from src.utils.resolvers import (
+    _extract_class_name,
+    _load_config_from_artifacts,
+    _load_state_dict,
+    _load_weights,
+    _resolve_model_class,
+)
 
+def solve_methods(interpreter: CaptumInterpreter, method_args) -> dict[str, Callable]:
+    """
+    Resolve a method string to the corresponding interpretability method.
+    :param method_str: String identifier for the interpretability method (e.g., "integrated_gradients").
+    :return: Corresponding interpretability method object.
+    """
+    methods = {}
+    for method, args in method_args.items():
+        if method == "integrated_gradients":
+            n_steps = args["steps"]
+            # keep argparse-driven parameters configurable per run
+            methods[method] = lambda inputs, target: interpreter.integrated_gradients(
+                inputs,
+                target=target,
+                n_steps=n_steps,
+            )
+        elif method == "saliency":
+            methods[method] = lambda inputs, target: interpreter.saliency(inputs, target=target)
+        elif method == "occlusion":
+            patch_size = args["patch_size"]
+            shift_size = args["shift_size"]
+            perturbations_per_eval = args["perturbations_per_eval"]
+            methods[method] = lambda inputs, target: interpreter.occlusion(
+                inputs,
+                target=target,
+                patch_size=patch_size,
+                shift_size=shift_size,
+                perturbations_per_eval=perturbations_per_eval,
+                
+            )
+        else:
+            print(f"Unknown interpretability method '{method}'. Supported methods: 'integrated_gradients', 'saliency', 'occlusion'. Skipping.")
+    if len(methods) == 0:
+        methods["integrated_gradients"] = lambda inputs, target: interpreter.integrated_gradients(
+            inputs,
+            target=target,
+            n_steps=method_args.ig_steps,
+        )
+    return methods
+
+
+def _initilize_classification_model(checkpoint_path: str, device: torch.device) -> torch.nn.Module:
+    checkpoint_path = os.path.abspath(checkpoint_path)
+
+    config = _load_config_from_artifacts(None, checkpoint_path)
+    if config is None:
+        raise ValueError(
+            "No training config found next to checkpoint. "
+            "Expected training_config.pt or training_config.json."
+        )
+
+    model_name = _extract_class_name(config.model_class)
+    if not model_name:
+        raise ValueError("Could not resolve model class from training config.")
+
+    model_class = _resolve_model_class(model_name)
+    model_args = dict(config.model_args) if isinstance(config.model_args, dict) else {}
+
+    model = model_class(**model_args).to(device)
+    state_dict = _load_state_dict(checkpoint_path, device)
+    _load_weights(model, state_dict)
+    model.eval()
+    return model
 
 @dataclass
 class AttributionResult:
@@ -136,12 +207,12 @@ class CaptumInterpreter:
         ablator = Occlusion(self.model)
         with torch.enable_grad():
             outputs = self.model(inputs)
-            resolved_target = self._resolve_target(outputs, target)
-            # Computes occlusion attribution, ablating each patch_size x patch_size patch
-            # shifting in each direction by the default of 1.
-            attributions = ablator.attribute(inputs, target=resolved_target, sliding_window_shapes=(1, patch_size, patch_size), strides=(1, shift_size, shift_size), perturbations_per_eval=perturbations_per_eval)
+        resolved_target = self._resolve_target(outputs, target)
+        # Computes occlusion attribution, ablating each patch_size x patch_size patch
+        # shifting in each direction by the default of 1.
+        attributions = ablator.attribute(inputs, target=resolved_target, sliding_window_shapes=(1, patch_size, patch_size), strides=(1, shift_size, shift_size), perturbations_per_eval=perturbations_per_eval)
         return AttributionResult(
             attributions=attributions,
             method="occlusion",
-            target=target,
+            target=resolved_target,
         )

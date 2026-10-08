@@ -1,143 +1,369 @@
-from pathlib import Path
-from src.cli.interpretability import execute_interpretability
-from src.utils.utils import ligant_to_class
-import time
+import multiprocessing as mp
 import os
+import time
+from pathlib import Path
+import contextlib
+from src.utils.interpretability import CaptumInterpreter, _initilize_classification_model, solve_methods
+import torch
+
+from src.cli.interpretability import execute_interpretability, save_attribution_colored_pdbs_spatial_scores, write_coloring_script
+from src.utils.labels import ligant_to_class
+
+
+ROOT_DIRECTORY = Path(
+    "/project_antwerp/dataset/decompressed_both_datasets/"
+)
+ROOT_OUTPUT_DIRECTORY = Path(
+    "/project_antwerp/dataset/decompressed_both_datasets/output2/"
+)
+
+THRESHOLD = 0.5
+
+METHOD_ARGS = {
+    "integrated_gradients": {"steps": 50},
+    "occlusion": {
+        "patch_size": 1,
+        "perturbations_per_eval": 2048,
+        "shift_size": 1,
+    },
+    "saliency": {},
+}
+
+MODEL_CHECKPOINTS = {
+    "DCNN": Path(
+        "/project_antwerp/Thesis-molecular_dynamics_trajectory_embeddings/"
+        "output/models/CustomDenseNet_Randomsplit_Dataset/"
+        "20260323-202241/"
+        "CustomDenseNet_Randomsplit_Dataset.pth"
+    ),
+    "SCNN": Path(
+        "/project_antwerp/Thesis-molecular_dynamics_trajectory_embeddings/"
+        "output/models/SCNN/"
+        "20260815-030746/"
+        "SCNN.pth"
+    ),
+}
+
+def already_completed(output_dir: Path) -> bool:
+    """
+    Check if the interpretability results for a given output directory already exist.
+
+    :param output_dir: Directory where interpretability results are expected to be saved.
+    :return: True if the results already exist, False otherwise.
+    """
+    # already completed if the images subfolder contains 148 files
+    images_dir = output_dir / "images"
+    if images_dir.exists() and len(list(images_dir.glob("*"))) >= 148:
+        return True
+    
+    return False
+def worker(gpu_id, job_queue):
+    # preload both models to avoid reloading them for each job
+
+
+    # Each worker is permanently assigned to one GPU.
+    os.environ["CUDA_VISIBLE_DEVICES"] = str(gpu_id)
+    dcnn = _initilize_classification_model(MODEL_CHECKPOINTS["DCNN"], device=torch.device("cuda"))
+    scnn = _initilize_classification_model(MODEL_CHECKPOINTS["SCNN"], device=torch.device("cuda"))
+    dcnn_methods = solve_methods(CaptumInterpreter(dcnn), method_args=METHOD_ARGS)
+    scnn_methods = solve_methods(CaptumInterpreter(scnn), method_args=METHOD_ARGS)
+
+    # Import CUDA-dependent code only after CUDA_VISIBLE_DEVICES is set
+    # if your imports initialize CUDA.
+    torch.cuda.set_device(0)
+    model=None
+    methods=None
+    while True:
+        job = job_queue.get()
+
+        if job is None:
+            break
+        (
+            replica_dir,
+            output_dir,
+            binding_type,
+            model_name,
+            checkpoint,
+        ) = job
+
+        start_time = time.time()
+
+        print(
+            f"[GPU {gpu_id}] START "
+            f"{model_name} | {replica_dir}",
+            flush=True,
+        )
+        
+        try:
+            # load the trained classification model from the provided checkpoint
+            if model_name == "DCNN":
+                model = dcnn
+                methods = dcnn_methods
+            else:
+                model = scnn
+                methods = scnn_methods
+            # disable printing from the interpretability function to avoid cluttering the output
+            with contextlib.redirect_stdout(open(os.devnull, "w")):
+                execute_interpretability(
+                    pdb_directory=replica_dir,
+                    output_dir=output_dir,
+                    binding_type=binding_type,
+                    model_checkpoint=model,
+                    methods=methods,
+                    threshold=THRESHOLD,
+                )
+
+            elapsed = time.time() - start_time
+
+            print(
+                f"[GPU {gpu_id}] DONE "
+                f"{model_name} | {replica_dir} | "
+                f"{elapsed:.1f}s",
+                flush=True,
+            )
+
+        except Exception as e:
+            print(
+                f"[GPU {gpu_id}] ERROR "
+                f"{model_name} | {replica_dir}: {e}",
+                flush=True,
+            )
+
+
 def main():
-    root_directory = Path("/project_antwerp/dataset/decompressed_both_datasets/")
-    root_output_directory = Path("/project_antwerp/dataset/decompressed_both_datasets/output/")
-    threshold = 0.5
-    method_args = {
-        "integrated_gradients":{"steps": 50},
-        "occlusion": {
-            "patch_size": 1,
-            "perturbations_per_eval": 2500,
-            "shift_size": 1
-        }, 
-        "saliency": {}
-    }
-    model_dir = "/project_antwerp/Thesis-molecular_dynamics_trajectory_embeddings/output/models/SCNN/20260815-030746"
-    model_checkpoints = {
-         "DCNN": Path("/project_antwerp/Thesis-molecular_dynamics_trajectory_embeddings/output/models/CustomDenseNet_Randomsplit_Dataset/20260323-202241", "CustomDenseNet_Randomsplit_Dataset.pth"), 
-         "SCNN": Path("/project_antwerp/Thesis-molecular_dynamics_trajectory_embeddings/output/models/SCNN/20260815-030746", "SCNN.pth"), 
-    }
-    # dpp8/dpp9
-    for dpp_dir in root_directory.iterdir():
-        if dpp_dir.is_dir():
-            dpp = dpp_dir.stem
-            # ligand
-            for ligand_dir in dpp_dir.iterdir():
-                ligand = ligand_dir.stem
-                binding_type = ligant_to_class(ligand_name=ligand) 
-                if ligand_dir.is_dir():
-                    for replica_dir in ligand_dir.iterdir():
-                        replica = replica_dir.stem
-                        # replica 
-                        if replica_dir.is_dir(): 
-                                start_time = time.time()
-                                for model_name, checkpoint in model_checkpoints.items():
-                                    output_dir = Path(root_output_directory, dpp, ligand, replica, model_name)
-                                    # if output_dir.exists():
-                                    #     continue
-                                    execute_interpretability(
-                                        pdb_directory=replica_dir, 
-                                        output_dir= output_dir,
-                                        binding_type= binding_type, 
-                                        model_checkpoint=checkpoint, 
-                                        method_args=method_args, 
-                                        threshold=threshold
-                                    )
-                                print(f"time per replica: {time.time()-start_time}")
+    num_gpus = torch.cuda.device_count()
 
-def count_significant_residues():
-    input_folder = Path("/home/stijn/Sam_ModelVisualisation/output_interpretability_final/output2")
-    output_folder_root = Path("/home/stijn/Sam_ModelVisualisation/output_interpretability_final/output4")
-    methods = ["saliency", "occlusion", "integrated_gradients"]
-    base_pdb_file_folder= Path("/home/stijn/Sam_ModelVisualisation/output_interpretability_final/")
+    if num_gpus == 0:
+        raise RuntimeError("No GPUs available")
 
-    for dpp_dir in input_folder.iterdir():
+    print(f"Using {num_gpus} GPUs")
+
+    ctx = mp.get_context("spawn")
+
+    job_queue = ctx.Queue()
+
+    # Create jobs: (replica, model)
+    jobs = []
+
+    for dpp_dir in ROOT_DIRECTORY.iterdir():
+        if not dpp_dir.is_dir():
+            continue
+
         dpp = dpp_dir.stem
-        # ligand
+        if dpp not in ["DPP8", "DPP9"]:
+            print(f"Skipping {dpp_dir} (not DPP8 or DPP9)")
+            continue
         for ligand_dir in dpp_dir.iterdir():
-            # loop over the interpretability methods
+            if not ligand_dir.is_dir():
+                continue
+
+            ligand = ligand_dir.stem
+            binding_type = ligant_to_class(ligand_name=ligand)
+
             for replica_dir in ligand_dir.iterdir():
-                residue_dir = {}
-                ligand = ligand_dir.name
-                for model in ["SCNN","DCNN"]:
-                    residue_dir[model] = {}
-                    for method in methods:
-                        residue_dir[model][method] = {}
-                    imagefolder = Path(replica_dir, model, "images")
+                if not replica_dir.is_dir():
+                    continue
 
-                    for pdb_file in imagefolder.rglob("*.pdb"):
-                        if "average" in str(pdb_file).lower():
-                            continue
-                        method = None
-                        for poss_method in methods:
-                            if poss_method in str(pdb_file).lower():
-                                method = poss_method
+                replica = replica_dir.stem
 
-                        
-                        with open(pdb_file, "r") as fin:
-                            for line in fin:
-                                if line.startswith(("ATOM", "HETATM")):
-                                        residue_name = line[17:27].strip().upper()
-                                        b_factor = line[60:67].strip().upper()
+                for model_name, checkpoint in MODEL_CHECKPOINTS.items():
 
-                                        if b_factor == "100.00":
-                                            if not residue_name in residue_dir[model][method].keys():
-                                                residue_dir[model][method][residue_name] = 0
-                                            residue_dir[model][method][residue_name] += 1
-            for model in ["SCNN","DCNN"]:
-                for method, residue_name_dict in residue_dir[model].items():
-                    max_counts = max(residue_name_dict.values())
-                    for  residue_name in residue_name_dict.keys():
-                        residue_dir[model][method][residue_name] /= max_counts
-                    pdb_base_file = base_pdb_file_folder / dpp_dir.name / ligand_dir.name / "replica1"
-                    pdb_base_file = next(pdb_base_file.rglob("*frame_1000.pdb"))
-                    output_folder = output_folder_root / dpp / ligand / model
-                    os.makedirs(output_folder, exist_ok=True)
-                    name = f"{dpp}_{ligand}_{model}_{method}"
-                    pdb_name = f"{name}.pdb"
-                    pml_name = f"{name}.pml"
-                    txt_name = f"{name}.txt"
-                    with open(pdb_base_file, "r") as fin, open(output_folder / pdb_name, "w") as fout, open(output_folder / pml_name, "w") as pmlout:
-                        for line in fin:
-                            if line.startswith(("ATOM", "HETATM")):
-                                    residue_name = line[17:27].strip().upper()
-                                    if residue_name in residue_dir[model][method].keys():
-                                        residue_b_factor = residue_dir[model][method][residue_name] *100
-                                    else:
-                                        residue_b_factor = 0
-                                    line = line[:60] + f"{residue_b_factor:6.2f}" + line[66:]
-
-
-                            fout.write(line)
-                    
-                        pml_string = (
-                            f"load {name}.pdb, {name}\n"
-                            f"color gray, {name}\n"
-                            f"spectrum b, gray70 yellow orange red, {name}\n"
-                            f"show cartoon, {name}\n"
-                            f"select {name}_high_atoms, ({name} and polymer.protein and b > 50.00)\n"
-                            f"select {name}_high_residue, byres {name}_high_atoms\n"
-                            f"hide cartoon, {name}_high_residue\n"
-                            f"show sticks, {name}_high_residue\n"
+                    output_dir = (
+                        ROOT_OUTPUT_DIRECTORY
+                        / dpp
+                        / ligand
+                        / replica
+                        / model_name
+                    )
+                    if already_completed(output_dir):
+                        print(
+                            f"Skipping {model_name} | {replica_dir} "
+                            f"(already completed)",
+                            flush=True,
                         )
-                        pmlout.write(pml_string)
-                    with open(output_folder / txt_name, "w") as txtout:
-                        lines = []
-                        for residue_name in residue_dir[model][method].keys():
-                            residue_b_factor = residue_dir[model][method][residue_name] *100
-                            if residue_b_factor>50.0:
-                                lines.append((residue_name[4], residue_name[0], residue_name[6:9]))
-                        lines.sort(key=lambda x: (x[0], int(x[2]), x[1]))
-                        for line in lines:
-                            txtout.write(f"{line[0]} {line[1]} {line[2]}\n")
+                        continue
+                    jobs.append(
+                        (
+                            replica_dir,
+                            output_dir,
+                            binding_type,
+                            model_name,
+                            checkpoint,
+                        )
+                    )
 
-                
+    print(f"Total jobs: {len(jobs)}")
+
+    # Put all jobs into the shared queue.
+    for job in jobs:
+        job_queue.put(job)
+
+    # One worker per GPU.
+    workers = []
+
+    for gpu_id in range(num_gpus):
+        p = ctx.Process(
+            target=worker,
+            args=(gpu_id, job_queue),
+        )
+        p.start()
+        workers.append(p)
+
+    # One sentinel per worker.
+    for _ in range(num_gpus):
+        job_queue.put(None)
+
+    # Wait for workers.
+    for p in workers:
+        p.join()
+
+from PIL import Image
+import numpy as np
+import matplotlib.pyplot as plt
 
 
+def recover_spatial_scores(image_path, threshold=15/ 255):
+    image = plt.imread(image_path)[..., :3].astype(np.float32)
 
-if __name__ == "__main__":    
-    count_significant_residues()
+    dark_pixels = image.max(axis=-1) <= threshold
+    spatial_scores = dark_pixels.astype(np.float32) * 100.0
+    return spatial_scores
+
+def pdb_worker(job_queue):
+    threshold = 0.5
+    while True:
+        job = job_queue.get()
+
+        if job is None:
+            break
+        (
+            replica_dir,
+            output_dir,
+            sample
+        ) = job
+        # integrated_gradients, occlusion, saliency overlay
+        # get the corresponding PDB file fromt he replica dir
+        try:
+            pdb_name = sample.name.replace("_blurred_sample.png", ".pdb")
+            if "integrated_gradients" in sample.name:
+                method = "integrated_gradients"
+                pdb_name = pdb_name.replace("_integrated_gradients", "")
+
+            elif "occlusion" in sample.name:
+                method = "occlusion"
+                pdb_name = pdb_name.replace("_occlusion", "")
+
+            elif "saliency" in sample.name:
+                method = "saliency"
+                pdb_name = pdb_name.replace("_saliency", "")
+            else:
+                print(f"Unknown method for sample {sample.name}. Skipping.")
+            if "average" in sample.name:
+                method = method + "_average"
+                # find the file in the replica dir that contains frame_1000 and ends with .pdb
+                pdb_name =  next(replica_dir.glob("*frame_1000.pdb")).name
+            original_pdb_file = replica_dir / pdb_name
+            # recover the spatial scores from the overlay and save them in the PDB file
+            spatial_scores = recover_spatial_scores(
+                image_path=sample,
+            )
+            spatial_scores = torch.from_numpy(
+                spatial_scores.reshape(-1)
+            ).float()
+
+            # stop internal prints  statements from cluttering the output
+            with contextlib.redirect_stdout(open(os.devnull, "w")):
+
+
+                colored_pdb_path = save_attribution_colored_pdbs_spatial_scores(
+                    pdb_file=original_pdb_file,
+                    output_dir=output_dir,
+                    spatial_scores=spatial_scores,
+                    method=method,
+                )
+                script_path = Path.joinpath(Path(colored_pdb_path).parent, f"{Path(colored_pdb_path).stem}.pml")
+
+                write_coloring_script([colored_pdb_path], script_path, threshold=threshold)
+
+        except Exception as e:
+            print(f"Error processing sample {sample.name} in {output_dir}: {e}")
+def fix_pdbs():
+    ctx = mp.get_context("spawn")
+
+    job_queue = ctx.Queue()
+    jobs = []
+
+    for dpp_dir in ROOT_DIRECTORY.iterdir():
+        if not dpp_dir.is_dir():
+            continue
+
+        dpp = dpp_dir.stem
+        if dpp not in ["DPP8", "DPP9"]:
+            print(f"Skipping {dpp_dir} (not DPP8 or DPP9)")
+            continue
+        for ligand_dir in dpp_dir.iterdir():
+            if not ligand_dir.is_dir():
+                continue
+
+            ligand = ligand_dir.stem
+            binding_type = ligant_to_class(ligand_name=ligand)
+
+            for replica_dir in ligand_dir.iterdir():
+                if not replica_dir.is_dir():
+                    continue
+
+                replica = replica_dir.stem
+
+                for model_name, checkpoint in MODEL_CHECKPOINTS.items():
+                    output_dir = (
+                        ROOT_OUTPUT_DIRECTORY
+                        / dpp
+                        / ligand
+                        / replica
+                        / model_name
+                        / "images"
+                    )
+                    # for each sample containing transformed sample, check if the corresponding PDB file exists in the output directory
+                    for sample in output_dir.glob("*_blurred_sample.png"):
+                        # only if the sample has 3 pml files (one for each method) and 3 colored PDB files (one for each method), then skip it
+                        # pml_files = list(output_dir.glob(f"{sample.stem.replace('_blurred_sample', '')}_*.pml"))
+                        # colored_pdb_files = list(output_dir.glob(f"{sample.stem.replace('_blurred_sample', '')}_*_bfactor.pdb"))
+                        # if len(pml_files) == 3 and len(colored_pdb_files) == 3:
+                        #     print(f"Skipping {sample.name} in {output_dir} (already completed)")
+                        #     continue
+                        jobs.append(
+                            (
+                                replica_dir,
+                                output_dir,
+                                sample
+                            )
+                        )
+                    # handle the average sample as well
+
+    print(f"Total jobs: {len(jobs)}")
+
+    # Put all jobs into the shared queue.
+    nr_workers = 16
+    for job in jobs:
+        job_queue.put(job)
+
+    # One worker per GPU.
+    workers = []
+
+    for worker_id in range(nr_workers):
+        p = ctx.Process(
+            target=pdb_worker,
+            args=(job_queue,),
+        )
+        p.start()
+        workers.append(p)
+
+    # One sentinel per worker.
+    for _ in range(nr_workers):
+        job_queue.put(None)
+
+    # Wait for workers.
+    for p in workers:
+        p.join()          
+if __name__ == "__main__":
+    fix_pdbs()

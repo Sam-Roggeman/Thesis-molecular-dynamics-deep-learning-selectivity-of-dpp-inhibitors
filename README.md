@@ -25,6 +25,16 @@ pip install -r requirements.txt
 
 - If you prefer the interpretability environment, use `requirements-interpretability.txt`.
 
+**API documentation**:
+- Install the documentation dependency with `pip install -r requirements-docs.txt`.
+- Generate HTML documentation from the `src/` docstrings with:
+
+```bash
+pdoc --output-directory docs/api src
+```
+
+- Open `docs/api/src/index.html` after generation.
+
 **Running experiments**:
 - A convenience script `run_experiment.sh` exists for running typical experiments. Many experiments are implemented under `src/experiments/`.
 - Example: run the simple CNN experiment (uses the workspace venv or Docker task):
