@@ -100,12 +100,14 @@ def generate_full_dataset_from_tars(regenerate=False, num_proc=32, skip_existing
     them, concatenates them into one large dataset, shuffles the rows, and finally
     applies the project-specific train/val/test split.
     """
-    tar_folder = "/project_antwerp/dataset/decompressed/"
+    # folder with tar files
+    tar_folder = "/project_antwerp/dataset/compressed_dataset/"
     print("Starting data preprocessing...")
     streaming_pdb_dataset_path = f"/project_antwerp/dataset/temp/streaming_pdb_dataset/"
     # Ensure the intermediate dataset cache exists before writing any shards.
     os.makedirs(streaming_pdb_dataset_path, exist_ok=True)
     num_proc = 16
+     
 
     # Step 1: turn each TAR archive into a saved dataset shard on disk.
     generate_dataset_from_tars(streaming_pdb_dataset_path, tar_folder, regenerate=regenerate, num_proc=num_proc, skip_existing=False)
@@ -156,6 +158,8 @@ def generate_full_dataset_from_tars(regenerate=False, num_proc=32, skip_existing
 
 
     print("Datasets saved.")
+
+
 if __name__ == "__main__":
     # Run the full preprocessing pipeline when this module is executed directly.
     # ``regenerate`` forces shard recreation, while ``skip_existing`` can be used

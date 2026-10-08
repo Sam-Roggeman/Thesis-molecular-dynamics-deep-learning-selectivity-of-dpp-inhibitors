@@ -9,11 +9,11 @@ class SCNN(AbstractNNModel):
     def __init__(self, input_size=168, dropout_rate=0.5):
         super().__init__()
 
-        # First convolutional layer: 3 input channels (RGB) -> 6 output filters, kernel size 5x5
+        # First convolutional layer: 3 input channels (RGB) -> 6 filters leading to 6 output feature maps, kernel size 5x5
         self.conv1 = nn.Conv2d(3, 6, 5)
         # Max pooling: reduces spatial dimensions by factor of 2
         self.pool = nn.MaxPool2d(2, 2)
-        # Second convolutional layer: 6 input channels -> 16 output filters, kernel size 5x5
+        # Second convolutional layer: 6 input channels -> 16 filters leading to 16 output feature maps, kernel size 5x5
         self.conv2 = nn.Conv2d(6, 16, 5)
 
         # Calculate the flattened size
@@ -43,7 +43,7 @@ class SCNN(AbstractNNModel):
         x = self.pool(F.relu(self.conv1(x)))
         # Second conv block: convolution -> ReLU activation -> max pooling
         x = self.pool(F.relu(self.conv2(x)))
-        # Flatten all dimensions except the batch dimension
+        # Flatten all dimensions (creates 1D-tensor with all values of all output maps in one row) except the batch dimension (separate input entries stay in separate rows)
         x = torch.flatten(x, 1)
         # First fully connected layer with ReLU activation
         x = F.relu(self.fc1(x))

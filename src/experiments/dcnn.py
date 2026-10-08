@@ -22,10 +22,9 @@ if __name__ == "__main__":
             "reduction_ratio": 0.5,  # reduction ratio of 0.5
             "num_classes": 5, 
             "dropout_rate": 0.5,  # dropout rate in the classifier layer
-            "feature_dropout_rate": 0.15,  # no dropout in dense layers
-            "transition_dropout_rate": 0.1,  # no dropout in transition layers
+            "feature_dropout_rate": 0.15,  # dropout in dense layers
+            "transition_dropout_rate": 0.1,  # dropout in transition layers
         },
-        dataset_location="Sam-Roggeman/SamRoggeman_Thesis_Dataset_full",
         training_transform=apply_image_transform,
         validation_transform=apply_image_transform_noscramble,
         batch_size=256,

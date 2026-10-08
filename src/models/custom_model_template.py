@@ -43,5 +43,5 @@ class AbstractNNModel(torch.nn.Module, ABC):
         print(f"Number of parameters: {self.count_parameters()}")
         flops = self.get_flops()
         print(f"MegaFLOPs: {flops.total() / 1e6}")
-        print(f"Model VRAM usage: {self.model_vram() / (1024 ** 2):.2f} MB")
+        print(f"Model VRAM usage: {self.get_vram_usage() / (1024 ** 2):.2f} MB")
         print(f"\nFLOPs breakdown: \n{flop_count_str(flops)}")

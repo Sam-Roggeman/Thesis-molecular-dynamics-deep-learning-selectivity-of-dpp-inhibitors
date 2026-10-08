@@ -1,7 +1,7 @@
 from dotenv import load_dotenv
 from concurrent.futures import ProcessPoolExecutor, FIRST_COMPLETED, wait
 
-from src.utils import cacheManager
+from src.infrastructure.cacheManager import cacheManager
 load_dotenv()
 from src.training.batch_preprocessing import TARGET_PIXELS
 
@@ -197,7 +197,7 @@ def _materialize_shard_arrays(dataset_split, start, end):
     return data_np, labels_np, num_atoms_np
 
 
-def _download_dataset(dataset_location, splits=None) -> datasets.DatasetDict:
+def _download_dataset(dataset_path, splits=None) -> datasets.DatasetDict:
     """Download the dataset using Hugging Face's `datasets` library."""
     # All dataset loading and caching behavior is centralized here so the rest of
     # the pipeline can assume it receives a ready-to-use DatasetDict.
@@ -212,16 +212,16 @@ def _download_dataset(dataset_location, splits=None) -> datasets.DatasetDict:
         # splits in one call.
         logging.info(f"\t\tDownloading of {split} split")
         _split_arg[split] = split
-    logging.info(f"Downloading dataset from {dataset_location} with splits {_split_arg}...")
+    logging.info(f"Downloading dataset from {dataset_path} with splits {_split_arg}...")
     logging.info(f"\tUsing cache directory: {cache_dir}")
     # Use half the CPUs for download/loading work so the machine still has room
     # for the later preprocessing stages and the operating system.
     num_proc=calculate_num_cpus()//2
     logging.info(f"\tUsing {num_proc} CPU workers for dataset loading")
 
-    logging.debug(f"Dataset loading parameters: dataset_location={dataset_location}, splits={splits}, cache_dir={cache_dir}, num_proc={num_proc}")
+    logging.debug(f"Dataset loading parameters: dataset_location={dataset_path}, splits={splits}, cache_dir={cache_dir}, num_proc={num_proc}")
     dataset_dict: datasets.DatasetDict = datasets.load_dataset(
-        dataset_location,
+        dataset_path,
         split=_split_arg,
         cache_dir=cache_dir,
         token=os.environ.get("HF_TOKEN"),
@@ -459,12 +459,12 @@ def _is_map_worker_crash_error(exc: BaseException) -> bool:
 
     return False
 
-def prepare_safetensors(splits=["train", "validation", "test", "unseen_trajects"], initial_batch_size=1024, skip_existing_cache=True,repo_id="Sam-Roggeman/SamRoggeman_Thesis_Dataset_full", redo_cache=False):
+def prepare_safetensors(splits=["train", "validation", "test", "unique_test_runs"], initial_batch_size=1024, skip_existing_cache=True,dataset_path="/project_antwerp/dataset/temp/streaming_pdb_dataset/", redo_cache=False):
     # This is the top-level orchestration routine: download the requested splits,
     # normalize them into fixed-size tensors, and persist the result as sharded
     # safetensors on disk.
     cache_prefix = os.environ.get("HF_DOWNLOADED_DATASET_DIR", "./hf_cache")
-    dataset_dict = _download_dataset(dataset_location=repo_id, splits=splits)
+    dataset_dict = _download_dataset(dataset_location=dataset_path, splits=splits)
     logging.debug(f"Downloaded dataset with splits: {list(dataset_dict.keys())}. Sample keys: {dataset_dict[splits[0]].column_names}")
     
     # Start with a relatively large batch size; if the environment cannot handle
@@ -563,15 +563,15 @@ def prepare_safetensors(splits=["train", "validation", "test", "unseen_trajects"
 
 
 if __name__ == "__main__":
-    repo_id = "Sam-Roggeman/SamRoggeman_Thesis_Dataset_full"
+    dataset_path = "/project_antwerp/dataset/temp/streaming_pdb_dataset/"
     try:
         # Allow the module to be executed directly for local preprocessing runs
         # without needing a separate wrapper script.
         prepare_safetensors(
-            splits=["train", "validation", "test", "unseen_trajects"],
+            splits=["train", "validation", "test", "unique_test_runs"],
             initial_batch_size=2048,
             skip_existing_cache=False,
-            repo_id=repo_id,
+            dataset_path=dataset_path,
             redo_cache=False,
         )
     except GracefulStopRequested as exc:
