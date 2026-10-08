@@ -2,10 +2,10 @@ import os
 
 from huggingface_hub import HfApi
 
-from src.utils.training_setup import train_model
-from src.Models.DCNN import DCNN
-from src.Transform.tranformators import apply_image_transform, apply_image_transform_noscramble
-from src.utils.training_config import TrainingConfig
+from src.training.training_setup import train_model
+from src.models.DCNN import DCNN
+from src.transform.tranformators import apply_image_transform, apply_image_transform_noscramble
+from src.config.training_config import TrainingConfig
 import datasets
 import os
 from dotenv import load_dotenv

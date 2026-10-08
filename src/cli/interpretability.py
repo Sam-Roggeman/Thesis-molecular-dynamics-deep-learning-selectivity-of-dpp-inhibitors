@@ -1,3 +1,5 @@
+"""Command-line helpers for attribution maps and PDB visualizations."""
+
 import argparse
 from html import parser
 import os
@@ -6,9 +8,9 @@ from typing import Callable
 import matplotlib.pyplot as plt
 import torch
 import numpy as np
-from src.data_preprocessing.utils import extract_pdb_file, extract_pdb_files_from_directory
-from src.model_training.LabelEncoder import LabelEncoder
-from src.model_training.batch_preprocessing import _coords_to_rgb, _coords_to_tensor, prepare_model_batch
+from src.data.data_preprocessing.utils import extract_pdb_file, extract_pdb_files_from_directory
+from src.training.LabelEncoder import LabelEncoder
+from src.training.batch_preprocessing import _coords_to_rgb, _coords_to_tensor, prepare_model_batch
 from src.utils.interpretability import AttributionResult, CaptumInterpreter, _initilize_classification_model, solve_methods
 from src.utils.resolvers import (
     _extract_class_name,
@@ -25,8 +27,10 @@ import time
 def apply_transformations_to_samples(samples: list) -> tuple[torch.Tensor, torch.Tensor]:
     """
     Apply transformations to the preprocessed data samples.
-    :param samples: List of preprocessed data samples.
-    :return: Transformed data as a tensor [B, C, H, W] and the corresponding true labels as a tensor [B].
+    Args:
+        samples: Samples containing coordinates, atom counts, and binding types.
+    Returns:
+        ``(images, labels)`` with shapes ``[B, C, H, W]`` and ``[B]``.
     """
     # the transformations should be the same as those applied during training, except for any random scrambling or augmentations that would make the sample non-deterministic
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -51,10 +55,12 @@ def apply_transformations_to_samples(samples: list) -> tuple[torch.Tensor, torch
 def apply_classification(sample: torch.Tensor, model: torch.nn.Module, device: torch.device) -> tuple[torch.Tensor, torch.Tensor]:
     """
     Apply the trained classification model to the transformed sample.
-    :param sample: Transformed data sample.
-    :param model: Trained classification model.
-    :param device: Device used for model inference.
-    :return: Model output as a tensor.
+    Args:
+        sample: One transformed image with shape ``[C, H, W]``.
+        model: Trained classification model.
+        device: Device used for model inference.
+    Returns:
+        ``(logits, predicted_class)`` for the single sample.
     """
     model.eval()
     with torch.no_grad():

@@ -1,14 +1,17 @@
+"""Profile training steps and export a Chrome trace for a configured model."""
+
 from torch.profiler import profile, ProfilerActivity
 import torch
 
-from src.Models.SCNN import SCNN
-from src.Transform.tranformators import apply_image_transform, apply_image_transform_noscramble
-from src.data_loading import HFDataloader
-from src.utils.training_config import TrainingConfig 
+from src.models.SCNN import SCNN
+from src.transform.tranformators import apply_image_transform, apply_image_transform_noscramble
+from src.data.data_loading import HFDataloader
+from src.config.training_config import TrainingConfig 
 import os
 
 
 def profile_model(model, dataloader, criterion, optimizer):
+    """Warm up a model, profile ten training steps, and save the trace to disk."""
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device)
     train_iter = iter(dataloader)

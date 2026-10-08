@@ -1,14 +1,14 @@
 from dotenv import load_dotenv
 import torch
 
-from src.Models.LongSequenceAtomTransformer import LongSequenceAtomTransformer
-from src.model_training.batch_preprocessing import prepare_sequence_batch
-from src.Transform.sequence_transforms import (
+from src.models.LongSequenceAtomTransformer import LongSequenceAtomTransformer
+from src.training.batch_preprocessing import prepare_sequence_batch
+from src.transform.sequence_transforms import (
     apply_sequence_transform,
     apply_sequence_transform_noscramble,
 )
-from src.utils.training_config import TrainingConfig
-from src.utils.training_setup import train_model
+from src.config.training_config import TrainingConfig
+from src.training.training_setup import train_model
 
 
 def build_weighted_cross_entropy():

@@ -7,7 +7,7 @@ from src.utils.interpretability import CaptumInterpreter, _initilize_classificat
 import torch
 
 from src.cli.interpretability import execute_interpretability, save_attribution_colored_pdbs_spatial_scores, write_coloring_script
-from src.utils.utils import ligant_to_class
+from src.utils.labels import ligant_to_class
 
 
 ROOT_DIRECTORY = Path(

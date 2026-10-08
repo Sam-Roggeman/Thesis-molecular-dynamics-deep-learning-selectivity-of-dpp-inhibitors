@@ -2,10 +2,10 @@ import os
 
 from huggingface_hub import HfApi
 
-from src.Models.SCNN import SCNN
-from src.utils.training_setup import train_model
-from src.Transform.tranformators import apply_image_transform, apply_image_transform_noscramble
-from src.utils.training_config import TrainingConfig
+from src.models.SCNN import SCNN
+from src.training.training_setup import train_model
+from src.transform.tranformators import apply_image_transform, apply_image_transform_noscramble
+from src.config.training_config import TrainingConfig
 if __name__ == "__main__":
     config_scnn = TrainingConfig(
         model_class=SCNN,
