@@ -51,7 +51,7 @@ def main():
 
 def count_significant_residues():
     input_folder = Path("/home/stijn/Sam_ModelVisualisation/output_interpretability_final/output2")
-    output_folder_root = Path("/home/stijn/Sam_ModelVisualisation/output_interpretability_final/output3")
+    output_folder_root = Path("/home/stijn/Sam_ModelVisualisation/output_interpretability_final/output4")
     methods = ["saliency", "occlusion", "integrated_gradients"]
     base_pdb_file_folder= Path("/home/stijn/Sam_ModelVisualisation/output_interpretability_final/")
 
@@ -100,6 +100,7 @@ def count_significant_residues():
                     name = f"{dpp}_{ligand}_{model}_{method}"
                     pdb_name = f"{name}.pdb"
                     pml_name = f"{name}.pml"
+                    txt_name = f"{name}.txt"
                     with open(pdb_base_file, "r") as fin, open(output_folder / pdb_name, "w") as fout, open(output_folder / pml_name, "w") as pmlout:
                         for line in fin:
                             if line.startswith(("ATOM", "HETATM")):
@@ -112,7 +113,7 @@ def count_significant_residues():
 
 
                             fout.write(line)
-                
+                    
                         pml_string = (
                             f"load {name}.pdb, {name}\n"
                             f"color gray, {name}\n"
@@ -124,6 +125,15 @@ def count_significant_residues():
                             f"show sticks, {name}_high_residue\n"
                         )
                         pmlout.write(pml_string)
+                    with open(output_folder / txt_name, "w") as txtout:
+                        lines = []
+                        for residue_name in residue_dir[model][method].keys():
+                            residue_b_factor = residue_dir[model][method][residue_name] *100
+                            if residue_b_factor>50.0:
+                                lines.append((residue_name[4], residue_name[0], residue_name[6:9]))
+                        lines.sort(key=lambda x: (x[0], int(x[2]), x[1]))
+                        for line in lines:
+                            txtout.write(f"{line[0]} {line[1]} {line[2]}\n")
 
                 
 
