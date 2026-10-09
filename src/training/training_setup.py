@@ -57,29 +57,6 @@ def save_results(model_state_dict, model_dir: str, model_name: str, metrics):
 
     logging.info(f"Plot saved to: {plot_path}")
 
-def _warmup(model, dataloader, optimizer, criterion, device, steps=5):
-    train_iter = iter(dataloader)
-    for step_idx in range(steps):
-        fetch_start = datetime.now()
-        try:
-            batch = next(train_iter)
-        except StopIteration:
-            break
-        fetch_elapsed = (datetime.now() - fetch_start).total_seconds()
-        step_start = datetime.now()
-        model.train()
-        inputs, labels = prepare_model_batch(batch, device, scramble=True)
-        optimizer.zero_grad(set_to_none=True)
-        outputs = model(inputs)
-        loss = criterion(outputs, labels)
-        loss.backward()
-        # Warmup is for graph capture/compilation only: do not update weights here.
-        optimizer.zero_grad(set_to_none=True)
-        step_elapsed = (datetime.now() - step_start).total_seconds()
-        logging.info(f"Warmup step {step_idx + 1}/{steps}: fetch={fetch_elapsed:.2f}s, train_step={step_elapsed:.2f}s")
-    if torch.cuda.is_available():
-        torch.cuda.synchronize()
-
 
 def _warmup_with_batch_fn(model, dataloader, optimizer, criterion, device, batch_preparation_fn, steps=5):
     train_iter = iter(dataloader)
@@ -148,6 +125,8 @@ def train_model(config: TrainingConfig, model_name: str, streaming: bool = False
                 if isinstance(criterion, nn.Module):
                     criterion = criterion.to(device)
                 optimizer = config.optimizer(model.parameters(), lr=config.learning_rate, weight_decay=config.weight_decay)
+                
+                
                 effective_amp_dtype = config.amp_dtype
 
                 # Set up device and CUDA settings before moving model to device
