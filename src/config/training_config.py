@@ -87,24 +87,12 @@ class TrainingConfig:
     dataset_location: str = "Sam-Roggeman/SamRoggeman_Thesis_Dataset"
     # Fraction of each split to use when < 1.0.
     dataset_size: float = 1.0
-    # Enable streaming for the train split.
-    stream_train_split: bool = True
-    # Enable streaming for the validation split.
-    stream_validation_split: bool = True
-    # Enable streaming for the test split.
-    stream_test_split: bool = True
-    # Shuffle buffer size used for streamed train data.
-    shuffle_buffer_size: int = 10 
     # RNG seed used by dataset shuffle.
     shuffle_seed: int = 42
     # Optional cap on validation batches per evaluation.
     validation_max_batches: int | None = None
     # Optional cap on test batches.
     test_max_batches: int | None = None
-    # Batch transform applied to training data.
-    training_transform: Callable = apply_image_transform
-    # Batch transform applied to validation/test data.
-    validation_transform: Callable = apply_image_transform_noscramble
     # Callable that turns a raw dataloader batch into model inputs and labels.
     batch_preparation_fn: Callable | None = None
     # Batch size used inside dataset.map for preprocessing.

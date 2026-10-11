@@ -25,8 +25,6 @@ if __name__ == "__main__":
             "feature_dropout_rate": 0.15,  # dropout in dense layers
             "transition_dropout_rate": 0.1,  # dropout in transition layers
         },
-        training_transform=apply_image_transform,
-        validation_transform=apply_image_transform_noscramble,
         batch_size=256,
         dataset_size=1.0,  # Use the full dataset
         time_limit=24 * 60 * 60,  # 24 hours

@@ -24,8 +24,6 @@ if __name__ == "__main__":
         max_nr_epochs=100,
         dataset_location="Sam-Roggeman/SamRoggeman_Thesis_Dataset_full",
         dataset_size=0.15,
-        training_transform=apply_image_transform,
-        validation_transform=apply_image_transform_noscramble,
         transform_batch_size=64,
     )
 

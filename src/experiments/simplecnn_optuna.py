@@ -128,8 +128,6 @@ def main() -> None:
             },
             dataset_location=args.dataset_location,
             dataset_size=args.dataset_size,
-            training_transform=apply_image_transform,
-            validation_transform=apply_image_transform_noscramble,
             batch_size=batch_size,
             learning_rate=learning_rate,
             weight_decay=weight_decay,

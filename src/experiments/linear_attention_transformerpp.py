@@ -26,8 +26,6 @@ if __name__ == "__main__":
         },
         criterion=build_weighted_cross_entropy,
         dataset_location="Sam-Roggeman/SamRoggeman_Thesis_Dataset_full",
-        training_transform=apply_sequence_transform,
-        validation_transform=apply_sequence_transform_noscramble,
         batch_preparation_fn=prepare_sequence_batch,
         batch_size=64,
         compile_model=True,
