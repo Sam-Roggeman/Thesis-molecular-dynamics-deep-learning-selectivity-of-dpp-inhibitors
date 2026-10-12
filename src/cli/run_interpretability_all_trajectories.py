@@ -31,13 +31,13 @@ METHOD_ARGS = {
 
 MODEL_CHECKPOINTS = {
     "DCNN": Path(
-        "/project_antwerp/Thesis-molecular_dynamics_trajectory_embeddings/"
+        "/project_antwerp/MD_DL_DPP8-9/"
         "output/models/CustomDenseNet_Randomsplit_Dataset/"
         "20260323-202241/"
         "CustomDenseNet_Randomsplit_Dataset.pth"
     ),
     "SCNN": Path(
-        "/project_antwerp/Thesis-molecular_dynamics_trajectory_embeddings/"
+        "/project_antwerp/MD_DL_DPP8-9/"
         "output/models/SCNN/"
         "20260815-030746/"
         "SCNN.pth"

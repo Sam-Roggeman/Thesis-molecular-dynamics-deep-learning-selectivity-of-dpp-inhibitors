@@ -72,8 +72,8 @@ def profile_model(model, dataloader, criterion, optimizer):
     # Export for detailed analysis
     model_name = model.__class__.__name__
     # ensure the output directory exists
-    os.makedirs("/project_antwerp/Thesis-molecular_dynamics_trajectory_embeddings/output/profiling", exist_ok=True)
-    filepath = f"/project_antwerp/Thesis-molecular_dynamics_trajectory_embeddings/output/profiling/{model_name}_trace.json"
+    os.makedirs("/project_antwerp/MD_DL_DPP8-9/output/profiling", exist_ok=True)
+    filepath = f"/project_antwerp/MD_DL_DPP8-9/output/profiling/{model_name}_trace.json"
     prof.export_chrome_trace(filepath)
     print(f"Trace exported to {filepath}")
         
