@@ -202,10 +202,6 @@ def _download_dataset(dataset_path, splits=None) -> datasets.DatasetDict:
     # All dataset loading and caching behavior is centralized here so the rest of
     # the pipeline can assume it receives a ready-to-use DatasetDict.
     logging.info("Downloading dataset from Hugging Face...")
-    cache_dir = os.environ.get("HF_DOWNLOADED_DATASET_DIR")
-    if not cache_dir:
-        logging.warning("HF_DOWNLOADED_DATASET_DIR not set. Using default cache directory.")
-    logging.info(f"Only downloading splits: {splits}")
     _split_arg = {}
     for split in splits:
         # Hugging Face expects a split mapping when downloading multiple named
@@ -223,7 +219,6 @@ def _download_dataset(dataset_path, splits=None) -> datasets.DatasetDict:
     dataset_dict: datasets.DatasetDict = datasets.load_dataset(
         dataset_path,
         split=_split_arg,
-        cache_dir=cache_dir,
         token=os.environ.get("HF_TOKEN"),
         num_proc=num_proc,
     )
